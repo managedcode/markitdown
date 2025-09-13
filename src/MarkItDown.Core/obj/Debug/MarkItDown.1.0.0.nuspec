@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+  <metadata>
+    <id>MarkItDown</id>
+    <version>1.0.0</version>
+    <authors>ManagedCode</authors>
+    <license type="expression">MIT</license>
+    <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>
+    <description>A C# .NET library for converting various file formats to Markdown for use with LLMs and text analysis pipelines.</description>
+    <tags>markdown converter pdf docx xlsx pptx html document llm</tags>
+    <repository type="git" url="https://github.com/managedcode/markitdown" commit="20df408b0b0a8749aa42470653876b2fd370d193" />
+    <dependencies>
+      <group targetFramework="net9.0">
+        <dependency id="HtmlAgilityPack" version="1.11.71" exclude="Build,Analyzers" />
+        <dependency id="Microsoft.Extensions.DependencyInjection.Abstractions" version="9.0.0" exclude="Build,Analyzers" />
+        <dependency id="Microsoft.Extensions.Logging.Abstractions" version="9.0.0" exclude="Build,Analyzers" />
+        <dependency id="System.Text.Encoding.CodePages" version="9.0.0" exclude="Build,Analyzers" />
+        <dependency id="System.Text.Json" version="9.0.0" exclude="Build,Analyzers" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="/home/runner/work/markitdown/markitdown/src/MarkItDown.Core/bin/Debug/net9.0/MarkItDown.Core.dll" target="lib/net9.0/MarkItDown.Core.dll" />
+  </files>
+</package>

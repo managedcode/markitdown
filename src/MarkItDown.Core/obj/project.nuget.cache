@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "dgSpecHash": "4B4w7SxIxZg=",
+  "success": true,
+  "projectFilePath": "/home/runner/work/markitdown/markitdown/src/MarkItDown.Core/MarkItDown.Core.csproj",
+  "expectedPackageFiles": [
+    "/home/runner/.nuget/packages/htmlagilitypack/1.11.71/htmlagilitypack.1.11.71.nupkg.sha512",
+    "/home/runner/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/9.0.0/microsoft.extensions.dependencyinjection.abstractions.9.0.0.nupkg.sha512",
+    "/home/runner/.nuget/packages/microsoft.extensions.logging.abstractions/9.0.0/microsoft.extensions.logging.abstractions.9.0.0.nupkg.sha512",
+    "/home/runner/.nuget/packages/system.text.encoding.codepages/9.0.0/system.text.encoding.codepages.9.0.0.nupkg.sha512",
+    "/home/runner/.nuget/packages/system.text.json/9.0.0/system.text.json.9.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}
