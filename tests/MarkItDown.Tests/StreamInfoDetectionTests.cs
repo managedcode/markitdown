@@ -80,13 +80,13 @@ public class StreamInfoDetectionTests
     }
 
     [Theory]
-    [InlineData("test.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")]
-    [InlineData("test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
-    [InlineData("test.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")]
-    [InlineData("test.pdf", "application/pdf")]
-    [InlineData("test.html", "text/html")]
-    [InlineData("test.txt", "text/plain")]
-    public void ExtensionToMimeType_KnownExtensions_ReturnsCorrectMimeType(string fileName, string expectedMimeType)
+    [InlineData("test.docx")]
+    [InlineData("test.xlsx")]
+    [InlineData("test.pptx")]
+    [InlineData("test.pdf")]
+    [InlineData("test.html")]
+    [InlineData("test.txt")]
+    public void StreamInfo_KnownExtensions_NormalizesCorrectly(string fileName)
     {
         var extension = Path.GetExtension(fileName);
         var streamInfo = new StreamInfo(extension: extension);
@@ -94,8 +94,7 @@ public class StreamInfoDetectionTests
         // Test that the extension is correctly normalized
         Assert.Equal(extension.ToLowerInvariant(), streamInfo.Extension);
         
-        // This would require implementing a MIME type detection method
-        // For now, we just verify the extension is properly handled
+        // Verify extension starts with dot
         Assert.StartsWith(".", streamInfo.Extension);
     }
 

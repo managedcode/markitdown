@@ -276,7 +276,7 @@ public sealed class HtmlConverter : IDocumentConverter
             case "blockquote":
                 markdown.AppendLine();
                 markdown.Append("> ");
-                ConvertChildrenToMarkdown(element, markdown, indentLevel);
+                ConvertBlockquoteChildren(element, markdown, indentLevel);
                 markdown.AppendLine();
                 markdown.AppendLine();
                 break;
@@ -315,6 +315,28 @@ public sealed class HtmlConverter : IDocumentConverter
         foreach (var child in element.ChildNodes)
         {
             ConvertNodeToMarkdown(child, markdown, indentLevel);
+        }
+    }
+
+    private static void ConvertBlockquoteChildren(HtmlNode element, StringBuilder markdown, int indentLevel)
+    {
+        if (element?.ChildNodes == null) return;
+        
+        var isFirst = true;
+        foreach (var child in element.ChildNodes)
+        {
+            if (child.NodeType == HtmlNodeType.Element && child.Name.ToLowerInvariant() == "p")
+            {
+                // For paragraph children in blockquotes, don't add the leading newline
+                if (!isFirst)
+                    markdown.AppendLine();
+                ConvertChildrenToMarkdown(child, markdown, indentLevel);
+                isFirst = false;
+            }
+            else
+            {
+                ConvertNodeToMarkdown(child, markdown, indentLevel);
+            }
         }
     }
 

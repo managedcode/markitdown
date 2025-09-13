@@ -128,10 +128,10 @@ public class MarkItDownIntegrationTests
     {
         // Arrange
         var markItDown = new Core.MarkItDown();
-        var binaryData = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }; // PNG signature
+        var binaryData = new byte[] { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 }; // Random binary data
         
         using var stream = new MemoryStream(binaryData);
-        var streamInfo = new StreamInfo(mimeType: "image/png", extension: ".png");
+        var streamInfo = new StreamInfo(mimeType: "application/octet-stream", extension: ".bin");
 
         // Act & Assert
         await Assert.ThrowsAsync<UnsupportedFormatException>(
