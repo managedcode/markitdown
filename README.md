@@ -1,248 +1,185 @@
-# MarkItDown
+# MarkItDown - C# .NET 9 Version
 
-[![PyPI](https://img.shields.io/pypi/v/markitdown.svg)](https://pypi.org/project/markitdown/)
-![PyPI - Downloads](https://img.shields.io/pypi/dd/markitdown)
-[![Built by AutoGen Team](https://img.shields.io/badge/Built%20by-AutoGen%20Team-blue)](https://github.com/microsoft/autogen)
+[![.NET](https://img.shields.io/badge/.NET-9.0-blue)](https://dotnet.microsoft.com/download/dotnet/9.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> [!TIP]
-> MarkItDown now offers an MCP (Model Context Protocol) server for integration with LLM applications like Claude Desktop. See [markitdown-mcp](https://github.com/microsoft/markitdown/tree/main/packages/markitdown-mcp) for more information.
+> This is a C# .NET 9 conversion of the original [Microsoft MarkItDown](https://github.com/microsoft/markitdown) Python project.
 
-> [!IMPORTANT]
-> Breaking changes between 0.0.1 to 0.1.0:
-> * Dependencies are now organized into optional feature-groups (further details below). Use `pip install 'markitdown[all]'` to have backward-compatible behavior. 
-> * convert\_stream() now requires a binary file-like object (e.g., a file opened in binary mode, or an io.BytesIO object). This is a breaking change from the previous version, where it previously also accepted text file-like objects, like io.StringIO.
-> * The DocumentConverter class interface has changed to read from file-like streams rather than file paths. *No temporary files are created anymore*. If you are the maintainer of a plugin, or custom DocumentConverter, you likely need to update your code. Otherwise, if only using the MarkItDown class or CLI (as in these examples), you should not need to change anything.
+MarkItDown is a C# library for converting various file formats to Markdown for use with LLMs and text analysis pipelines. This library focuses on preserving important document structure and content as Markdown (including: headings, lists, tables, links, etc.) while providing a clean, async API.
 
-MarkItDown is a lightweight Python utility for converting various files to Markdown for use with LLMs and related text analysis pipelines. To this end, it is most comparable to [textract](https://github.com/deanmalmgren/textract), but with a focus on preserving important document structure and content as Markdown (including: headings, lists, tables, links, etc.) While the output is often reasonably presentable and human-friendly, it is meant to be consumed by text analysis tools -- and may not be the best option for high-fidelity document conversions for human consumption.
+## Current Format Support
 
-MarkItDown currently supports the conversion from:
-
-- PDF
-- PowerPoint
-- Word
-- Excel
-- Images (EXIF metadata and OCR)
-- Audio (EXIF metadata and speech transcription)
-- HTML
-- Text-based formats (CSV, JSON, XML)
-- ZIP files (iterates over contents)
-- Youtube URLs
-- EPubs
-- ... and more!
-
-## Why Markdown?
-
-Markdown is extremely close to plain text, with minimal markup or formatting, but still
-provides a way to represent important document structure. Mainstream LLMs, such as
-OpenAI's GPT-4o, natively "_speak_" Markdown, and often incorporate Markdown into their
-responses unprompted. This suggests that they have been trained on vast amounts of
-Markdown-formatted text, and understand it well. As a side benefit, Markdown conventions
-are also highly token-efficient.
-
-## Prerequisites
-MarkItDown requires Python 3.10 or higher. It is recommended to use a virtual environment to avoid dependency conflicts.
-
-With the standard Python installation, you can create and activate a virtual environment using the following commands:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
-
-If using `uv`, you can create a virtual environment with:
-
-```bash
-uv venv --python=3.12 .venv
-source .venv/bin/activate
-# NOTE: Be sure to use 'uv pip install' rather than just 'pip install' to install packages in this virtual environment
-```
-
-If you are using Anaconda, you can create a virtual environment with:
-
-```bash
-conda create -n markitdown python=3.12
-conda activate markitdown
-```
+- **Plain Text** (.txt, .md, .json, etc.)
+- **HTML** (.html, .htm) - with support for:
+  - Headers (H1-H6) → Markdown headers
+  - Bold/Strong text → **bold**
+  - Italic/Emphasis text → *italic*
+  - Links → [text](url)
+  - Images → ![alt](src)
+  - Lists (ordered/unordered)
+  - Tables with header detection
+  - Code blocks and inline code
+  - Blockquotes
 
 ## Installation
 
-To install MarkItDown, use pip: `pip install 'markitdown[all]'`. Alternatively, you can install it from the source:
+### Prerequisites
+- .NET 9.0 SDK or later
 
+### Building from Source
 ```bash
-git clone git@github.com:microsoft/markitdown.git
+git clone https://github.com/managedcode/markitdown.git
 cd markitdown
-pip install -e 'packages/markitdown[all]'
+dotnet build
+```
+
+### Running Tests
+```bash
+dotnet test
 ```
 
 ## Usage
 
-### Command-Line
+### Command Line Interface
 
 ```bash
-markitdown path-to-file.pdf > document.md
+# Convert a file to Markdown
+dotnet run --project src/MarkItDown.Cli -- input.html
+
+# Specify output file
+dotnet run --project src/MarkItDown.Cli -- input.html -o output.md
+
+# Read from stdin
+echo "<h1>Hello</h1>" | dotnet run --project src/MarkItDown.Cli
+
+# Enable verbose logging
+dotnet run --project src/MarkItDown.Cli -- input.html --verbose
 ```
 
-Or use `-o` to specify the output file:
+### C# API
 
-```bash
-markitdown path-to-file.pdf -o document.md
+```csharp
+using MarkItDown.Core;
+using Microsoft.Extensions.Logging;
+
+// Basic usage
+var markItDown = new MarkItDown();
+var result = await markItDown.ConvertAsync("document.html");
+Console.WriteLine(result.Markdown);
+
+// With logging and HTTP client for web content
+using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+var logger = loggerFactory.CreateLogger<Program>();
+
+using var httpClient = new HttpClient();
+var markItDownWithOptions = new MarkItDown(logger, httpClient);
+
+// Convert from file
+var fileResult = await markItDownWithOptions.ConvertAsync("document.html");
+
+// Convert from URL
+var urlResult = await markItDownWithOptions.ConvertFromUrlAsync("https://example.com");
+
+// Convert from stream
+using var stream = File.OpenRead("document.html");
+var streamInfo = new StreamInfo(mimeType: "text/html", extension: ".html");
+var streamResult = await markItDownWithOptions.ConvertAsync(stream, streamInfo);
 ```
 
-You can also pipe content:
+### Custom Converters
 
-```bash
-cat path-to-file.pdf | markitdown
+```csharp
+using MarkItDown.Core;
+
+// Implement a custom converter
+public class MyCustomConverter : IDocumentConverter
+{
+    public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    {
+        return streamInfo.Extension == ".mycustomformat";
+    }
+
+    public async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    {
+        // Your conversion logic here
+        var markdown = "# Converted from custom format\n\nContent here...";
+        return new DocumentConverterResult(markdown, "Document Title");
+    }
+}
+
+// Register the custom converter
+var markItDown = new MarkItDown();
+markItDown.RegisterConverter(new MyCustomConverter(), ConverterPriority.SpecificFileFormat);
 ```
 
-### Optional Dependencies
-MarkItDown has optional dependencies for activating various file formats. Earlier in this document, we installed all optional dependencies with the `[all]` option. However, you can also install them individually for more control. For example:
+## Architecture
 
-```bash
-pip install 'markitdown[pdf, docx, pptx]'
+### Core Components
+
+- **`MarkItDown`** - Main entry point for conversions
+- **`IDocumentConverter`** - Interface for format-specific converters
+- **`DocumentConverterResult`** - Contains the converted Markdown and optional metadata
+- **`StreamInfo`** - Metadata about the input stream (MIME type, extension, charset, etc.)
+- **`ConverterRegistration`** - Associates converters with priority for selection
+
+### Built-in Converters
+
+- **`PlainTextConverter`** - Handles text files, JSON, Markdown, etc.
+- **`HtmlConverter`** - Converts HTML to Markdown using HtmlAgilityPack
+
+### Converter Priority
+
+Converters are selected based on priority (lower values = higher priority):
+- `ConverterPriority.SpecificFileFormat` (0.0) - For specific formats like .html, .pdf
+- `ConverterPriority.GenericFileFormat` (10.0) - For generic formats like text/*
+
+## Project Structure
+
+```
+├── src/
+│   ├── MarkItDown.Core/           # Core library
+│   │   ├── Converters/            # Format-specific converters
+│   │   ├── MarkItDown.cs          # Main conversion class
+│   │   ├── IDocumentConverter.cs  # Converter interface
+│   │   └── ...                    # Supporting classes
+│   └── MarkItDown.Cli/            # Command-line interface
+├── tests/
+│   └── MarkItDown.Tests/          # Unit tests
+└── original-project/              # Original Python implementation
 ```
 
-will install only the dependencies for PDF, DOCX, and PPTX files.
+## Roadmap
 
-At the moment, the following optional dependencies are available:
+### Planned Converters
+- **PDF** (using iText7 or PdfPig)
+- **Word Documents** (.docx using DocumentFormat.OpenXml)
+- **Excel Spreadsheets** (.xlsx using ClosedXML)
+- **PowerPoint** (.pptx)
+- **Images** (with OCR using ImageSharp + Tesseract)
+- **Audio** (with transcription)
+- **CSV** (with table formatting)
+- **XML** (with structure preservation)
+- **ZIP** (recursive processing)
 
-* `[all]` Installs all optional dependencies
-* `[pptx]` Installs dependencies for PowerPoint files
-* `[docx]` Installs dependencies for Word files
-* `[xlsx]` Installs dependencies for Excel files
-* `[xls]` Installs dependencies for older Excel files
-* `[pdf]` Installs dependencies for PDF files
-* `[outlook]` Installs dependencies for Outlook messages
-* `[az-doc-intel]` Installs dependencies for Azure Document Intelligence
-* `[audio-transcription]` Installs dependencies for audio transcription of wav and mp3 files
-* `[youtube-transcription]` Installs dependencies for fetching YouTube video transcription
-
-### Plugins
-
-MarkItDown also supports 3rd-party plugins. Plugins are disabled by default. To list installed plugins:
-
-```bash
-markitdown --list-plugins
-```
-
-To enable plugins use:
-
-```bash
-markitdown --use-plugins path-to-file.pdf
-```
-
-To find available plugins, search GitHub for the hashtag `#markitdown-plugin`. To develop a plugin, see `packages/markitdown-sample-plugin`.
-
-### Azure Document Intelligence
-
-To use Microsoft Document Intelligence for conversion:
-
-```bash
-markitdown path-to-file.pdf -o document.md -d -e "<document_intelligence_endpoint>"
-```
-
-More information about how to set up an Azure Document Intelligence Resource can be found [here](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/how-to-guides/create-document-intelligence-resource?view=doc-intel-4.0.0)
-
-### Python API
-
-Basic usage in Python:
-
-```python
-from markitdown import MarkItDown
-
-md = MarkItDown(enable_plugins=False) # Set to True to enable plugins
-result = md.convert("test.xlsx")
-print(result.text_content)
-```
-
-Document Intelligence conversion in Python:
-
-```python
-from markitdown import MarkItDown
-
-md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
-result = md.convert("test.pdf")
-print(result.text_content)
-```
-
-To use Large Language Models for image descriptions (currently only for pptx and image files), provide `llm_client` and `llm_model`:
-
-```python
-from markitdown import MarkItDown
-from openai import OpenAI
-
-client = OpenAI()
-md = MarkItDown(llm_client=client, llm_model="gpt-4o", llm_prompt="optional custom prompt")
-result = md.convert("example.jpg")
-print(result.text_content)
-```
-
-### Docker
-
-```sh
-docker build -t markitdown:latest .
-docker run --rm -i markitdown:latest < ~/your-file.pdf > output.md
-```
+### Planned Features
+- NuGet package distribution
+- Azure Document Intelligence integration
+- Plugin system for external converters
+- Advanced configuration options
+- Better error handling and diagnostics
 
 ## Contributing
 
-This project welcomes contributions and suggestions. Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for your changes
+4. Ensure all tests pass (`dotnet test`)
+5. Submit a pull request
 
-When you submit a pull request, a CLA bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
+## License
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-### How to Contribute
+## Acknowledgments
 
-You can help by looking at issues or helping review PRs. Any issue or PR is welcome, but we have also marked some as 'open for contribution' and 'open for reviewing' to help facilitate community contributions. These are of course just suggestions and you are welcome to contribute in any way you like.
-
-<div align="center">
-
-|            | All                                                          | Especially Needs Help from Community                                                                                                      |
-| ---------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| **Issues** | [All Issues](https://github.com/microsoft/markitdown/issues) | [Issues open for contribution](https://github.com/microsoft/markitdown/issues?q=is%3Aissue+is%3Aopen+label%3A%22open+for+contribution%22) |
-| **PRs**    | [All PRs](https://github.com/microsoft/markitdown/pulls)     | [PRs open for reviewing](https://github.com/microsoft/markitdown/pulls?q=is%3Apr+is%3Aopen+label%3A%22open+for+reviewing%22)              |
-
-</div>
-
-### Running Tests and Checks
-
-- Navigate to the MarkItDown package:
-
-  ```sh
-  cd packages/markitdown
-  ```
-
-- Install `hatch` in your environment and run tests:
-
-  ```sh
-  pip install hatch  # Other ways of installing hatch: https://hatch.pypa.io/dev/install/
-  hatch shell
-  hatch test
-  ```
-
-  (Alternative) Use the Devcontainer which has all the dependencies installed:
-
-  ```sh
-  # Reopen the project in Devcontainer and run:
-  hatch test
-  ```
-
-- Run pre-commit checks before submitting a PR: `pre-commit run --all-files`
-
-### Contributing 3rd-party Plugins
-
-You can also contribute by creating and sharing 3rd party plugins. See `packages/markitdown-sample-plugin` for more details.
-
-## Trademarks
-
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
-trademarks or logos is subject to and must follow
-[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
-Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
-Any use of third-party trademarks or logos are subject to those third-party's policies.
+This project is a C# conversion of the original [Microsoft MarkItDown](https://github.com/microsoft/markitdown) Python library. The original project was created by the Microsoft AutoGen team.
