@@ -29,15 +29,18 @@ public sealed class ZipConverter : IDocumentConverter
         // Note: We avoid circular dependencies by not including ZipConverter itself
         _innerConverters = new List<IDocumentConverter>
         {
+            new YouTubeUrlConverter(),
             new HtmlConverter(),
+            new RssFeedConverter(),
+            new JsonConverter(),
+            new JupyterNotebookConverter(),
+            new CsvConverter(),
+            new XmlConverter(),
             new PdfConverter(),
             new DocxConverter(),
             new XlsxConverter(),
             new PptxConverter(),
             new ImageOcrConverter(),
-            new CsvConverter(),
-            new XmlConverter(),
-            new JsonConverter(),
             new PlainTextConverter() // Keep this last as fallback
         };
     }
@@ -279,7 +282,13 @@ public sealed class ZipConverter : IDocumentConverter
             ".html" => "text/html",
             ".htm" => "text/html",
             ".json" => "application/json",
+            ".jsonl" => "application/json",
+            ".ndjson" => "application/json",
+            ".ipynb" => "application/x-ipynb+json",
             ".xml" => "application/xml",
+            ".xsd" => "application/xml",
+            ".rss" => "application/rss+xml",
+            ".atom" => "application/atom+xml",
             ".csv" => "text/csv",
             ".pdf" => "application/pdf",
             ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

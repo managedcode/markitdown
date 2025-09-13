@@ -161,8 +161,11 @@ public sealed class MarkItDown
     private void RegisterBuiltInConverters()
     {
         // Register converters - they will be sorted by their Priority property
+        RegisterConverter(new YouTubeUrlConverter());
         RegisterConverter(new HtmlConverter());
+        RegisterConverter(new RssFeedConverter());
         RegisterConverter(new JsonConverter());
+        RegisterConverter(new JupyterNotebookConverter());
         RegisterConverter(new CsvConverter());
         RegisterConverter(new EpubConverter());
         RegisterConverter(new XmlConverter());
@@ -225,6 +228,7 @@ public sealed class MarkItDown
             ".json" => "application/json",
             ".jsonl" => "application/json",
             ".ndjson" => "application/json",
+            ".ipynb" => "application/x-ipynb+json",
             ".xml" => "application/xml",
             ".xsd" => "application/xml",
             ".xsl" => "application/xml",

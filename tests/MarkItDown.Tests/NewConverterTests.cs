@@ -216,9 +216,12 @@ public class NewConverterTests
         {
             new CsvConverter(),
             new JsonConverter(),
+            new JupyterNotebookConverter(),
             new XmlConverter(),
+            new RssFeedConverter(),
             new ZipConverter(),
-            new EpubConverter()
+            new EpubConverter(),
+            new YouTubeUrlConverter()
         };
 
         // Act & Assert
@@ -232,7 +235,9 @@ public class NewConverterTests
     [Theory]
     [InlineData(".csv", "text/csv")]
     [InlineData(".json", "application/json")]
+    [InlineData(".ipynb", "application/x-ipynb+json")]
     [InlineData(".xml", "application/xml")]
+    [InlineData(".rss", "application/rss+xml")]
     [InlineData(".zip", "application/zip")]
     [InlineData(".epub", "application/epub+zip")]
     public void MarkItDown_RegistersNewConverters_CanHandleNewFormats(string extension, string mimeType)
@@ -247,5 +252,175 @@ public class NewConverterTests
 
         // Assert
         Assert.True(hasConverter, $"No converter found for {extension} files with MIME type {mimeType}");
+    }
+
+    [Fact]
+    public void JupyterNotebookConverter_AcceptsInput_ValidIpynbExtension_ReturnsTrue()
+    {
+        // Arrange
+        var converter = new JupyterNotebookConverter();
+        var streamInfo = new StreamInfo(extension: ".ipynb");
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void RssFeedConverter_AcceptsInput_ValidRssExtension_ReturnsTrue()
+    {
+        // Arrange
+        var converter = new RssFeedConverter();
+        var streamInfo = new StreamInfo(extension: ".rss");
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void RssFeedConverter_AcceptsInput_AtomMimeType_ReturnsTrue()
+    {
+        // Arrange
+        var converter = new RssFeedConverter();
+        var streamInfo = new StreamInfo(mimeType: "application/atom+xml");
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void YouTubeUrlConverter_AcceptsInput_ValidYouTubeUrl_ReturnsTrue()
+    {
+        // Arrange
+        var converter = new YouTubeUrlConverter();
+        var streamInfo = new StreamInfo(url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void YouTubeUrlConverter_AcceptsInput_ShortenedYouTubeUrl_ReturnsTrue()
+    {
+        // Arrange
+        var converter = new YouTubeUrlConverter();
+        var streamInfo = new StreamInfo(url: "https://youtu.be/dQw4w9WgXcQ");
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void YouTubeUrlConverter_AcceptsInput_NonYouTubeUrl_ReturnsFalse()
+    {
+        // Arrange
+        var converter = new YouTubeUrlConverter();
+        var streamInfo = new StreamInfo(url: "https://www.example.com/video");
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task JupyterNotebookConverter_ConvertAsync_ValidNotebook_ReturnsMarkdown()
+    {
+        // Arrange
+        var converter = new JupyterNotebookConverter();
+        var notebookContent = """
+        {
+          "nbformat": 4,
+          "nbformat_minor": 2,
+          "metadata": {
+            "kernelspec": {
+              "display_name": "Python 3",
+              "language": "python"
+            }
+          },
+          "cells": [
+            {
+              "cell_type": "markdown",
+              "source": ["# Hello World\n", "This is a markdown cell."]
+            },
+            {
+              "cell_type": "code",
+              "source": ["print('Hello, World!')"],
+              "outputs": [
+                {
+                  "output_type": "stream",
+                  "text": ["Hello, World!\n"]
+                }
+              ]
+            }
+          ]
+        }
+        """;
+        var bytes = Encoding.UTF8.GetBytes(notebookContent);
+        using var stream = new MemoryStream(bytes);
+        var streamInfo = new StreamInfo(mimeType: "application/x-ipynb+json", fileName: "test.ipynb");
+
+        // Act
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        // Assert
+        Assert.Contains("# test", result.Markdown);
+        Assert.Contains("**Kernel:** Python 3", result.Markdown);
+        Assert.Contains("# Hello World", result.Markdown);
+        Assert.Contains("This is a markdown cell.", result.Markdown);
+        Assert.Contains("## Code Cell", result.Markdown);
+        Assert.Contains("print('Hello, World!')", result.Markdown);
+        Assert.Contains("**Output:**", result.Markdown);
+    }
+
+    [Fact]
+    public async Task RssFeedConverter_ConvertAsync_ValidRssFeed_ReturnsMarkdown()
+    {
+        // Arrange
+        var converter = new RssFeedConverter();
+        var rssContent = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>Example RSS Feed</title>
+            <description>A sample RSS feed for testing</description>
+            <link>https://example.com</link>
+            <item>
+              <title>First Post</title>
+              <description>This is the first post</description>
+              <link>https://example.com/post1</link>
+              <pubDate>Mon, 01 Jan 2024 12:00:00 GMT</pubDate>
+            </item>
+          </channel>
+        </rss>
+        """;
+        var bytes = Encoding.UTF8.GetBytes(rssContent);
+        using var stream = new MemoryStream(bytes);
+        var streamInfo = new StreamInfo(mimeType: "application/rss+xml");
+
+        // Act
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        // Assert
+        Assert.Contains("# Example RSS Feed", result.Markdown);
+        Assert.Contains("**Description:** A sample RSS feed for testing", result.Markdown);
+        Assert.Contains("## Items", result.Markdown);
+        Assert.Contains("### [First Post](https://example.com/post1)", result.Markdown);
+        Assert.Contains("This is the first post", result.Markdown);
     }
 }

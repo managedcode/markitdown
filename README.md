@@ -31,6 +31,9 @@ A modern C# .NET library for converting various document formats (HTML, PDF, DOC
 | **XML** | `.xml`, `.xsd`, `.xsl`, `.rss`, `.atom` | ✅ Supported | XML documents with structure preservation |
 | **EPUB** | `.epub` | ✅ Supported | E-book files with metadata and content |
 | **ZIP** | `.zip` | ✅ Supported | Archive processing with recursive file conversion |
+| **Jupyter Notebook** | `.ipynb` | ✅ Supported | Python notebooks with code and markdown cells |
+| **RSS/Atom Feeds** | `.rss`, `.atom`, `.xml` | ✅ Supported | Web feeds with structured content and metadata |
+| **YouTube URLs** | YouTube links | ✅ Supported | Video metadata extraction and link formatting |
 
 ### HTML Conversion Features
 - Headers (H1-H6) → Markdown headers
@@ -84,6 +87,24 @@ A modern C# .NET library for converting various document formats (HTML, PDF, DOC
 - **Multi-Format Support**: Processes different file types within the same archive
 - **Error Handling**: Continues processing even if individual files fail
 - **Size Limits**: Protects against memory issues with large files
+
+### Jupyter Notebook Conversion Features
+- **Cell Type Support**: Processes markdown, code, and raw cells appropriately
+- **Metadata Extraction**: Extracts notebook title, kernel information, and language details
+- **Code Output Handling**: Captures and formats execution results, streams, and errors
+- **Syntax Highlighting**: Preserves language information for proper code block formatting
+
+### RSS/Atom Feed Conversion Features  
+- **Multi-Format Support**: Handles RSS 2.0, RSS 1.0 (RDF), and Atom 1.0 feeds
+- **Feed Metadata**: Extracts title, description, last update date, and author information
+- **Article Processing**: Converts feed items with proper title linking and content formatting
+- **Date Formatting**: Normalizes publication dates across different feed formats
+
+### YouTube URL Conversion Features
+- **URL Recognition**: Supports standard and shortened YouTube URLs (youtube.com, youtu.be)
+- **Metadata Extraction**: Extracts video ID and URL parameters with descriptions
+- **Embed Integration**: Provides thumbnail images and multiple access methods
+- **Parameter Parsing**: Decodes common YouTube URL parameters (playlist, timestamps, etc.)
 
 ### Image OCR Features
 - Support for multiple formats: JPEG, PNG, GIF, BMP, TIFF, WebP
