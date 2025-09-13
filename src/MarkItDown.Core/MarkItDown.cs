@@ -162,12 +162,12 @@ public sealed class MarkItDown
     {
         // Register converters - they will be sorted by their Priority property
         RegisterConverter(new HtmlConverter());
+        RegisterConverter(new PdfConverter());
+        RegisterConverter(new DocxConverter());
+        RegisterConverter(new XlsxConverter());
+        RegisterConverter(new PptxConverter());
+        RegisterConverter(new ImageOcrConverter());
         RegisterConverter(new PlainTextConverter());
-        
-        // TODO: Add other converters here as they are implemented
-        // RegisterConverter(new PdfConverter());
-        // RegisterConverter(new DocxConverter());
-        // etc.
     }
 
     private static StreamInfo CreateStreamInfoFromFile(string filePath)
@@ -224,6 +224,14 @@ public sealed class MarkItDown
             ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ".jpg" => "image/jpeg",
+            ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".gif" => "image/gif",
+            ".bmp" => "image/bmp",
+            ".tiff" => "image/tiff",
+            ".tif" => "image/tiff",
+            ".webp" => "image/webp",
             _ => null
         };
     }
