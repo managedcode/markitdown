@@ -1,97 +1,109 @@
-# MarkItDown - C# .NET 9 Version
+# MarkItDown
 
-[![.NET](https://img.shields.io/badge/.NET-9.0-blue)](https://dotnet.microsoft.com/download/dotnet/9.0)
+[![.NET](https://img.shields.io/badge/.NET-8.0+-blue)](https://dotnet.microsoft.com/download/dotnet/8.0)
+[![NuGet](https://img.shields.io/nuget/v/MarkItDown.svg)](https://www.nuget.org/packages/MarkItDown)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> This is a C# .NET 9 conversion of the original [Microsoft MarkItDown](https://github.com/microsoft/markitdown) Python project.
+A modern C# .NET library for converting various document formats (HTML, PDF, DOCX, XLSX, etc.) into clean Markdown suitable for Large Language Models (LLMs) and text analysis pipelines. This project is a conversion from the original Python implementation to C# while maintaining API compatibility and adding modern async/await patterns.
 
-MarkItDown is a C# library for converting various file formats to Markdown for use with LLMs and text analysis pipelines. This library focuses on preserving important document structure and content as Markdown (including: headings, lists, tables, links, etc.) while providing a clean, async API.
+## Features
 
-## Current Format Support
+✨ **Modern .NET** - Built with .NET 8.0+, ready for .NET 9  
+📦 **NuGet Package** - Easy installation via package manager  
+🔄 **Async/Await** - Full async support for better performance  
+🧠 **LLM-Optimized** - Output specifically designed for AI processing  
+🔧 **Extensible** - Plugin system for custom converters  
+⚡ **High Performance** - Stream-based processing, minimal memory usage
 
-- **Plain Text** (.txt, .md, .json, etc.)
-- **HTML** (.html, .htm) - with support for:
-  - Headers (H1-H6) → Markdown headers
-  - Bold/Strong text → **bold**
-  - Italic/Emphasis text → *italic*
-  - Links → [text](url)
-  - Images → ![alt](src)
-  - Lists (ordered/unordered)
-  - Tables with header detection
-  - Code blocks and inline code
-  - Blockquotes
+## 📋 Format Support
 
-## Installation
+| Format | Extension | Status | Description |
+|--------|-----------|---------|-------------|
+| **HTML** | `.html`, `.htm` | ✅ Supported | Full HTML to Markdown conversion |
+| **Plain Text** | `.txt`, `.md`, `.json` | ✅ Supported | Direct text processing |
+| **PDF** | `.pdf` | 🚧 Planned | Adobe PDF documents |
+| **Word** | `.docx` | 🚧 Planned | Microsoft Word documents |
+| **Excel** | `.xlsx` | 🚧 Planned | Microsoft Excel spreadsheets |
+| **PowerPoint** | `.pptx` | 🚧 Planned | Microsoft PowerPoint presentations |
+| **Images** | `.jpg`, `.png`, `.gif` | 🚧 Planned | OCR-based text extraction |
+
+### HTML Conversion Features
+- Headers (H1-H6) → Markdown headers
+- Bold/Strong text → **bold**
+- Italic/Emphasis text → *italic*
+- Links → [text](url)
+- Images → ![alt](src)
+- Lists (ordered/unordered)
+- Tables with header detection
+- Code blocks and inline code
+- Blockquotes
+
+## 🚀 Quick Start
+
+### Installation
+
+Install via NuGet Package Manager:
+
+```bash
+# Package Manager Console
+Install-Package MarkItDown
+
+# .NET CLI
+dotnet add package MarkItDown
+
+# PackageReference (add to your .csproj)
+<PackageReference Include="MarkItDown" Version="1.0.0" />
+```
 
 ### Prerequisites
-- .NET 9.0 SDK or later
+- .NET 8.0 SDK or later
+- Compatible with .NET 8.0+ projects (ready for .NET 9)
 
-### Building from Source
-```bash
-git clone https://github.com/managedcode/markitdown.git
-cd markitdown
-dotnet build
+## 💻 Usage
+
+### Basic API Usage
+
+```csharp
+using MarkItDown.Core;
+
+// Simple conversion
+var markItDown = new MarkItDown();
+var result = await markItDown.ConvertAsync("document.html");
+Console.WriteLine(result.Markdown);
 ```
 
-### Running Tests
-```bash
-dotnet test
-```
-
-## Usage
-
-### Command Line Interface
-
-```bash
-# Convert a file to Markdown
-dotnet run --project src/MarkItDown.Cli -- input.html
-
-# Specify output file
-dotnet run --project src/MarkItDown.Cli -- input.html -o output.md
-
-# Read from stdin
-echo "<h1>Hello</h1>" | dotnet run --project src/MarkItDown.Cli
-
-# Enable verbose logging
-dotnet run --project src/MarkItDown.Cli -- input.html --verbose
-```
-
-### C# API
+### Advanced Usage with Logging
 
 ```csharp
 using MarkItDown.Core;
 using Microsoft.Extensions.Logging;
-
-// Basic usage
-var markItDown = new MarkItDown();
-var result = await markItDown.ConvertAsync("document.html");
-Console.WriteLine(result.Markdown);
 
 // With logging and HTTP client for web content
 using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
 var logger = loggerFactory.CreateLogger<Program>();
 
 using var httpClient = new HttpClient();
-var markItDownWithOptions = new MarkItDown(logger, httpClient);
+var markItDown = new MarkItDown(logger, httpClient);
 
 // Convert from file
-var fileResult = await markItDownWithOptions.ConvertAsync("document.html");
+var fileResult = await markItDown.ConvertAsync("document.html");
 
 // Convert from URL
-var urlResult = await markItDownWithOptions.ConvertFromUrlAsync("https://example.com");
+var urlResult = await markItDown.ConvertFromUrlAsync("https://example.com");
 
 // Convert from stream
 using var stream = File.OpenRead("document.html");
 var streamInfo = new StreamInfo(mimeType: "text/html", extension: ".html");
-var streamResult = await markItDownWithOptions.ConvertAsync(stream, streamInfo);
+var streamResult = await markItDown.ConvertAsync(stream, streamInfo);
 ```
 
 ### Custom Converters
 
+Create your own format converters by implementing `IDocumentConverter`:
+
 ```csharp
 using MarkItDown.Core;
 
-// Implement a custom converter
 public class MyCustomConverter : IDocumentConverter
 {
     public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
@@ -99,7 +111,10 @@ public class MyCustomConverter : IDocumentConverter
         return streamInfo.Extension == ".mycustomformat";
     }
 
-    public async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<DocumentConverterResult> ConvertAsync(
+        Stream stream, 
+        StreamInfo streamInfo, 
+        CancellationToken cancellationToken = default)
     {
         // Your conversion logic here
         var markdown = "# Converted from custom format\n\nContent here...";
@@ -112,7 +127,28 @@ var markItDown = new MarkItDown();
 markItDown.RegisterConverter(new MyCustomConverter(), ConverterPriority.SpecificFileFormat);
 ```
 
-## Architecture
+### Command Line Tool
+
+The package also includes a command-line tool for batch processing:
+
+```bash
+# Install the CLI tool globally
+dotnet tool install --global MarkItDown.Cli
+
+# Convert a file to Markdown
+markitdown input.html
+
+# Specify output file
+markitdown input.html -o output.md
+
+# Read from stdin
+echo "<h1>Hello</h1>" | markitdown
+
+# Enable verbose logging
+markitdown input.html --verbose
+```
+
+## 🏗️ Architecture
 
 ### Core Components
 
@@ -127,59 +163,117 @@ markItDown.RegisterConverter(new MyCustomConverter(), ConverterPriority.Specific
 - **`PlainTextConverter`** - Handles text files, JSON, Markdown, etc.
 - **`HtmlConverter`** - Converts HTML to Markdown using HtmlAgilityPack
 
-### Converter Priority
+### Converter Priority System
 
 Converters are selected based on priority (lower values = higher priority):
 - `ConverterPriority.SpecificFileFormat` (0.0) - For specific formats like .html, .pdf
 - `ConverterPriority.GenericFileFormat` (10.0) - For generic formats like text/*
 
-## Project Structure
+## 🔄 Development & Contributing
+
+### Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/managedcode/markitdown.git
+cd markitdown
+
+# Build the solution
+dotnet build
+
+# Run tests
+dotnet test
+
+# Create NuGet package
+dotnet pack --configuration Release
+```
+
+### Project Structure
 
 ```
 ├── src/
-│   ├── MarkItDown.Core/           # Core library
+│   ├── MarkItDown.Core/           # Core library (NuGet package)
 │   │   ├── Converters/            # Format-specific converters
 │   │   ├── MarkItDown.cs          # Main conversion class
 │   │   ├── IDocumentConverter.cs  # Converter interface
 │   │   └── ...                    # Supporting classes
-│   └── MarkItDown.Cli/            # Command-line interface
+│   └── MarkItDown.Cli/            # Command-line tool
 ├── tests/
-│   └── MarkItDown.Tests/          # Unit tests
-└── original-project/              # Original Python implementation
+│   └── MarkItDown.Tests/          # Unit tests with xUnit
+└── README.md                      # This file
 ```
 
-## Roadmap
+### Contributing Guidelines
 
-### Planned Converters
-- **PDF** (using iText7 or PdfPig)
-- **Word Documents** (.docx using DocumentFormat.OpenXml)
-- **Excel Spreadsheets** (.xlsx using ClosedXML)
-- **PowerPoint** (.pptx)
-- **Images** (with OCR using ImageSharp + Tesseract)
-- **Audio** (with transcription)
-- **CSV** (with table formatting)
-- **XML** (with structure preservation)
-- **ZIP** (recursive processing)
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Add tests** for your changes
+4. **Ensure** all tests pass (`dotnet test`)
+5. **Update** documentation if needed
+6. **Submit** a pull request
 
-### Planned Features
-- NuGet package distribution
-- Azure Document Intelligence integration
-- Plugin system for external converters
-- Advanced configuration options
-- Better error handling and diagnostics
+## 🗺️ Roadmap
 
-## Contributing
+### 🎯 Version 1.1 - Enhanced Format Support
+- **PDF Support** (using iText7 or PdfPig)
+- **Office Documents** (.docx, .xlsx, .pptx using DocumentFormat.OpenXml)
+- **Improved error handling** and diagnostics
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for your changes
-4. Ensure all tests pass (`dotnet test`)
-5. Submit a pull request
+### 🎯 Version 1.2 - Advanced Features  
+- **Image OCR** (using ImageSharp + Tesseract)
+- **Audio transcription** integration
+- **CSV/Excel** advanced table formatting
+- **Performance optimizations**
 
-## License
+### 🎯 Version 2.0 - Enterprise Features
+- **Azure Document Intelligence** integration
+- **Plugin system** for external converters
+- **Advanced configuration** options
+- **Batch processing** capabilities
+
+## 📈 Performance
+
+MarkItDown is designed for high performance with:
+- **Stream-based processing** - No temporary files
+- **Async/await patterns** - Non-blocking I/O operations  
+- **Memory efficiency** - Minimal memory footprint
+- **Parallel processing** - Handle multiple documents concurrently
+
+## 🔧 Configuration
+
+```csharp
+// Configure converters
+var options = new MarkItDownOptions
+{
+    DefaultEncoding = Encoding.UTF8,
+    MaxFileSize = 10 * 1024 * 1024, // 10MB
+    Timeout = TimeSpan.FromMinutes(5)
+};
+
+var markItDown = new MarkItDown(options);
+```
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
 This project is a C# conversion of the original [Microsoft MarkItDown](https://github.com/microsoft/markitdown) Python library. The original project was created by the Microsoft AutoGen team.
+
+## 📞 Support
+
+- 📚 **Documentation**: [GitHub Wiki](https://github.com/managedcode/markitdown/wiki)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/managedcode/markitdown/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/managedcode/markitdown/discussions)
+- 📧 **Email**: Create an issue for support
+
+---
+
+<div align="center">
+
+**[⭐ Star this repository](https://github.com/managedcode/markitdown)** if you find it useful!
+
+Made with ❤️ by [ManagedCode](https://github.com/managedcode)
+
+</div>
