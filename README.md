@@ -21,11 +21,11 @@ A modern C# .NET library for converting various document formats (HTML, PDF, DOC
 |--------|-----------|---------|-------------|
 | **HTML** | `.html`, `.htm` | ✅ Supported | Full HTML to Markdown conversion |
 | **Plain Text** | `.txt`, `.md`, `.json` | ✅ Supported | Direct text processing |
-| **PDF** | `.pdf` | 🚧 Planned | Adobe PDF documents |
-| **Word** | `.docx` | 🚧 Planned | Microsoft Word documents |
-| **Excel** | `.xlsx` | 🚧 Planned | Microsoft Excel spreadsheets |
-| **PowerPoint** | `.pptx` | 🚧 Planned | Microsoft PowerPoint presentations |
-| **Images** | `.jpg`, `.png`, `.gif` | 🚧 Planned | OCR-based text extraction |
+| **PDF** | `.pdf` | ✅ Supported | Adobe PDF documents with text extraction |
+| **Word** | `.docx` | ✅ Supported | Microsoft Word documents with formatting |
+| **Excel** | `.xlsx` | ✅ Supported | Microsoft Excel spreadsheets as tables |
+| **PowerPoint** | `.pptx` | ✅ Supported | Microsoft PowerPoint presentations |
+| **Images** | `.jpg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.webp` | ✅ Supported | OCR-based text extraction |
 
 ### HTML Conversion Features
 - Headers (H1-H6) → Markdown headers
@@ -37,6 +37,23 @@ A modern C# .NET library for converting various document formats (HTML, PDF, DOC
 - Tables with header detection
 - Code blocks and inline code
 - Blockquotes
+
+### PDF Conversion Features
+- Text extraction with page separation
+- Header detection based on formatting
+- List item recognition
+- Title extraction from document content
+
+### Office Documents (DOCX/XLSX/PPTX)
+- **Word (.docx)**: Headers, paragraphs, tables, bold/italic formatting
+- **Excel (.xlsx)**: Spreadsheet data as Markdown tables with sheet organization
+- **PowerPoint (.pptx)**: Slide-by-slide content with title recognition
+
+### Image OCR Features
+- Support for multiple formats: JPEG, PNG, GIF, BMP, TIFF, WebP
+- Text extraction using Tesseract OCR
+- Header detection and paragraph formatting
+- Graceful fallback when OCR fails
 
 ## 🚀 Quick Start
 
@@ -58,6 +75,15 @@ dotnet add package MarkItDown
 ### Prerequisites
 - .NET 8.0 SDK or later
 - Compatible with .NET 8.0+ projects (ready for .NET 9)
+
+### Optional Dependencies for Advanced Features
+- **PDF Support**: Included via iText7 (automatically installed)
+- **Office Documents**: Included via DocumentFormat.OpenXml (automatically installed)
+- **Image OCR**: Requires Tesseract OCR data files
+  - Install Tesseract: `apt-get install tesseract-ocr` (Linux) or `brew install tesseract` (macOS)
+  - Set `TESSDATA_PREFIX` environment variable to Tesseract data directory if needed
+
+> **Note**: All dependencies except Tesseract OCR data are automatically managed via NuGet packages.
 
 ## 💻 Usage
 
