@@ -18,7 +18,9 @@ public sealed class HtmlConverter : IDocumentConverter
         "text/html", "application/xhtml+xml"
     };
 
-    public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public int Priority => 100; // Specific format converter, high priority
+
+    public bool AcceptsInput(StreamInfo streamInfo)
     {
         var mimeType = streamInfo.MimeType?.ToLowerInvariant() ?? string.Empty;
         var extension = streamInfo.Extension?.ToLowerInvariant();
@@ -32,6 +34,11 @@ public sealed class HtmlConverter : IDocumentConverter
             return true;
 
         return false;
+    }
+
+    public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    {
+        return AcceptsInput(streamInfo);
     }
 
     public async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)

@@ -37,10 +37,31 @@ public sealed class MarkItDown
     /// <param name="priority">The priority of the converter. Lower values are tried first.</param>
     public void RegisterConverter(IDocumentConverter converter, double priority = ConverterPriority.SpecificFileFormat)
     {
+        ArgumentNullException.ThrowIfNull(converter);
+        
         _converters.Add(new ConverterRegistration(converter, priority));
         
         // Sort by priority to ensure proper order
         _converters.Sort((a, b) => a.Priority.CompareTo(b.Priority));
+    }
+
+    /// <summary>
+    /// Register a custom converter with the converter's default priority.
+    /// </summary>
+    /// <param name="converter">The converter to register.</param>
+    public void RegisterConverter(IDocumentConverter converter)
+    {
+        ArgumentNullException.ThrowIfNull(converter);
+        RegisterConverter(converter, converter.Priority);
+    }
+
+    /// <summary>
+    /// Get the list of registered converters.
+    /// </summary>
+    /// <returns>A read-only list of registered converters.</returns>
+    public IReadOnlyList<IDocumentConverter> GetRegisteredConverters()
+    {
+        return _converters.Select(r => r.Converter).ToList().AsReadOnly();
     }
 
     /// <summary>
@@ -139,15 +160,13 @@ public sealed class MarkItDown
 
     private void RegisterBuiltInConverters()
     {
-        // Register converters in order of priority (lower priority values first)
-        RegisterConverter(new HtmlConverter(), ConverterPriority.SpecificFileFormat);
-        
-        // Register the plain text converter with generic priority (catch-all)
-        RegisterConverter(new PlainTextConverter(), ConverterPriority.GenericFileFormat);
+        // Register converters - they will be sorted by their Priority property
+        RegisterConverter(new HtmlConverter());
+        RegisterConverter(new PlainTextConverter());
         
         // TODO: Add other converters here as they are implemented
-        // RegisterConverter(new PdfConverter(), ConverterPriority.SpecificFileFormat);
-        // RegisterConverter(new DocxConverter(), ConverterPriority.SpecificFileFormat);
+        // RegisterConverter(new PdfConverter());
+        // RegisterConverter(new DocxConverter());
         // etc.
     }
 

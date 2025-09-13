@@ -103,6 +103,13 @@ public class MarkItDownTests
 
     private class TestConverter : IDocumentConverter
     {
+        public int Priority => 999;
+
+        public bool AcceptsInput(StreamInfo streamInfo)
+        {
+            return false; // Never accepts to avoid interfering with other tests
+        }
+
         public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
         {
             return false; // Never accepts to avoid interfering with other tests

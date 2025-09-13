@@ -16,13 +16,13 @@ public class StreamInfoTests
         var url = "https://example.com/test.txt";
 
         // Act
-        var streamInfo = new StreamInfo(mimeType, extension, charset, filename, url);
+        var streamInfo = new StreamInfo(mimeType, extension, charset, filename, localPath: null, url);
 
         // Assert
         Assert.Equal(mimeType, streamInfo.MimeType);
         Assert.Equal(extension, streamInfo.Extension);
         Assert.Equal(charset, streamInfo.Charset);
-        Assert.Equal(filename, streamInfo.Filename);
+        Assert.Equal(filename, streamInfo.FileName);
         Assert.Equal(url, streamInfo.Url);
     }
 
@@ -189,6 +189,13 @@ public class ConverterRegistrationTests
 
     private class TestConverter : IDocumentConverter
     {
+        public int Priority => 100;
+
+        public bool AcceptsInput(StreamInfo streamInfo)
+        {
+            return true;
+        }
+
         public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
         {
             return true;

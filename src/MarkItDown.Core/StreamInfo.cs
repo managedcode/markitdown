@@ -13,20 +13,43 @@ public sealed class StreamInfo
     /// <param name="mimeType">The MIME type of the file.</param>
     /// <param name="extension">The file extension (with or without leading dot).</param>
     /// <param name="charset">The character encoding of the file.</param>
-    /// <param name="filename">The filename.</param>
+    /// <param name="fileName">The filename.</param>
+    /// <param name="localPath">The local file path.</param>
     /// <param name="url">The URL where the file was retrieved from.</param>
     public StreamInfo(
         string? mimeType = null,
         string? extension = null,
         Encoding? charset = null,
-        string? filename = null,
+        string? fileName = null,
+        string? localPath = null,
         string? url = null)
     {
         MimeType = mimeType;
         Extension = NormalizeExtension(extension);
         Charset = charset;
-        Filename = filename;
+        FileName = fileName;
+        LocalPath = localPath;
         Url = url;
+    }
+
+    /// <summary>
+    /// Create StreamInfo with string charset.
+    /// </summary>
+    public static StreamInfo WithCharset(
+        string? mimeType,
+        string? extension,
+        string? charset,
+        string? fileName = null,
+        string? localPath = null,
+        string? url = null)
+    {
+        return new StreamInfo(
+            mimeType: mimeType,
+            extension: extension,
+            charset: TryParseCharset(charset),
+            fileName: fileName,
+            localPath: localPath,
+            url: url);
     }
 
     /// <summary>
@@ -47,7 +70,12 @@ public sealed class StreamInfo
     /// <summary>
     /// The filename.
     /// </summary>
-    public string? Filename { get; }
+    public string? FileName { get; }
+
+    /// <summary>
+    /// The local file path.
+    /// </summary>
+    public string? LocalPath { get; }
 
     /// <summary>
     /// The URL where the file was retrieved from.
@@ -65,5 +93,25 @@ public sealed class StreamInfo
             return null;
 
         return extension.StartsWith('.') ? extension.ToLowerInvariant() : $".{extension.ToLowerInvariant()}";
+    }
+
+    /// <summary>
+    /// Try to parse a charset string into an Encoding object.
+    /// </summary>
+    /// <param name="charset">The charset name.</param>
+    /// <returns>The Encoding object, or null if parsing failed.</returns>
+    private static Encoding? TryParseCharset(string? charset)
+    {
+        if (string.IsNullOrWhiteSpace(charset))
+            return null;
+
+        try
+        {
+            return Encoding.GetEncoding(charset);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

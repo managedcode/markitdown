@@ -8,18 +8,18 @@
     <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>
     <description>A C# .NET library for converting various file formats to Markdown for use with LLMs and text analysis pipelines.</description>
     <tags>markdown converter pdf docx xlsx pptx html document llm</tags>
-    <repository type="git" url="https://github.com/managedcode/markitdown" commit="20cc93f9362e3c4447daddf889a5ad784aca8f62" />
+    <repository type="git" url="https://github.com/managedcode/markitdown" commit="894c6788c7dd5d2a1e41136930e36df37f62902e" />
     <dependencies>
-      <group targetFramework="net9.0">
+      <group targetFramework="net8.0">
         <dependency id="HtmlAgilityPack" version="1.11.71" exclude="Build,Analyzers" />
-        <dependency id="Microsoft.Extensions.DependencyInjection.Abstractions" version="9.0.0" exclude="Build,Analyzers" />
-        <dependency id="Microsoft.Extensions.Logging.Abstractions" version="9.0.0" exclude="Build,Analyzers" />
-        <dependency id="System.Text.Encoding.CodePages" version="9.0.0" exclude="Build,Analyzers" />
-        <dependency id="System.Text.Json" version="9.0.0" exclude="Build,Analyzers" />
+        <dependency id="Microsoft.Extensions.DependencyInjection.Abstractions" version="8.0.1" exclude="Build,Analyzers" />
+        <dependency id="Microsoft.Extensions.Logging.Abstractions" version="8.0.1" exclude="Build,Analyzers" />
+        <dependency id="System.Text.Encoding.CodePages" version="8.0.0" exclude="Build,Analyzers" />
+        <dependency id="System.Text.Json" version="8.0.5" exclude="Build,Analyzers" />
       </group>
     </dependencies>
   </metadata>
   <files>
-    <file src="/home/runner/work/markitdown/markitdown/src/MarkItDown.Core/bin/Debug/net9.0/MarkItDown.Core.dll" target="lib/net9.0/MarkItDown.Core.dll" />
+    <file src="/home/runner/work/markitdown/markitdown/src/MarkItDown.Core/bin/Debug/net8.0/MarkItDown.Core.dll" target="lib/net8.0/MarkItDown.Core.dll" />
   </files>
 </package>

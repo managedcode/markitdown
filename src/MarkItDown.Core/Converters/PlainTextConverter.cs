@@ -17,7 +17,9 @@ public sealed class PlainTextConverter : IDocumentConverter
         "text/", "application/json", "application/markdown"
     };
 
-    public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public int Priority => 1000; // Generic converter, lowest priority
+
+    public bool AcceptsInput(StreamInfo streamInfo)
     {
         var mimeType = streamInfo.MimeType?.ToLowerInvariant() ?? string.Empty;
         var extension = streamInfo.Extension?.ToLowerInvariant();
@@ -38,6 +40,11 @@ public sealed class PlainTextConverter : IDocumentConverter
         }
 
         return false;
+    }
+
+    public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    {
+        return AcceptsInput(streamInfo);
     }
 
     public async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
