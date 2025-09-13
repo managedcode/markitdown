@@ -162,6 +162,11 @@ public sealed class MarkItDown
     {
         // Register converters - they will be sorted by their Priority property
         RegisterConverter(new HtmlConverter());
+        RegisterConverter(new JsonConverter());
+        RegisterConverter(new CsvConverter());
+        RegisterConverter(new EpubConverter());
+        RegisterConverter(new XmlConverter());
+        RegisterConverter(new ZipConverter());
         RegisterConverter(new PdfConverter());
         RegisterConverter(new DocxConverter());
         RegisterConverter(new XlsxConverter());
@@ -218,8 +223,17 @@ public sealed class MarkItDown
             ".html" => "text/html",
             ".htm" => "text/html",
             ".json" => "application/json",
+            ".jsonl" => "application/json",
+            ".ndjson" => "application/json",
             ".xml" => "application/xml",
+            ".xsd" => "application/xml",
+            ".xsl" => "application/xml",
+            ".xslt" => "application/xml",
+            ".rss" => "application/rss+xml",
+            ".atom" => "application/atom+xml",
             ".csv" => "text/csv",
+            ".zip" => "application/zip",
+            ".epub" => "application/epub+zip",
             ".pdf" => "application/pdf",
             ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

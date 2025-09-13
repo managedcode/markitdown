@@ -20,12 +20,17 @@ A modern C# .NET library for converting various document formats (HTML, PDF, DOC
 | Format | Extension | Status | Description |
 |--------|-----------|---------|-------------|
 | **HTML** | `.html`, `.htm` | ✅ Supported | Full HTML to Markdown conversion |
-| **Plain Text** | `.txt`, `.md`, `.json` | ✅ Supported | Direct text processing |
+| **Plain Text** | `.txt`, `.md` | ✅ Supported | Direct text processing |
 | **PDF** | `.pdf` | ✅ Supported | Adobe PDF documents with text extraction |
 | **Word** | `.docx` | ✅ Supported | Microsoft Word documents with formatting |
 | **Excel** | `.xlsx` | ✅ Supported | Microsoft Excel spreadsheets as tables |
 | **PowerPoint** | `.pptx` | ✅ Supported | Microsoft PowerPoint presentations |
 | **Images** | `.jpg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.webp` | ✅ Supported | OCR-based text extraction |
+| **CSV** | `.csv` | ✅ Supported | Comma-separated values as Markdown tables |
+| **JSON** | `.json`, `.jsonl`, `.ndjson` | ✅ Supported | Structured JSON data with formatting |
+| **XML** | `.xml`, `.xsd`, `.xsl`, `.rss`, `.atom` | ✅ Supported | XML documents with structure preservation |
+| **EPUB** | `.epub` | ✅ Supported | E-book files with metadata and content |
+| **ZIP** | `.zip` | ✅ Supported | Archive processing with recursive file conversion |
 
 ### HTML Conversion Features
 - Headers (H1-H6) → Markdown headers
@@ -48,6 +53,37 @@ A modern C# .NET library for converting various document formats (HTML, PDF, DOC
 - **Word (.docx)**: Headers, paragraphs, tables, bold/italic formatting
 - **Excel (.xlsx)**: Spreadsheet data as Markdown tables with sheet organization
 - **PowerPoint (.pptx)**: Slide-by-slide content with title recognition
+
+### CSV Conversion Features
+- Automatic table formatting with headers
+- Proper escaping of special characters
+- Support for various CSV dialects
+- Handles quoted fields and embedded commas
+
+### JSON Conversion Features
+- **Structured Format**: Converts JSON objects to readable Markdown with proper hierarchy
+- **JSON Lines Support**: Processes `.jsonl` and `.ndjson` files line by line
+- **Data Type Preservation**: Maintains JSON data types (strings, numbers, booleans, null)
+- **Nested Objects**: Handles complex nested structures with proper indentation
+
+### XML Conversion Features
+- **Structure Preservation**: Maintains XML hierarchy as Markdown headings
+- **Attributes Handling**: Converts XML attributes to Markdown lists
+- **Multiple Formats**: Supports XML, XSD, XSL, RSS, and Atom feeds
+- **CDATA Support**: Properly handles CDATA sections as code blocks
+
+### EPUB Conversion Features
+- **Metadata Extraction**: Extracts title, author, publisher, and other Dublin Core metadata
+- **Content Order**: Processes content files in proper reading order using spine information
+- **HTML Processing**: Converts XHTML content using the HTML converter
+- **Table of Contents**: Maintains document structure from the original EPUB
+
+### ZIP Archive Features
+- **Recursive Processing**: Extracts and converts all supported files within archives
+- **Structure Preservation**: Maintains original file paths and organization
+- **Multi-Format Support**: Processes different file types within the same archive
+- **Error Handling**: Continues processing even if individual files fail
+- **Size Limits**: Protects against memory issues with large files
 
 ### Image OCR Features
 - Support for multiple formats: JPEG, PNG, GIF, BMP, TIFF, WebP

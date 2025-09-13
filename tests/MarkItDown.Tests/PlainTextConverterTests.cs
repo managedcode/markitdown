@@ -37,7 +37,7 @@ public class PlainTextConverterTests
     }
 
     [Fact]
-    public void Accepts_JsonFiles_ReturnsTrue()
+    public void Accepts_JsonFiles_ReturnsFalse()
     {
         // Arrange
         var converter = new PlainTextConverter();
@@ -48,7 +48,7 @@ public class PlainTextConverterTests
         var result = converter.Accepts(stream, streamInfo);
 
         // Assert
-        Assert.True(result);
+        Assert.False(result); // JSON files should be handled by JsonConverter now
     }
 
     [Fact]

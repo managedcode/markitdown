@@ -9,12 +9,12 @@ public sealed class PlainTextConverter : IDocumentConverter
 {
     private static readonly HashSet<string> AcceptedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".txt", ".text", ".md", ".markdown", ".json", ".jsonl"
+        ".txt", ".text", ".md", ".markdown"
     };
 
     private static readonly HashSet<string> AcceptedMimeTypePrefixes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "text/", "application/json", "application/markdown"
+        "text/plain", "text/markdown", "application/markdown"
     };
 
     public int Priority => 1000; // Generic converter, lowest priority
