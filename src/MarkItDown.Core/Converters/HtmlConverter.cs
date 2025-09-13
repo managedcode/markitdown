@@ -84,9 +84,19 @@ public sealed class HtmlConverter : IDocumentConverter
         doc.LoadHtml(html);
 
         var markdown = new StringBuilder();
+        
+        // Process the entire document - start from the document node
         ConvertNodeToMarkdown(doc.DocumentNode, markdown, 0);
 
-        return markdown.ToString().Trim();
+        var result = markdown.ToString().Trim();
+        
+        // Clean up excessive newlines
+        while (result.Contains("\n\n\n"))
+        {
+            result = result.Replace("\n\n\n", "\n\n");
+        }
+        
+        return result;
     }
 
     private static string? ExtractTitle(string html)
@@ -116,18 +126,31 @@ public sealed class HtmlConverter : IDocumentConverter
 
     private static void ConvertNodeToMarkdown(HtmlNode node, StringBuilder markdown, int indentLevel)
     {
+        if (node == null) return;
+
         switch (node.NodeType)
         {
             case HtmlNodeType.Text:
                 var text = HtmlEntity.DeEntitize(node.InnerText);
                 if (!string.IsNullOrWhiteSpace(text))
                 {
-                    markdown.Append(text.Trim());
+                    // Preserve word spacing but normalize multiple whitespace to single spaces
+                    var cleanText = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
+                    // Only trim if it's all whitespace or newlines
+                    if (!string.IsNullOrWhiteSpace(cleanText))
+                    {
+                        markdown.Append(cleanText);
+                    }
                 }
                 break;
 
             case HtmlNodeType.Element:
                 ConvertElementToMarkdown(node, markdown, indentLevel);
+                break;
+
+            case HtmlNodeType.Document:
+                // Process all child nodes for document root
+                ConvertChildrenToMarkdown(node, markdown, indentLevel);
                 break;
         }
     }
@@ -280,6 +303,8 @@ public sealed class HtmlConverter : IDocumentConverter
 
     private static void ConvertChildrenToMarkdown(HtmlNode element, StringBuilder markdown, int indentLevel)
     {
+        if (element?.ChildNodes == null) return;
+        
         foreach (var child in element.ChildNodes)
         {
             ConvertNodeToMarkdown(child, markdown, indentLevel);

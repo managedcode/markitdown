@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("markitdown-cli")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+20df408b0b0a8749aa42470653876b2fd370d193")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+20cc93f9362e3c4447daddf889a5ad784aca8f62")]
 [assembly: System.Reflection.AssemblyProductAttribute("markitdown-cli")]
 [assembly: System.Reflection.AssemblyTitleAttribute("markitdown-cli")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
