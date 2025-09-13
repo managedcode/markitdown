@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using ManagedCode.MimeTypes;
 
 namespace MarkItDown.Core.Converters;
 
@@ -209,7 +210,7 @@ public sealed class ZipConverter : IDocumentConverter
             // Create StreamInfo for the file
             var fileExtension = Path.GetExtension(entry.Name);
             var fileName = entry.Name;
-            var mimeType = GetMimeTypeFromExtension(fileExtension);
+            var mimeType = MimeHelper.GetMimeType(fileExtension);
 
             var fileStreamInfo = new StreamInfo(
                 mimeType: mimeType,
@@ -271,38 +272,6 @@ public sealed class ZipConverter : IDocumentConverter
         }
 
         return null;
-    }
-
-    private static string GetMimeTypeFromExtension(string? extension)
-    {
-        return extension?.ToLowerInvariant() switch
-        {
-            ".txt" => "text/plain",
-            ".md" => "text/markdown",
-            ".html" => "text/html",
-            ".htm" => "text/html",
-            ".json" => "application/json",
-            ".jsonl" => "application/json",
-            ".ndjson" => "application/json",
-            ".ipynb" => "application/x-ipynb+json",
-            ".xml" => "application/xml",
-            ".xsd" => "application/xml",
-            ".rss" => "application/rss+xml",
-            ".atom" => "application/atom+xml",
-            ".csv" => "text/csv",
-            ".pdf" => "application/pdf",
-            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            ".jpg" => "image/jpeg",
-            ".jpeg" => "image/jpeg",
-            ".png" => "image/png",
-            ".gif" => "image/gif",
-            ".bmp" => "image/bmp",
-            ".tiff" => "image/tiff",
-            ".webp" => "image/webp",
-            _ => "application/octet-stream"
-        };
     }
 
     private static string FormatFileSize(long bytes)
