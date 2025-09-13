@@ -1,12 +1,11 @@
-using iText.Kernel.Pdf;
-using iText.Kernel.Pdf.Canvas.Parser;
-using iText.Kernel.Pdf.Canvas.Parser.Listener;
+using UglyToad.PdfPig;
+using UglyToad.PdfPig.Content;
 using System.Text;
 
 namespace MarkItDown.Core.Converters;
 
 /// <summary>
-/// Converter for PDF files to Markdown using iText7.
+/// Converter for PDF files to Markdown using PdfPig.
 /// </summary>
 public sealed class PdfConverter : IDocumentConverter
 {
@@ -95,16 +94,14 @@ public sealed class PdfConverter : IDocumentConverter
 
         await Task.Run(() =>
         {
-            using var pdfReader = new PdfReader(stream);
-            using var pdfDocument = new PdfDocument(pdfReader);
+            using var pdfDocument = PdfDocument.Open(stream);
 
-            for (int pageNum = 1; pageNum <= pdfDocument.GetNumberOfPages(); pageNum++)
+            for (int pageNum = 1; pageNum <= pdfDocument.NumberOfPages; pageNum++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var page = pdfDocument.GetPage(pageNum);
-                var strategy = new SimpleTextExtractionStrategy();
-                var pageText = PdfTextExtractor.GetTextFromPage(page, strategy);
+                var pageText = page.Text;
 
                 if (!string.IsNullOrWhiteSpace(pageText))
                 {
