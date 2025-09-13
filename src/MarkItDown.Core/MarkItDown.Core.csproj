@@ -9,10 +9,14 @@
     <PackageId>MarkItDown</PackageId>
     <PackageVersion>1.0.0</PackageVersion>
     <Authors>ManagedCode</Authors>
-    <Description>A C# .NET library for converting various file formats to Markdown for use with LLMs and text analysis pipelines.</Description>
-    <PackageTags>markdown;converter;pdf;docx;xlsx;pptx;html;document;llm</PackageTags>
+    <Description>A modern C# .NET library for converting various document formats (HTML, PDF, DOCX, XLSX, etc.) into clean Markdown suitable for Large Language Models (LLMs) and text analysis pipelines. Compatible with .NET 8.0+ and ready for .NET 9.</Description>
+    <PackageTags>markdown;converter;pdf;docx;xlsx;pptx;html;document;llm;dotnet8;dotnet9</PackageTags>
     <RepositoryUrl>https://github.com/managedcode/markitdown</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/managedcode/markitdown</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +25,10 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
   </ItemGroup>
 
 </Project>
