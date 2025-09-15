@@ -1,0 +1,14 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/MarkItDown.Cli/MarkItDown.Cli.csproj" />
+    <Project Path="src/MarkItDown.Core/MarkItDown.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MarkItDown.Tests/MarkItDown.Tests.csproj" />
+  </Folder>
+</Solution>
