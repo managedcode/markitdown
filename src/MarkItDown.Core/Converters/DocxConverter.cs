@@ -6,6 +6,13 @@ namespace MarkItDown.Core.Converters;
 
 /// <summary>
 /// Converter for Microsoft Word (.docx) files to Markdown using DocumentFormat.OpenXml.
+/// 
+/// Enhanced table support includes:
+/// - Merged cells (horizontal spanning via GridSpan)
+/// - Formatting preservation (bold, italic) in cell content
+/// - Multi-paragraph cells using &lt;br&gt; tags
+/// - Nested table handling with simplified representation
+/// - Proper table structure analysis for complex layouts
 /// </summary>
 public sealed class DocxConverter : IDocumentConverter
 {
