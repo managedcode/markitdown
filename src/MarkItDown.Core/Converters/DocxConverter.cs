@@ -206,39 +206,270 @@ public sealed class DocxConverter : IDocumentConverter
 
         result.AppendLine();
         
-        var isFirstRow = true;
-        foreach (var row in rows)
+        // Analyze table structure for better handling
+        var tableStructure = AnalyzeTableStructure(table, rows);
+        
+        for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
+            var row = rows[rowIndex];
             var cells = row.Elements<TableCell>().ToList();
             if (cells.Count == 0)
                 continue;
 
-            result.Append("|");
-            foreach (var cell in cells)
+            var processedRow = ProcessTableRow(row, cells, tableStructure, rowIndex);
+            if (!string.IsNullOrEmpty(processedRow))
             {
-                var cellText = ExtractCellText(cell);
-                result.Append($" {cellText.Replace("|", "\\|").Trim()} |");
-            }
-            result.AppendLine();
-
-            // Add header separator after first row
-            if (isFirstRow)
-            {
-                result.Append("|");
-                for (int i = 0; i < cells.Count; i++)
-                {
-                    result.Append(" --- |");
-                }
+                result.Append(processedRow);
                 result.AppendLine();
-                isFirstRow = false;
+                
+                // Add header separator after first row or after identified header rows
+                if (rowIndex == 0 || (tableStructure.HasHeaderRows && rowIndex == tableStructure.HeaderRowCount - 1))
+                {
+                    var separatorRow = CreateHeaderSeparator(cells.Count, tableStructure);
+                    result.Append(separatorRow);
+                    result.AppendLine();
+                }
             }
         }
         
         result.AppendLine();
     }
 
+    private static TableStructureInfo AnalyzeTableStructure(Table table, List<TableRow> rows)
+    {
+        var structure = new TableStructureInfo();
+        
+        // Determine if first row(s) are headers by checking for table header properties
+        if (rows.Count > 0)
+        {
+            var firstRow = rows[0];
+            var firstRowProperties = firstRow.TableRowProperties;
+            
+            // Check if first row is marked as header using TableRowHeight or other indicators
+            // For now, we'll use a heuristic: if the first row has different formatting, treat as header
+            structure.HasHeaderRows = true; // Default to treating first row as header
+            structure.HeaderRowCount = 1;
+        }
+        
+        // Determine maximum column count considering merged cells
+        structure.MaxColumns = 0;
+        foreach (var row in rows)
+        {
+            int columnCount = 0;
+            foreach (var cell in row.Elements<TableCell>())
+            {
+                var gridSpan = GetGridSpan(cell);
+                columnCount += gridSpan;
+            }
+            structure.MaxColumns = Math.Max(structure.MaxColumns, columnCount);
+        }
+        
+        return structure;
+    }
+
+    private static string ProcessTableRow(TableRow row, List<TableCell> cells, TableStructureInfo structure, int rowIndex)
+    {
+        var result = new StringBuilder();
+        result.Append("|");
+        
+        int currentColumn = 0;
+        
+        foreach (var cell in cells)
+        {
+            var cellText = ExtractCellText(cell);
+            var gridSpan = GetGridSpan(cell);
+            var vMerge = GetVerticalMerge(cell);
+            
+            // Handle merged cells by escaping pipes and adding appropriate content
+            cellText = cellText.Replace("|", "\\|").Trim();
+            
+            // For horizontally merged cells, we still show the content but note the span
+            if (gridSpan > 1)
+            {
+                // Add the cell content
+                result.Append($" {cellText} |");
+                
+                // Add empty cells for the spanned columns
+                for (int i = 1; i < gridSpan; i++)
+                {
+                    result.Append(" |");
+                }
+                currentColumn += gridSpan;
+            }
+            else
+            {
+                result.Append($" {cellText} |");
+                currentColumn++;
+            }
+        }
+        
+        // Fill remaining columns if this row is shorter than the max
+        while (currentColumn < structure.MaxColumns)
+        {
+            result.Append(" |");
+            currentColumn++;
+        }
+        
+        return result.ToString();
+    }
+
+    private static string CreateHeaderSeparator(int cellCount, TableStructureInfo structure)
+    {
+        var result = new StringBuilder();
+        result.Append("|");
+        
+        for (int i = 0; i < structure.MaxColumns; i++)
+        {
+            result.Append(" --- |");
+        }
+        
+        return result.ToString();
+    }
+
+    private static int GetGridSpan(TableCell cell)
+    {
+        var tcPr = cell.TableCellProperties;
+        var gridSpan = tcPr?.GridSpan;
+        return gridSpan?.Val?.Value ?? 1;
+    }
+
+    private static MergedCellValues? GetVerticalMerge(TableCell cell)
+    {
+        var tcPr = cell.TableCellProperties;
+        var vMerge = tcPr?.VerticalMerge;
+        return vMerge?.Val?.Value;
+    }
+
+    private class TableStructureInfo
+    {
+        public bool HasHeaderRows { get; set; }
+        public int HeaderRowCount { get; set; } = 0;
+        public int MaxColumns { get; set; }
+    }
+
     private static string ExtractCellText(TableCell cell)
     {
+        var cellText = new StringBuilder();
+        
+        // Process all elements in the cell, not just paragraphs
+        foreach (var element in cell.Elements())
+        {
+            switch (element)
+            {
+                case Paragraph paragraph:
+                    var paragraphText = ExtractParagraphText(paragraph);
+                    if (!string.IsNullOrEmpty(paragraphText))
+                    {
+                        if (cellText.Length > 0)
+                            cellText.Append("<br>");
+                        cellText.Append(paragraphText);
+                    }
+                    break;
+                    
+                case Table nestedTable:
+                    // Handle nested tables by converting them to a simplified format
+                    var nestedTableText = ExtractNestedTableText(nestedTable);
+                    if (!string.IsNullOrEmpty(nestedTableText))
+                    {
+                        if (cellText.Length > 0)
+                            cellText.Append("<br>");
+                        cellText.Append(nestedTableText);
+                    }
+                    break;
+                    
+                // Add other element types as needed
+            }
+        }
+        
+        return cellText.ToString().Trim();
+    }
+
+    private static string ExtractParagraphText(Paragraph paragraph)
+    {
+        var paragraphText = new StringBuilder();
+        
+        foreach (var run in paragraph.Elements<Run>())
+        {
+            var runProperties = run.RunProperties;
+            var isBold = runProperties?.Bold != null;
+            var isItalic = runProperties?.Italic != null;
+            
+            foreach (var textElement in run.Elements())
+            {
+                string textContent = string.Empty;
+                
+                switch (textElement)
+                {
+                    case Text text:
+                        textContent = text.Text;
+                        break;
+                    case TabChar:
+                        textContent = " "; // Convert tabs to spaces in tables
+                        break;
+                    case Break:
+                        textContent = " "; // Convert line breaks to spaces within cells
+                        break;
+                }
+                
+                // Apply formatting
+                if (!string.IsNullOrEmpty(textContent))
+                {
+                    if (isBold)
+                        textContent = $"**{textContent}**";
+                    if (isItalic)
+                        textContent = $"*{textContent}*";
+                        
+                    paragraphText.Append(textContent);
+                }
+            }
+        }
+        
+        return paragraphText.ToString().Trim();
+    }
+
+    private static string ExtractNestedTableText(Table nestedTable)
+    {
+        // For nested tables, create a simplified representation
+        var result = new StringBuilder();
+        var rows = nestedTable.Elements<TableRow>().ToList();
+        
+        if (rows.Count == 0)
+            return string.Empty;
+            
+        result.Append("[Table: ");
+        
+        // Extract just the text content in a simplified format
+        for (int i = 0; i < Math.Min(rows.Count, 3); i++) // Limit to first 3 rows
+        {
+            var row = rows[i];
+            var cells = row.Elements<TableCell>().ToList();
+            
+            if (i > 0)
+                result.Append(" | ");
+                
+            for (int j = 0; j < Math.Min(cells.Count, 3); j++) // Limit to first 3 cells
+            {
+                if (j > 0)
+                    result.Append(", ");
+                    
+                var cellText = ExtractSimpleCellText(cells[j]);
+                result.Append(cellText);
+            }
+            
+            if (cells.Count > 3)
+                result.Append("...");
+        }
+        
+        if (rows.Count > 3)
+            result.Append("...");
+            
+        result.Append("]");
+        return result.ToString();
+    }
+
+    private static string ExtractSimpleCellText(TableCell cell)
+    {
+        // Simplified extraction for nested tables to avoid complexity
         var cellText = new StringBuilder();
         
         foreach (var paragraph in cell.Elements<Paragraph>())
@@ -250,12 +481,10 @@ public sealed class DocxConverter : IDocumentConverter
                     cellText.Append(text.Text);
                 }
             }
-            
-            if (cellText.Length > 0)
-                cellText.Append(" ");
         }
         
-        return cellText.ToString().Trim();
+        var result = cellText.ToString().Trim();
+        return result.Length > 30 ? result.Substring(0, 30) + "..." : result;
     }
 
     private static string? ExtractTitle(string markdown)
