@@ -12,7 +12,6 @@ A modern C#/.NET library for converting a wide range of document formats (HTML, 
 - [Format Support](#-format-support)
 - [Quick Start](#-quick-start)
 - [Usage](#-usage)
-  - [Command Line Tool](#command-line-tool)
 - [Architecture](#-architecture)
 - [Development & Contributing](#-development--contributing)
 - [Roadmap](#-roadmap)
@@ -25,7 +24,7 @@ A modern C#/.NET library for converting a wide range of document formats (HTML, 
 ## Features
 
 ✨ **Modern .NET** - Targets .NET 9.0 with up-to-date language features  
-📦 **NuGet Package** - Drop-in dependency for libraries and CLI workflows  
+📦 **NuGet Package** - Drop-in dependency for libraries and automation pipelines  
 🔄 **Async/Await** - Fully asynchronous pipeline for responsive apps  
 🧠 **LLM-Optimized** - Markdown tailored for AI ingestion and summarisation  
 🔧 **Extensible** - Register custom converters or plug additional caption/transcription services  
@@ -239,27 +238,6 @@ var markItDown = new MarkItDown();
 markItDown.RegisterConverter(new MyCustomConverter(), ConverterPriority.SpecificFileFormat);
 ```
 
-### Command Line Tool
-
-The package also includes a command-line tool for batch processing:
-
-```bash
-# Install the CLI tool globally
-dotnet tool install --global MarkItDown.Cli
-
-# Convert a file to Markdown
-markitdown input.html
-
-# Specify output file
-markitdown input.html -o output.md
-
-# Read from stdin
-echo "<h1>Hello</h1>" | markitdown
-
-# Enable verbose logging
-markitdown input.html --verbose
-```
-
 ## 🏗️ Architecture
 
 ### Core Components
@@ -319,7 +297,6 @@ dotnet pack --configuration Release
 │   │   ├── StreamInfoGuesser.cs   # MIME/charset/extension detection helpers
 │   │   ├── MarkItDownOptions.cs   # Runtime configuration flags
 │   │   └── ...                    # Shared utilities (UriUtilities, MimeMapping, etc.)
-│   └── MarkItDown.Cli/            # Command-line interface (not published to NuGet)
 ├── tests/
 │   └── MarkItDown.Tests/          # xUnit + Shouldly tests, Python parity vectors (WIP)
 ├── Directory.Build.props          # Shared build + packaging settings

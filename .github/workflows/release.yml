@@ -44,14 +44,6 @@ jobs:
       - name: Pack NuGet packages
         run: dotnet pack src/MarkItDown.Core/MarkItDown.Core.csproj --configuration Release --no-build --output ./artifacts
 
-      - name: Publish CLI
-        run: dotnet publish src/MarkItDown.Cli/MarkItDown.Cli.csproj --configuration Release --no-build --output ./artifacts/cli
-
-      - name: Archive CLI
-        run: |
-          cd artifacts/cli
-          zip -r ../markitdown-cli.zip .
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -59,7 +51,6 @@ jobs:
           path: |
             ./artifacts/*.nupkg
             ./artifacts/*.snupkg
-            ./artifacts/markitdown-cli.zip
           retention-days: 5
 
   publish-nuget:
@@ -97,12 +88,12 @@ jobs:
           OUTPUT=""
           PUBLISHED=false
 
-        for package in ./artifacts/*.nupkg; do
-          echo "Publishing $package..."
-          RESULT=$(dotnet nuget push "$package" \
-            --api-key "$NUGET_API_KEY" \
-            --source https://api.nuget.org/v3/index.json \
-            --skip-duplicate 2>&1)
+          for package in ./artifacts/*.nupkg; do
+            echo "Publishing $package..."
+            RESULT=$(dotnet nuget push "$package" \
+              --api-key "$NUGET_API_KEY" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate 2>&1)
             EXIT_CODE=$?
             echo "$RESULT"
             OUTPUT="$OUTPUT$RESULT"
@@ -115,29 +106,29 @@ jobs:
             else
               echo "Failed to publish $package"
               exit 1
-          fi
-        done
-
-        if ls ./artifacts/*.snupkg 1> /dev/null 2>&1; then
-          for symbols in ./artifacts/*.snupkg; do
-            echo "Publishing symbols $symbols..."
-            RESULT=$(dotnet nuget push "$symbols" \
-              --api-key "$NUGET_API_KEY" \
-              --source https://api.nuget.org/v3/index.json \
-              --skip-duplicate 2>&1)
-            EXIT_CODE=$?
-            echo "$RESULT"
-
-            if [ $EXIT_CODE -eq 0 ]; then
-              echo "Successfully published symbols $symbols"
-            elif echo "$RESULT" | grep -qi "already exists"; then
-              echo "Symbols package already exists, skipping..."
-            else
-              echo "Failed to publish symbols package"
-              exit 1
             fi
           done
-        fi
+
+          if ls ./artifacts/*.snupkg 1> /dev/null 2>&1; then
+            for symbols in ./artifacts/*.snupkg; do
+              echo "Publishing symbols $symbols..."
+              RESULT=$(dotnet nuget push "$symbols" \
+                --api-key "$NUGET_API_KEY" \
+                --source https://api.nuget.org/v3/index.json \
+                --skip-duplicate 2>&1)
+              EXIT_CODE=$?
+              echo "$RESULT"
+
+              if [ $EXIT_CODE -eq 0 ]; then
+                echo "Successfully published symbols $symbols"
+              elif echo "$RESULT" | grep -qi "already exists"; then
+                echo "Symbols package already exists, skipping..."
+              else
+                echo "Failed to publish symbols package"
+                exit 1
+              fi
+            done
+          fi
 
           if [ "$PUBLISHED" = true ] || echo "$OUTPUT" | grep -q "Your package was pushed"; then
             echo "published=true" >> $GITHUB_OUTPUT
@@ -239,15 +230,11 @@ jobs:
           echo "" >> release_notes.md
           echo "## 📦 NuGet Packages" >> release_notes.md
           echo "" >> release_notes.md
-        for package in ./artifacts/*.nupkg; do
-          PACKAGE_NAME=$(basename "$package" .nupkg)
-          BASE_NAME=$(echo "$PACKAGE_NAME" | sed "s/\.$VERSION//")
-          echo "- [$BASE_NAME v$VERSION](https://www.nuget.org/packages/$BASE_NAME/$VERSION)" >> release_notes.md
-        done
-
-        if [ -f ./artifacts/markitdown-cli.zip ]; then
-          echo "- [markitdown-cli.zip](https://github.com/${{ github.repository }}/releases/download/v$VERSION/markitdown-cli.zip)" >> release_notes.md
-        fi
+          for package in ./artifacts/*.nupkg; do
+            PACKAGE_NAME=$(basename "$package" .nupkg)
+            BASE_NAME=$(echo "$PACKAGE_NAME" | sed "s/\.$VERSION//")
+            echo "- [$BASE_NAME v$VERSION](https://www.nuget.org/packages/$BASE_NAME/$VERSION)" >> release_notes.md
+          done
 
           echo "" >> release_notes.md
           echo "---" >> release_notes.md
@@ -264,5 +251,4 @@ jobs:
           files: |
             ./artifacts/*.nupkg
             ./artifacts/*.snupkg
-            ./artifacts/markitdown-cli.zip
           token: ${{ secrets.GITHUB_TOKEN }}
