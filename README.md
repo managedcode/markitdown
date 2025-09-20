@@ -1,19 +1,36 @@
 # MarkItDown
 
-[![.NET](https://img.shields.io/badge/.NET-8.0+-blue)](https://dotnet.microsoft.com/download/dotnet/8.0)
-[![NuGet](https://img.shields.io/nuget/v/MarkItDown.svg)](https://www.nuget.org/packages/MarkItDown)
+[![.NET](https://img.shields.io/badge/.NET-9.0+-blue)](https://dotnet.microsoft.com/download/dotnet/9.0)
+[![NuGet](https://img.shields.io/nuget/v/ManagedCode.MarkItDown.svg)](https://www.nuget.org/packages/ManagedCode.MarkItDown)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A modern C# .NET library for converting various document formats (HTML, PDF, DOCX, XLSX, etc.) into clean Markdown suitable for Large Language Models (LLMs) and text analysis pipelines. This project is a conversion from the original Python implementation to C# while maintaining API compatibility and adding modern async/await patterns.
+A modern C#/.NET library for converting a wide range of document formats (HTML, PDF, DOCX, XLSX, EPUB, archives, URLs, etc.) into high-quality Markdown suitable for Large Language Models (LLMs), search indexing, and text analytics. The project mirrors the original Microsoft Python implementation while embracing .NET idioms, async APIs, and new integrations.
+
+## Table of Contents
+
+- [Features](#features)
+- [Format Support](#-format-support)
+- [Quick Start](#-quick-start)
+- [Usage](#-usage)
+  - [Command Line Tool](#command-line-tool)
+- [Architecture](#-architecture)
+- [Development & Contributing](#-development--contributing)
+- [Roadmap](#-roadmap)
+- [Performance](#-performance)
+- [Configuration](#-configuration)
+- [License](#-license)
+- [Acknowledgments](#-acknowledgments)
+- [Support](#-support)
 
 ## Features
 
-✨ **Modern .NET** - Built with .NET 8.0+, ready for .NET 9  
-📦 **NuGet Package** - Easy installation via package manager  
-🔄 **Async/Await** - Full async support for better performance  
-🧠 **LLM-Optimized** - Output specifically designed for AI processing  
-🔧 **Extensible** - Plugin system for custom converters  
-⚡ **High Performance** - Stream-based processing, minimal memory usage
+✨ **Modern .NET** - Targets .NET 9.0 with up-to-date language features  
+📦 **NuGet Package** - Drop-in dependency for libraries and CLI workflows  
+🔄 **Async/Await** - Fully asynchronous pipeline for responsive apps  
+🧠 **LLM-Optimized** - Markdown tailored for AI ingestion and summarisation  
+🔧 **Extensible** - Register custom converters or plug additional caption/transcription services  
+🧭 **Smart Detection** - Automatic MIME, charset, and file-type guessing (including data/file URIs)  
+⚡ **High Performance** - Stream-friendly, minimal allocations, zero temp files
 
 ## 📋 Format Support
 
@@ -25,7 +42,8 @@ A modern C# .NET library for converting various document formats (HTML, PDF, DOC
 | **Word** | `.docx` | ✅ Supported | Microsoft Word documents with formatting |
 | **Excel** | `.xlsx` | ✅ Supported | Microsoft Excel spreadsheets as tables |
 | **PowerPoint** | `.pptx` | ✅ Supported | Microsoft PowerPoint presentations |
-| **Images** | `.jpg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.webp` | ✅ Supported | OCR-based text extraction |
+| **Images** | `.jpg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.webp` | ✅ Supported | Exif metadata extraction + optional captions |
+| **Audio** | `.wav`, `.mp3`, `.m4a`, `.mp4` | ✅ Supported | Metadata extraction + optional transcription |
 | **CSV** | `.csv` | ✅ Supported | Comma-separated values as Markdown tables |
 | **JSON** | `.json`, `.jsonl`, `.ndjson` | ✅ Supported | Structured JSON data with formatting |
 | **XML** | `.xml`, `.xsd`, `.xsl`, `.rss`, `.atom` | ✅ Supported | XML documents with structure preservation |
@@ -34,17 +52,19 @@ A modern C# .NET library for converting various document formats (HTML, PDF, DOC
 | **Jupyter Notebook** | `.ipynb` | ✅ Supported | Python notebooks with code and markdown cells |
 | **RSS/Atom Feeds** | `.rss`, `.atom`, `.xml` | ✅ Supported | Web feeds with structured content and metadata |
 | **YouTube URLs** | YouTube links | ✅ Supported | Video metadata extraction and link formatting |
+| **Wikipedia Pages** | wikipedia.org | ✅ Supported | Article-only extraction with clean Markdown |
+| **Bing SERPs** | bing.com/search | ✅ Supported | Organic result summarisation |
 
-### HTML Conversion Features
+### HTML Conversion Features (AngleSharp powered)
 - Headers (H1-H6) → Markdown headers
 - Bold/Strong text → **bold**
 - Italic/Emphasis text → *italic*
 - Links → [text](url)
 - Images → ![alt](src)
 - Lists (ordered/unordered)
-- Tables with header detection
+- Tables with header detection and Markdown table output
 - Code blocks and inline code
-- Blockquotes
+- Blockquotes, sections, semantic containers
 
 ### PDF Conversion Features
 - Text extraction with page separation
@@ -106,11 +126,17 @@ A modern C# .NET library for converting various document formats (HTML, PDF, DOC
 - **Embed Integration**: Provides thumbnail images and multiple access methods
 - **Parameter Parsing**: Decodes common YouTube URL parameters (playlist, timestamps, etc.)
 
-### Image OCR Features
-- Support for multiple formats: JPEG, PNG, GIF, BMP, TIFF, WebP
-- Text extraction using Tesseract OCR
-- Header detection and paragraph formatting
-- Graceful fallback when OCR fails
+### Image Conversion Features
+- Support for JPEG, PNG, GIF, BMP, TIFF, WebP
+- Exif metadata extraction via `exiftool` (optional)
+- Optional multimodal image captioning hook (LLM integration ready)
+- Graceful fallback when metadata/captioning unavailable
+
+### Audio Conversion Features
+- Handles WAV/MP3/M4A/MP4 containers
+- Extracts key metadata (artist, album, duration, channels, etc.)
+- Optional transcription delegate for speech-to-text results
+- Markdown summary highlighting metadata and transcript
 
 ## 🚀 Quick Start
 
@@ -120,27 +146,27 @@ Install via NuGet Package Manager:
 
 ```bash
 # Package Manager Console
-Install-Package MarkItDown
+Install-Package ManagedCode.MarkItDown
 
 # .NET CLI
-dotnet add package MarkItDown
+dotnet add package ManagedCode.MarkItDown
 
 # PackageReference (add to your .csproj)
-<PackageReference Include="MarkItDown" Version="1.0.0" />
+<PackageReference Include="ManagedCode.MarkItDown" Version="1.0.0" />
 ```
 
 ### Prerequisites
-- .NET 8.0 SDK or later
-- Compatible with .NET 8.0+ projects (ready for .NET 9)
+- .NET 9.0 SDK or later
+- Compatible with .NET 9 apps and libraries
 
 ### Optional Dependencies for Advanced Features
-- **PDF Support**: Included via iText7 (automatically installed)
-- **Office Documents**: Included via DocumentFormat.OpenXml (automatically installed)
-- **Image OCR**: Requires Tesseract OCR data files
-  - Install Tesseract: `apt-get install tesseract-ocr` (Linux) or `brew install tesseract` (macOS)
-  - Set `TESSDATA_PREFIX` environment variable to Tesseract data directory if needed
+- **PDF Support**: Provided via PdfPig (bundled)
+- **Office Documents**: Provided via DocumentFormat.OpenXml (bundled)
+- **Image metadata**: Install [ExifTool](https://exiftool.org/) for richer output (`brew install exiftool`, `choco install exiftool`)
+- **Image captions**: Supply an `ImageCaptioner` delegate (e.g., calls to an LLM or vision service)
+- **Audio transcription**: Supply an `AudioTranscriber` delegate (e.g., Azure Cognitive Services, OpenAI Whisper)
 
-> **Note**: All dependencies except Tesseract OCR data are automatically managed via NuGet packages.
+> **Note**: External tools are optional—MarkItDown degrades gracefully when they are absent.
 
 ## 💻 Usage
 
@@ -174,7 +200,10 @@ var fileResult = await markItDown.ConvertAsync("document.html");
 // Convert from URL
 var urlResult = await markItDown.ConvertFromUrlAsync("https://example.com");
 
-// Convert from stream
+// Convert from URI (file:, data:, http:, https:)
+var dataResult = await markItDown.ConvertUriAsync("data:text/html;base64,PGgxPkhlbGxvPC9oMT4=");
+
+// Convert from stream with optional overrides
 using var stream = File.OpenRead("document.html");
 var streamInfo = new StreamInfo(mimeType: "text/html", extension: ".html");
 var streamResult = await markItDown.ConvertAsync(stream, streamInfo);
@@ -243,14 +272,23 @@ markitdown input.html --verbose
 
 ### Built-in Converters
 
-- **`PlainTextConverter`** - Handles text files, JSON, Markdown, etc.
-- **`HtmlConverter`** - Converts HTML to Markdown using HtmlAgilityPack
+- **`PlainTextConverter`** - Handles text, JSON, NDJSON, Markdown, etc.
+- **`HtmlConverter`** - Converts HTML to Markdown using AngleSharp
+- **`PdfConverter`** - PdfPig-based extraction with Markdown heuristics
+- **`Docx/Xlsx/Pptx` Converters** - Office Open XML processing
+- **`ImageConverter`** - Exif metadata + optional captions
+- **`AudioConverter`** - Metadata + optional transcription
+- **`WikipediaConverter`** - Article-only extraction from Wikipedia
+- **`BingSerpConverter`** - Summaries for Bing search result pages
+- **`YouTubeUrlConverter`** - Video metadata markdown
+- **`ZipConverter`** - Recursive archive handling
+- **`RssFeedConverter`**, **`JsonConverter`**, **`CsvConverter`**, **`XmlConverter`**, **`JupyterNotebookConverter`**, **`EpubConverter`**
 
-### Converter Priority System
+### Converter Priority & Detection
 
-Converters are selected based on priority (lower values = higher priority):
-- `ConverterPriority.SpecificFileFormat` (0.0) - For specific formats like .html, .pdf
-- `ConverterPriority.GenericFileFormat` (10.0) - For generic formats like text/*
+- Priority-based dispatch (lower values processed first)
+- Automatic stream sniffing via `StreamInfoGuesser`
+- Manual overrides via `MarkItDownOptions` or `StreamInfo`
 
 ## 🔄 Development & Contributing
 
@@ -275,62 +313,69 @@ dotnet pack --configuration Release
 
 ```
 ├── src/
-│   ├── MarkItDown.Core/           # Core library (NuGet package)
-│   │   ├── Converters/            # Format-specific converters
-│   │   ├── MarkItDown.cs          # Main conversion class
-│   │   ├── IDocumentConverter.cs  # Converter interface
-│   │   └── ...                    # Supporting classes
-│   └── MarkItDown.Cli/            # Command-line tool
+│   ├── MarkItDown.Core/           # Core library
+│   │   ├── Converters/            # Format-specific converters (HTML, PDF, audio, etc.)
+│   │   ├── MarkItDown.cs          # Main conversion engine
+│   │   ├── StreamInfoGuesser.cs   # MIME/charset/extension detection helpers
+│   │   ├── MarkItDownOptions.cs   # Runtime configuration flags
+│   │   └── ...                    # Shared utilities (UriUtilities, MimeMapping, etc.)
+│   └── MarkItDown.Cli/            # Command-line interface (not published to NuGet)
 ├── tests/
-│   └── MarkItDown.Tests/          # Unit tests with xUnit
-└── README.md                      # This file
+│   └── MarkItDown.Tests/          # xUnit + Shouldly tests, Python parity vectors (WIP)
+├── Directory.Build.props          # Shared build + packaging settings
+└── README.md                      # This document
 ```
 
 ### Contributing Guidelines
 
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Add tests** for your changes
-4. **Ensure** all tests pass (`dotnet test`)
-5. **Update** documentation if needed
-6. **Submit** a pull request
+1. **Fork** the repository.
+2. **Create** a feature branch (`git checkout -b feature/my-feature`).
+3. **Add tests** with xUnit/Shouldly mirroring relevant Python vectors.
+4. **Run** `dotnet test` (CI enforces green builds + coverage upload).
+5. **Update** docs or samples if behaviour changes.
+6. **Submit** a pull request for review.
 
 ## 🗺️ Roadmap
 
-### 🎯 Version 1.1 - Enhanced Format Support
-- **PDF Support** (using iText7 or PdfPig)
-- **Office Documents** (.docx, .xlsx, .pptx using DocumentFormat.OpenXml)
-- **Improved error handling** and diagnostics
+### 🎯 Near-Term
+- Azure Document Intelligence converter (options already scaffolded)
+- Outlook `.msg` ingestion via MIT-friendly dependencies
+- Expanded CLI commands (batch mode, globbing, JSON output)
+- Richer regression suite mirroring Python test vectors
 
-### 🎯 Version 1.2 - Advanced Features  
-- **Image OCR** (using ImageSharp + Tesseract)
-- **Audio transcription** integration
-- **CSV/Excel** advanced table formatting
-- **Performance optimizations**
-
-### 🎯 Version 2.0 - Enterprise Features
-- **Azure Document Intelligence** integration
-- **Plugin system** for external converters
-- **Advanced configuration** options
-- **Batch processing** capabilities
+### 🎯 Future Ideas
+- Plugin discovery & sandboxing
+- Built-in LLM caption/transcription providers
+- Incremental/streaming conversion APIs
+- Cloud-native samples (Functions, Containers, Logic Apps)
 
 ## 📈 Performance
 
 MarkItDown is designed for high performance with:
-- **Stream-based processing** - No temporary files
-- **Async/await patterns** - Non-blocking I/O operations  
-- **Memory efficiency** - Minimal memory footprint
-- **Parallel processing** - Handle multiple documents concurrently
+- **Stream-based processing** – Avoids writing temporary files by default
+- **Async/await everywhere** – Non-blocking I/O with cancellation support
+- **Minimal allocations** – Smart buffer reuse and pay-for-play converters
+- **Fast detection** – Lightweight sniffing before converter dispatch
+- **Extensible hooks** – Offload captions/transcripts to background workers
 
 ## 🔧 Configuration
 
 ```csharp
-// Configure converters
 var options = new MarkItDownOptions
 {
-    DefaultEncoding = Encoding.UTF8,
-    MaxFileSize = 10 * 1024 * 1024, // 10MB
-    Timeout = TimeSpan.FromMinutes(5)
+    EnableBuiltins = true,
+    EnablePlugins = false,
+    ExifToolPath = "/usr/local/bin/exiftool",
+    ImageCaptioner = async (bytes, info, token) =>
+    {
+        // Call your preferred vision or LLM service here
+        return await Task.FromResult("A scenic mountain landscape at sunset.");
+    },
+    AudioTranscriber = async (bytes, info, token) =>
+    {
+        // Route to speech-to-text provider
+        return await Task.FromResult("Welcome to the MarkItDown demo.");
+    }
 };
 
 var markItDown = new MarkItDown(options);

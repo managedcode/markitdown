@@ -1,22 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <LangVersion>13</LangVersion>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageId>MarkItDown</PackageId>
-    <PackageVersion>1.0.0</PackageVersion>
-    <Authors>ManagedCode</Authors>
-    <Description>A modern C# .NET library for converting various document formats (HTML, PDF, DOCX, XLSX, etc.) into clean Markdown suitable for Large Language Models (LLMs) and text analysis pipelines. Compatible with .NET 8.0+ and ready for .NET 9.</Description>
-    <PackageTags>markdown;converter;pdf;docx;xlsx;pptx;html;document;llm;dotnet9</PackageTags>
-    <RepositoryUrl>https://github.com/managedcode/markitdown</RepositoryUrl>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/managedcode/markitdown</PackageProjectUrl>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PackageId>ManagedCode.MarkItDown</PackageId>
+    <Description>ManagedCode.MarkItDown converts documents, archives, and URLs into Markdown optimised for LLM and search workflows. Supports HTML, PDF, Office Open XML, EPUB, CSV, JSON, feeds, images, audio, and more with async-first APIs.</Description>
+    <PackageTags>managedcode;markitdown;markdown;converter;pdf;docx;xlsx;pptx;html;llm;dotnet;async</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
