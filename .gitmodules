@@ -1,0 +1,3 @@
+[submodule "microsoft-markitdown"]
+	path = microsoft-markitdown
+	url = https://github.com/microsoft/markitdown
