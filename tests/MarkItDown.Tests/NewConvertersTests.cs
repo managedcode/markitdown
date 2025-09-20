@@ -1,6 +1,6 @@
 using MarkItDown.Core;
 using MarkItDown.Core.Converters;
-using System.Text;
+using Shouldly;
 
 namespace MarkItDown.Tests;
 
@@ -17,7 +17,7 @@ public class NewConvertersTests
         var result = converter.AcceptsInput(streamInfo);
 
         // Assert
-        Assert.True(result);
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class NewConvertersTests
         var result = converter.AcceptsInput(streamInfo);
 
         // Assert
-        Assert.False(result);
+        result.ShouldBeFalse();
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class NewConvertersTests
         var result = converter.AcceptsInput(streamInfo);
 
         // Assert
-        Assert.True(result);
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public class NewConvertersTests
         var result = converter.AcceptsInput(streamInfo);
 
         // Assert
-        Assert.True(result);
+        result.ShouldBeTrue();
     }
 
     [Fact]
@@ -79,28 +79,28 @@ public class NewConvertersTests
         var result = converter.AcceptsInput(streamInfo);
 
         // Assert
-        Assert.True(result);
+        result.ShouldBeTrue();
     }
 
     [Fact]
     public void ImageOcrConverter_AcceptsInput_ValidImageExtension_ReturnsTrue()
     {
         // Arrange
-        var converter = new ImageOcrConverter();
+        var converter = new ImageConverter();
         var streamInfo = new StreamInfo(mimeType: "image/jpeg", extension: ".jpg");
 
         // Act
         var result = converter.AcceptsInput(streamInfo);
 
         // Assert
-        Assert.True(result);
+        result.ShouldBeTrue();
     }
 
     [Fact]
     public void ImageOcrConverter_AcceptsInput_MultipleImageFormats_ReturnsTrue()
     {
         // Arrange
-        var converter = new ImageOcrConverter();
+        var converter = new ImageConverter();
         var testCases = new[]
         {
             (".png", "image/png"),
@@ -118,7 +118,7 @@ public class NewConvertersTests
             var result = converter.AcceptsInput(streamInfo);
 
             // Assert
-            Assert.True(result, $"Should accept {extension} files");
+            result.ShouldBeTrue($"Should accept {extension} files");
         }
     }
 
@@ -130,14 +130,14 @@ public class NewConvertersTests
         var docxConverter = new DocxConverter();
         var xlsxConverter = new XlsxConverter();
         var pptxConverter = new PptxConverter();
-        var imageConverter = new ImageOcrConverter();
+        var imageConverter = new ImageConverter();
 
         // Assert - Ensure proper priority ordering
-        Assert.Equal(200, pdfConverter.Priority);
-        Assert.Equal(210, docxConverter.Priority);
-        Assert.Equal(220, xlsxConverter.Priority);
-        Assert.Equal(230, pptxConverter.Priority);
-        Assert.Equal(500, imageConverter.Priority); // Lower priority due to resource intensity
+        pdfConverter.Priority.ShouldBe(200);
+        docxConverter.Priority.ShouldBe(210);
+        xlsxConverter.Priority.ShouldBe(220);
+        pptxConverter.Priority.ShouldBe(230);
+        imageConverter.Priority.ShouldBe(450); // Lower priority due to resource intensity
     }
 
     [Theory]
@@ -158,6 +158,6 @@ public class NewConvertersTests
         var canHandle = registeredConverters.Any(c => c.AcceptsInput(streamInfo));
 
         // Assert
-        Assert.True(canHandle, $"Should have a converter that can handle {extension} files");
+        canHandle.ShouldBeTrue($"Should have a converter that can handle {extension} files");
     }
 }

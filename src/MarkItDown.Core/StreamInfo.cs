@@ -83,6 +83,46 @@ public sealed class StreamInfo
     public string? Url { get; }
 
     /// <summary>
+    /// Create a shallow copy of this <see cref="StreamInfo"/> while optionally overriding selected fields.
+    /// </summary>
+    /// <param name="other">Another <see cref="StreamInfo"/> whose non-null fields take precedence over the current instance.</param>
+    /// <param name="mimeType">Optional MIME type override.</param>
+    /// <param name="extension">Optional file extension override.</param>
+    /// <param name="charset">Optional charset override.</param>
+    /// <param name="fileName">Optional file name override.</param>
+    /// <param name="localPath">Optional local path override.</param>
+    /// <param name="url">Optional URL override.</param>
+    /// <returns>A new <see cref="StreamInfo"/> instance with the updated values.</returns>
+    public StreamInfo CopyWith(
+        StreamInfo? other = null,
+        string? mimeType = null,
+        string? extension = null,
+        Encoding? charset = null,
+        string? fileName = null,
+        string? localPath = null,
+        string? url = null)
+    {
+        var mergedMime = mimeType ?? other?.MimeType ?? MimeType;
+        var mergedExtension = NormalizeExtension(extension ?? other?.Extension ?? Extension);
+        var mergedCharset = charset ?? other?.Charset ?? Charset;
+        var mergedFileName = fileName ?? other?.FileName ?? FileName;
+        var mergedLocalPath = localPath ?? other?.LocalPath ?? LocalPath;
+        var mergedUrl = url ?? other?.Url ?? Url;
+
+        return new StreamInfo(mergedMime, mergedExtension, mergedCharset, mergedFileName, mergedLocalPath, mergedUrl);
+    }
+
+    /// <summary>
+    /// Copy and update this instance using a charset expressed as a string.
+    /// </summary>
+    /// <param name="charset">The charset to apply.</param>
+    /// <returns>A new <see cref="StreamInfo"/> instance with the charset applied.</returns>
+    public StreamInfo CopyWithCharset(string? charset)
+    {
+        return CopyWith(charset: TryParseCharset(charset));
+    }
+
+    /// <summary>
     /// Normalize the file extension to include a leading dot.
     /// </summary>
     /// <param name="extension">The extension to normalize.</param>

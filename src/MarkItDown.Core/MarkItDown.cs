@@ -14,6 +14,7 @@ public sealed class MarkItDown
     private readonly List<ConverterRegistration> _converters;
     private readonly ILogger? _logger;
     private readonly HttpClient? _httpClient;
+    private readonly MarkItDownOptions _options;
 
     /// <summary>
     /// Initialize a new instance of MarkItDown.
@@ -21,13 +22,33 @@ public sealed class MarkItDown
     /// <param name="logger">Optional logger for diagnostic information.</param>
     /// <param name="httpClient">Optional HTTP client for downloading web content.</param>
     public MarkItDown(ILogger? logger = null, HttpClient? httpClient = null)
+        : this(null, logger, httpClient)
     {
+    }
+
+    /// <summary>
+    /// Initialize a new instance of MarkItDown with advanced configuration options.
+    /// </summary>
+    /// <param name="options">Configuration overrides for the converter. When <see langword="null"/> defaults are used.</param>
+    /// <param name="logger">Optional logger for diagnostic information.</param>
+    /// <param name="httpClient">Optional HTTP client for downloading web content.</param>
+    public MarkItDown(MarkItDownOptions? options, ILogger? logger = null, HttpClient? httpClient = null)
+    {
+        _options = options ?? new MarkItDownOptions();
         _logger = logger;
         _httpClient = httpClient;
-        _converters = new List<ConverterRegistration>();
+        _converters = [];
 
-        // Register built-in converters
-        RegisterBuiltInConverters();
+        if (_options.EnableBuiltins)
+        {
+            RegisterBuiltInConverters();
+        }
+
+        if (_options.EnablePlugins)
+        {
+            // TODO: parity with Python plugin discovery.
+            _logger?.LogWarning("Plugin support is not yet available in the .NET port.");
+        }
     }
 
     /// <summary>
@@ -70,16 +91,11 @@ public sealed class MarkItDown
     /// <param name="filePath">Path to the file to convert.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The converted Markdown content.</returns>
-    public async Task<DocumentConverterResult> ConvertAsync(string filePath, CancellationToken cancellationToken = default)
-    {
-        if (!File.Exists(filePath))
-            throw new FileNotFoundException($"File not found: {filePath}");
+    public Task<DocumentConverterResult> ConvertAsync(string filePath, CancellationToken cancellationToken = default)
+        => ConvertFileInternalAsync(filePath, null, cancellationToken);
 
-        using var fileStream = File.OpenRead(filePath);
-        var streamInfo = CreateStreamInfoFromFile(filePath);
-        
-        return await ConvertAsync(fileStream, streamInfo, cancellationToken);
-    }
+    public Task<DocumentConverterResult> ConvertAsync(string filePath, StreamInfo streamInfoOverride, CancellationToken cancellationToken = default)
+        => ConvertFileInternalAsync(filePath, streamInfoOverride, cancellationToken);
 
     /// <summary>
     /// Convert a stream to Markdown.
@@ -94,37 +110,48 @@ public sealed class MarkItDown
             throw new ArgumentException("Stream must support seeking.", nameof(stream));
 
         var exceptions = new List<Exception>();
+        var guesses = StreamInfoGuesser.Guess(stream, streamInfo);
 
-        foreach (var registration in _converters)
+        foreach (var guess in guesses)
         {
-            try
+            foreach (var registration in _converters)
             {
-                // Reset stream position before checking
-                stream.Position = 0;
+                cancellationToken.ThrowIfCancellationRequested();
 
-                if (registration.Converter.Accepts(stream, streamInfo, cancellationToken))
+                try
                 {
-                    _logger?.LogDebug("Using converter {ConverterType} for {MimeType} {Extension}", 
-                        registration.Converter.GetType().Name, 
-                        streamInfo.MimeType, 
-                        streamInfo.Extension);
+                    if (stream.CanSeek)
+                    {
+                        stream.Position = 0;
+                    }
 
-                    // Reset stream position before conversion
-                    stream.Position = 0;
-                    
-                    return await registration.Converter.ConvertAsync(stream, streamInfo, cancellationToken);
+                    if (!registration.Converter.Accepts(stream, guess, cancellationToken))
+                    {
+                        continue;
+                    }
+
+                    _logger?.LogDebug("Using converter {ConverterType} for {MimeType} {Extension}",
+                        registration.Converter.GetType().Name,
+                        guess.MimeType,
+                        guess.Extension);
+
+                    if (stream.CanSeek)
+                    {
+                        stream.Position = 0;
+                    }
+
+                    return await registration.Converter.ConvertAsync(stream, guess, cancellationToken).ConfigureAwait(false);
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogWarning(ex, "Converter {ConverterType} failed", registration.Converter.GetType().Name);
-                exceptions.Add(ex);
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Converter {ConverterType} failed", registration.Converter.GetType().Name);
+                    exceptions.Add(ex);
+                }
             }
         }
 
-        // If no converter could handle the file, throw an exception
         var message = $"No converter available for file type. MimeType: {streamInfo.MimeType}, Extension: {streamInfo.Extension}";
-        
+
         if (exceptions.Count > 0)
         {
             throw new UnsupportedFormatException(message, new AggregateException(exceptions));
@@ -139,7 +166,7 @@ public sealed class MarkItDown
     /// <param name="url">The URL to download and convert.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The converted Markdown content.</returns>
-    public async Task<DocumentConverterResult> ConvertFromUrlAsync(string url, CancellationToken cancellationToken = default)
+    public async Task<DocumentConverterResult> ConvertFromUrlAsync(string url, StreamInfo? streamInfoOverride = null, CancellationToken cancellationToken = default)
     {
         if (_httpClient is null)
             throw new InvalidOperationException("HTTP client is required for URL conversion. Provide one in the constructor.");
@@ -149,6 +176,10 @@ public sealed class MarkItDown
 
         using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var streamInfo = CreateStreamInfoFromUrl(url, response);
+        if (streamInfoOverride is not null)
+        {
+            streamInfo = streamInfo.CopyWith(streamInfoOverride);
+        }
 
         // Copy to memory stream to ensure we can seek
         using var memoryStream = new MemoryStream();
@@ -158,24 +189,124 @@ public sealed class MarkItDown
         return await ConvertAsync(memoryStream, streamInfo, cancellationToken);
     }
 
+    /// <summary>
+    /// Convert a generic URI (file, data, http, https) to Markdown.
+    /// </summary>
+    public async Task<DocumentConverterResult> ConvertUriAsync(string uri, StreamInfo? streamInfo = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(uri);
+
+        var trimmed = uri.Trim();
+
+        if (trimmed.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        {
+            var localPath = UriUtilities.ResolveFilePath(trimmed);
+            return await ConvertFileInternalAsync(localPath, streamInfo, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (trimmed.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+        {
+            var payload = UriUtilities.ParseDataUri(trimmed);
+            var extension = MimeMapping.GetExtension(payload.MimeType);
+            var normalizedExtension = string.IsNullOrWhiteSpace(extension) ? null : (extension.StartsWith('.') ? extension : "." + extension);
+            var baseInfo = new StreamInfo(
+                mimeType: payload.MimeType,
+                extension: normalizedExtension,
+                charset: TryGetEncoding(payload.Charset));
+
+            if (streamInfo is not null)
+            {
+                baseInfo = baseInfo.CopyWith(streamInfo);
+            }
+
+            using var buffer = new MemoryStream(payload.Data, writable: false);
+            return await ConvertAsync(buffer, baseInfo, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return await ConvertFromUrlAsync(trimmed, streamInfo, cancellationToken).ConfigureAwait(false);
+        }
+
+        throw new ArgumentException($"Unsupported URI scheme for '{uri}'.", nameof(uri));
+    }
+
     private void RegisterBuiltInConverters()
     {
-        // Register converters - they will be sorted by their Priority property
-        RegisterConverter(new YouTubeUrlConverter());
-        RegisterConverter(new HtmlConverter());
-        RegisterConverter(new RssFeedConverter());
-        RegisterConverter(new JsonConverter());
-        RegisterConverter(new JupyterNotebookConverter());
-        RegisterConverter(new CsvConverter());
-        RegisterConverter(new EpubConverter());
-        RegisterConverter(new XmlConverter());
-        RegisterConverter(new ZipConverter());
-        RegisterConverter(new PdfConverter());
-        RegisterConverter(new DocxConverter());
-        RegisterConverter(new XlsxConverter());
-        RegisterConverter(new PptxConverter());
-        RegisterConverter(new ImageOcrConverter());
-        RegisterConverter(new PlainTextConverter());
+        foreach (var converter in CreateBuiltInConverters())
+        {
+            RegisterConverter(converter);
+        }
+    }
+
+    private IEnumerable<IDocumentConverter> CreateBuiltInConverters()
+    {
+        IDocumentConverter CreateImageConverter() => new ImageConverter(_options.ExifToolPath, _options.ImageCaptioner);
+        IDocumentConverter CreateAudioConverter() => new AudioConverter(_options.ExifToolPath, _options.AudioTranscriber);
+
+        var converters = new List<IDocumentConverter>
+        {
+            new YouTubeUrlConverter(),
+            new HtmlConverter(),
+            new WikipediaConverter(),
+            new BingSerpConverter(),
+            new RssFeedConverter(),
+            new JsonConverter(),
+            new JupyterNotebookConverter(),
+            new CsvConverter(),
+            new EpubConverter(),
+            new XmlConverter(),
+            new ZipConverter(CreateZipInnerConverters(CreateImageConverter, CreateAudioConverter)),
+            new PdfConverter(),
+            new DocxConverter(),
+            new XlsxConverter(),
+            new PptxConverter(),
+            CreateAudioConverter(),
+            CreateImageConverter(),
+            new PlainTextConverter(),
+        };
+
+        return converters;
+    }
+
+    private IEnumerable<IDocumentConverter> CreateZipInnerConverters(Func<IDocumentConverter> imageConverterFactory, Func<IDocumentConverter> audioConverterFactory)
+    {
+        return new IDocumentConverter[]
+        {
+            new YouTubeUrlConverter(),
+            new HtmlConverter(),
+            new WikipediaConverter(),
+            new BingSerpConverter(),
+            new RssFeedConverter(),
+            new JsonConverter(),
+            new JupyterNotebookConverter(),
+            new CsvConverter(),
+            new XmlConverter(),
+            new PdfConverter(),
+            new DocxConverter(),
+            new XlsxConverter(),
+            new PptxConverter(),
+            audioConverterFactory(),
+            imageConverterFactory(),
+            new PlainTextConverter(),
+        };
+    }
+
+    private async Task<DocumentConverterResult> ConvertFileInternalAsync(string filePath, StreamInfo? overrides, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(filePath))
+        {
+            throw new FileNotFoundException($"File not found: {filePath}");
+        }
+
+        using var fileStream = File.OpenRead(filePath);
+        var streamInfo = CreateStreamInfoFromFile(filePath);
+        if (overrides is not null)
+        {
+            streamInfo = streamInfo.CopyWith(overrides);
+        }
+
+        return await ConvertAsync(fileStream, streamInfo, cancellationToken).ConfigureAwait(false);
     }
 
     private static StreamInfo CreateStreamInfoFromFile(string filePath)
@@ -217,11 +348,11 @@ public sealed class MarkItDown
     }
 
     private static string? GetMimeTypeFromExtension(string? extension)
-    {
-        return extension?.ToLowerInvariant() switch
         {
-            ".txt" => "text/plain",
-            ".md" => "text/markdown",
+            return extension?.ToLowerInvariant() switch
+            {
+                ".txt" => "text/plain",
+                ".md" => "text/markdown",
             ".markdown" => "text/markdown",
             ".html" => "text/html",
             ".htm" => "text/html",
@@ -250,7 +381,24 @@ public sealed class MarkItDown
             ".tiff" => "image/tiff",
             ".tif" => "image/tiff",
             ".webp" => "image/webp",
-            _ => null
-        };
+                _ => MimeMapping.GetMimeType(extension)
+            };
+    }
+
+    private static Encoding? TryGetEncoding(string? charset)
+    {
+        if (string.IsNullOrWhiteSpace(charset))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Encoding.GetEncoding(charset);
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

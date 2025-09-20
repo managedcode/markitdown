@@ -1,6 +1,6 @@
 using System.IO.Compression;
 using System.Text;
-using ManagedCode.MimeTypes;
+using MarkItDown.Core;
 
 namespace MarkItDown.Core.Converters;
 
@@ -24,26 +24,9 @@ public sealed class ZipConverter : IDocumentConverter
 
     public int Priority => 400; // Process before generic converters
 
-    public ZipConverter()
+    public ZipConverter(IEnumerable<IDocumentConverter>? innerConverters = null)
     {
-        // Initialize converters for processing files within the ZIP
-        // Note: We avoid circular dependencies by not including ZipConverter itself
-        _innerConverters = new List<IDocumentConverter>
-        {
-            new YouTubeUrlConverter(),
-            new HtmlConverter(),
-            new RssFeedConverter(),
-            new JsonConverter(),
-            new JupyterNotebookConverter(),
-            new CsvConverter(),
-            new XmlConverter(),
-            new PdfConverter(),
-            new DocxConverter(),
-            new XlsxConverter(),
-            new PptxConverter(),
-            new ImageOcrConverter(),
-            new PlainTextConverter() // Keep this last as fallback
-        };
+        _innerConverters = innerConverters?.ToList() ?? new List<IDocumentConverter>();
     }
 
     public bool AcceptsInput(StreamInfo streamInfo)
@@ -210,7 +193,7 @@ public sealed class ZipConverter : IDocumentConverter
             // Create StreamInfo for the file
             var fileExtension = Path.GetExtension(entry.Name);
             var fileName = entry.Name;
-            var mimeType = MimeHelper.GetMimeType(fileExtension);
+            var mimeType = MimeMapping.GetMimeType(fileExtension);
 
             var fileStreamInfo = new StreamInfo(
                 mimeType: mimeType,
