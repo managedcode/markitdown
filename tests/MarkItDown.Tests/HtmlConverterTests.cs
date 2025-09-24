@@ -101,6 +101,151 @@ public class HtmlConverterTests
     }
 
     [Fact]
+    public async Task ConvertAsync_HtmlWithStyleElement_IgnoresStyleContent()
+    {
+        // Arrange
+        var converter = new HtmlConverter();
+        var html = "<html><head><style> h1 {color: red;} </style></head><body><h1>Test</h1></body></html>";
+        var bytes = Encoding.UTF8.GetBytes(html);
+        using var stream = new MemoryStream(bytes);
+        var streamInfo = new StreamInfo(charset: Encoding.UTF8);
+
+        // Act
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        // Assert
+        Assert.Contains("# Test", result.Markdown);
+        Assert.DoesNotContain("h1 {color: red;}", result.Markdown);
+    }
+
+    [Fact]
+    public async Task ConvertAsync_HtmlWithBodyStyleElement_IgnoresStyleContent()
+    {
+        // Arrange
+        var converter = new HtmlConverter();
+        var html = "<html><body><style> body {background: blue;} </style><h1>Inline</h1></body></html>";
+        var bytes = Encoding.UTF8.GetBytes(html);
+        using var stream = new MemoryStream(bytes);
+        var streamInfo = new StreamInfo(charset: Encoding.UTF8);
+
+        // Act
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        // Assert
+        Assert.Contains("# Inline", result.Markdown);
+        Assert.DoesNotContain("body {background: blue;}", result.Markdown);
+    }
+
+    [Fact]
+    public async Task ConvertAsync_HtmlWithScriptElement_IgnoresScriptContent()
+    {
+        // Arrange
+        var converter = new HtmlConverter();
+        var html = "<html><head><script>console.log('test');</script></head><body><h1>Run</h1><script>console.log('body');</script></body></html>";
+        var bytes = Encoding.UTF8.GetBytes(html);
+        using var stream = new MemoryStream(bytes);
+        var streamInfo = new StreamInfo(charset: Encoding.UTF8);
+
+        // Act
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        // Assert
+        Assert.Contains("# Run", result.Markdown);
+        Assert.DoesNotContain("console.log('test');", result.Markdown);
+        Assert.DoesNotContain("console.log('body');", result.Markdown);
+    }
+
+    [Fact]
+    public async Task ConvertAsync_HtmlWithHeadLink_IgnoresLinkMetadata()
+    {
+        // Arrange
+        var converter = new HtmlConverter();
+        var html = "<html><head><link rel=\"stylesheet\" href=\"styles.css\"></head><body><h1>Linked</h1></body></html>";
+        var bytes = Encoding.UTF8.GetBytes(html);
+        using var stream = new MemoryStream(bytes);
+        var streamInfo = new StreamInfo(charset: Encoding.UTF8);
+
+        // Act
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        // Assert
+        Assert.Contains("# Linked", result.Markdown);
+        Assert.DoesNotContain("styles.css", result.Markdown);
+    }
+
+    [Fact]
+    public async Task ConvertAsync_HtmlWithAnchor_RendersMarkdownLink()
+    {
+        // Arrange
+        var converter = new HtmlConverter();
+        var html = "<html><head><link rel=\"stylesheet\" href=\"styles.css\"></head><body><p>Visit <a href=\"https://example.com\">Example</a></p></body></html>";
+        var bytes = Encoding.UTF8.GetBytes(html);
+        using var stream = new MemoryStream(bytes);
+        var streamInfo = new StreamInfo(charset: Encoding.UTF8);
+
+        // Act
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        // Assert
+        Assert.Contains("[Example](https://example.com)", result.Markdown);
+        Assert.DoesNotContain("styles.css", result.Markdown);
+    }
+
+    [Fact]
+    public async Task ConvertAsync_HtmlWithNoscript_IgnoresNoscriptContent()
+    {
+        // Arrange
+        var converter = new HtmlConverter();
+        var html = "<html><body><noscript><p>Enable JavaScript</p></noscript><h1>Visible</h1></body></html>";
+        var bytes = Encoding.UTF8.GetBytes(html);
+        using var stream = new MemoryStream(bytes);
+        var streamInfo = new StreamInfo(charset: Encoding.UTF8);
+
+        // Act
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        // Assert
+        Assert.Contains("# Visible", result.Markdown);
+        Assert.DoesNotContain("Enable JavaScript", result.Markdown);
+    }
+
+    [Fact]
+    public async Task ConvertAsync_HtmlWithTemplate_IgnoresTemplateContent()
+    {
+        // Arrange
+        var converter = new HtmlConverter();
+        var html = "<html><body><template><p>Hidden Content</p></template><h1>Shown</h1></body></html>";
+        var bytes = Encoding.UTF8.GetBytes(html);
+        using var stream = new MemoryStream(bytes);
+        var streamInfo = new StreamInfo(charset: Encoding.UTF8);
+
+        // Act
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        // Assert
+        Assert.Contains("# Shown", result.Markdown);
+        Assert.DoesNotContain("Hidden Content", result.Markdown);
+    }
+
+    [Fact]
+    public async Task ConvertAsync_HtmlWithIframe_IgnoresIframeContent()
+    {
+        // Arrange
+        var converter = new HtmlConverter();
+        var html = "<html><body><iframe src=\"https://example.com\">Fallback Text</iframe><h1>Visible</h1></body></html>";
+        var bytes = Encoding.UTF8.GetBytes(html);
+        using var stream = new MemoryStream(bytes);
+        var streamInfo = new StreamInfo(charset: Encoding.UTF8);
+
+        // Act
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        // Assert
+        Assert.Contains("# Visible", result.Markdown);
+        Assert.DoesNotContain("Fallback Text", result.Markdown);
+    }
+
+    [Fact]
     public async Task ConvertAsync_HtmlWithLink_CreatesMarkdownLink()
     {
         // Arrange

@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
@@ -7,10 +8,36 @@ namespace MarkItDown.Converters;
 
 internal sealed class HtmlMarkdownRenderer
 {
+    // Tags that do not produce visible Markdown output and are safe to drop entirely.
+    private static readonly HashSet<string> NonRenderableElements = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "style",
+        "script",
+        "noscript",
+        "template",
+        "head",
+        "meta",
+        "link",
+        "base",
+        "title",
+        "iframe",
+        "frame",
+        "frameset",
+        "object",
+        "embed",
+        "param",
+        "source",
+        "track",
+    };
+
     public HtmlRenderResult RenderDocument(IHtmlDocument document)
     {
         var markdown = new StringBuilder();
-        ConvertNode(document.DocumentElement, markdown, 0);
+        var root = document.Body ?? document.DocumentElement;
+        if (root is not null)
+        {
+            ConvertNode(root, markdown, 0);
+        }
         var normalized = NormalizeSpacing(markdown.ToString());
         var title = ExtractTitle(document);
         return new HtmlRenderResult(normalized, title);
@@ -71,6 +98,9 @@ internal sealed class HtmlMarkdownRenderer
                 }
                 break;
 
+            case NodeType.Comment:
+                break;
+
             case NodeType.Text:
                 AppendText(node, markdown);
                 break;
@@ -96,6 +126,11 @@ internal sealed class HtmlMarkdownRenderer
     private static void ConvertElement(IElement element, StringBuilder markdown, int indentLevel)
     {
         var tag = element.TagName.ToLowerInvariant();
+
+        if (NonRenderableElements.Contains(tag))
+        {
+            return;
+        }
 
         switch (tag)
         {
