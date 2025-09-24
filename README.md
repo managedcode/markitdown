@@ -151,7 +151,7 @@ Install-Package ManagedCode.MarkItDown
 dotnet add package ManagedCode.MarkItDown
 
 # PackageReference (add to your .csproj)
-<PackageReference Include="ManagedCode.MarkItDown" Version="1.0.0" />
+<PackageReference Include="ManagedCode.MarkItDown" Version="0.0.3" />
 ```
 
 ### Prerequisites
@@ -219,21 +219,17 @@ Console.WriteLine(urlResult.Title);
 ### Customise the pipeline with options
 
 ```csharp
-using Azure;
 using MarkItDown;
 
 var options = new MarkItDownOptions
 {
-    // Plug in your own services (Azure AI, OpenAI, etc.)
+    // Plug in your own services (custom image captioning, audio transcription, etc.)
     ImageCaptioner = async (bytes, info, token) =>
         await myCaptionService.DescribeAsync(bytes, info, token),
     AudioTranscriber = async (bytes, info, token) =>
         await speechClient.TranscribeAsync(bytes, info, token),
-    DocumentIntelligence = new DocumentIntelligenceOptions
-    {
-        Endpoint = "https://<your-resource>.cognitiveservices.azure.com/",
-        Credential = new AzureKeyCredential("<document-intelligence-key>")
-    }
+    // Note: Azure Document Intelligence integration is planned but not yet implemented
+    ExifToolPath = "/usr/local/bin/exiftool"
 };
 
 var markItDown = new MarkItDown(options);
@@ -309,20 +305,20 @@ markItDown.RegisterConverter(new MyCustomConverter());
 git clone https://github.com/managedcode/markitdown.git
 cd markitdown
 
-# Build the solution
-dotnet build
+# Build the solution (requires .NET 9 SDK for .slnx support)
+dotnet build src/MarkItDown/MarkItDown.csproj
 
 # Run tests
-dotnet test
+dotnet test tests/MarkItDown.Tests/MarkItDown.Tests.csproj
 
 # Create NuGet package
-dotnet pack --configuration Release
+dotnet pack src/MarkItDown/MarkItDown.csproj --configuration Release
 ```
 
 ### Tests & Coverage
 
 ```bash
-dotnet test --collect:"XPlat Code Coverage"
+dotnet test tests/MarkItDown.Tests/MarkItDown.Tests.csproj --collect:"XPlat Code Coverage"
 ```
 
 The command emits standard test results plus a Cobertura coverage report at
@@ -334,13 +330,12 @@ HTML or Markdown dashboards.
 
 ```
 ├── src/
-│   ├── MarkItDown/                # Core library
-│   │   ├── Converters/            # Format-specific converters (HTML, PDF, audio, etc.)
-│   │   ├── MarkItDown.cs          # Main conversion engine
-│   │   ├── StreamInfoGuesser.cs   # MIME/charset/extension detection helpers
-│   │   ├── MarkItDownOptions.cs   # Runtime configuration flags
-│   │   └── ...                    # Shared utilities (UriUtilities, MimeMapping, etc.)
-│   └── MarkItDown.Cli/            # CLI host (under active development)
+│   └── MarkItDown/                # Core library
+│       ├── Converters/            # Format-specific converters (HTML, PDF, audio, etc.)
+│       ├── MarkItDown.cs          # Main conversion engine
+│       ├── StreamInfoGuesser.cs   # MIME/charset/extension detection helpers
+│       ├── MarkItDownOptions.cs   # Runtime configuration flags
+│       └── ...                    # Shared utilities (UriUtilities, MimeMapping, etc.)
 ├── tests/
 │   └── MarkItDown.Tests/          # xUnit + Shouldly tests, Python parity vectors (WIP)
 ├── Directory.Build.props          # Shared build + packaging settings
@@ -359,9 +354,9 @@ HTML or Markdown dashboards.
 ## 🗺️ Roadmap
 
 ### 🎯 Near-Term
-- Azure Document Intelligence converter (options already scaffolded)
+- Azure Document Intelligence converter (options already scaffolded, implementation pending)
+- CLI tool for command-line usage
 - Outlook `.msg` ingestion via MIT-friendly dependencies
-- Expanded CLI commands (batch mode, globbing, JSON output)
 - Richer regression suite mirroring Python test vectors
 
 ### 🎯 Future Ideas
