@@ -1,4 +1,4 @@
-using MarkItDown.Core;
+using MarkItDown;
 using System.Text;
 
 namespace MarkItDown.Tests;
@@ -9,7 +9,7 @@ public class MarkItDownTests
     public async Task ConvertAsync_PlainTextFile_ReturnsCorrectMarkdown()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var content = "This is a test file.\nWith multiple lines.\n";
         var bytes = Encoding.UTF8.GetBytes(content);
         using var stream = new MemoryStream(bytes);
@@ -26,7 +26,7 @@ public class MarkItDownTests
     public async Task ConvertAsync_MarkdownFile_ReturnsCorrectMarkdown()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var content = "# Header\n\nThis is **bold** text.\n";
         var bytes = Encoding.UTF8.GetBytes(content);
         using var stream = new MemoryStream(bytes);
@@ -43,7 +43,7 @@ public class MarkItDownTests
     public async Task ConvertAsync_UnsupportedFormat_ThrowsUnsupportedFormatException()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         using var stream = new MemoryStream([0x50, 0x4B, 0x03, 0x04]); // ZIP file signature
         var streamInfo = new StreamInfo(mimeType: "application/zip", extension: ".zip");
 
@@ -56,7 +56,7 @@ public class MarkItDownTests
     public async Task ConvertAsync_NonSeekableStream_ThrowsArgumentException()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var nonSeekableStream = new NonSeekableMemoryStream([1, 2, 3]);
         var streamInfo = new StreamInfo(extension: ".txt");
 
@@ -69,7 +69,7 @@ public class MarkItDownTests
     public void RegisterConverter_CustomConverter_AddsToConverterList()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var customConverter = new TestConverter();
 
         // Act
@@ -86,7 +86,7 @@ public class MarkItDownTests
     public async Task ConvertAsync_FileNotFound_ThrowsFileNotFoundException()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var nonExistentFile = "nonexistent.txt";
 
         // Act & Assert

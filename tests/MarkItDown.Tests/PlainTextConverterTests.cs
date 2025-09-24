@@ -1,5 +1,5 @@
-﻿using MarkItDown.Core;
-using MarkItDown.Core.Converters;
+﻿using MarkItDown;
+using MarkItDown.Converters;
 using System.Text;
 
 namespace MarkItDown.Tests;

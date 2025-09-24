@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using MarkItDown.Core;
+using MarkItDown;
 
 namespace MarkItDown.Tests;
 
@@ -13,7 +13,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_WithValidFile_ReturnsSuccess()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var htmlContent = "<html><body><h1>Test Header</h1><p>Test content</p></body></html>";
         var bytes = Encoding.UTF8.GetBytes(htmlContent);
         
@@ -34,7 +34,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_WithCancellationToken_RespectsToken()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var content = "Simple text content for testing";
         var bytes = Encoding.UTF8.GetBytes(content);
         var cts = new CancellationTokenSource();
@@ -62,7 +62,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_WithLargeContent_ProcessesCorrectly()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var largeContent = new StringBuilder();
         
         // Create a large HTML document
@@ -95,7 +95,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_StreamNotSeekable_HandlesCorrectly()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var content = "Test content for non-seekable stream";
         var bytes = Encoding.UTF8.GetBytes(content);
         
@@ -111,7 +111,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_EmptyStream_ReturnsEmptyResult()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         using var stream = new MemoryStream();
         var streamInfo = new StreamInfo(extension: ".txt");
 
@@ -127,7 +127,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_BinaryContent_ThrowsUnsupportedFormatException()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var binaryData = new byte[] { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 }; // Random binary data
         
         using var stream = new MemoryStream(binaryData);
@@ -142,7 +142,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_JsonContent_ReturnsFormattedOutput()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var jsonContent = "{\"name\": \"test\", \"value\": 123, \"nested\": {\"key\": \"value\"}}";
         var bytes = Encoding.UTF8.GetBytes(jsonContent);
         
@@ -155,16 +155,17 @@ public class MarkItDownIntegrationTests
         // Assert
         Assert.NotNull(result);
         Assert.NotEmpty(result.Markdown);
-        Assert.Contains("test", result.Markdown);
-        Assert.Contains("123", result.Markdown);
-        Assert.Contains("value", result.Markdown);
+        Assert.Contains("```json", result.Markdown);
+        Assert.Contains("\"name\": \"test\"", result.Markdown);
+        Assert.Contains("\"value\": 123", result.Markdown);
+        Assert.Contains("\"key\": \"value\"", result.Markdown);
     }
 
     [Fact]
     public async Task ConvertAsync_MarkdownContent_ReturnsAsIs()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var markdownContent = "# Header\n\nThis is **bold** and *italic* text.\n\n- List item 1\n- List item 2\n";
         var bytes = Encoding.UTF8.GetBytes(markdownContent);
         
@@ -183,7 +184,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_ComplexHtmlWithTables_ConvertsCorrectly()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var htmlContent = @"
             <html>
                 <body>
@@ -226,7 +227,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_MultipleConcurrentCalls_HandlesCorrectly()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var tasks = new Task<DocumentConverterResult>[10];
         
         for (int i = 0; i < 10; i++)
@@ -255,7 +256,7 @@ public class MarkItDownIntegrationTests
     public void RegisterConverter_CustomConverter_AddsToList()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var customConverter = new TestCustomConverter();
 
         // Act
@@ -271,7 +272,7 @@ public class MarkItDownIntegrationTests
     public void RegisterConverter_NullConverter_ThrowsArgumentNullException()
     {
         // Arrange
-        var markItDown = new Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => markItDown.RegisterConverter(null!));

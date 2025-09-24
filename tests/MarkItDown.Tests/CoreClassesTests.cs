@@ -1,4 +1,4 @@
-using MarkItDown.Core;
+using MarkItDown;
 using System.Text;
 
 namespace MarkItDown.Tests;

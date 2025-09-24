@@ -5,7 +5,7 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/src/">
-    <Project Path="src/MarkItDown.Core/MarkItDown.Core.csproj" />
+    <Project Path="src\MarkItDown\MarkItDown.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MarkItDown.Tests/MarkItDown.Tests.csproj" />

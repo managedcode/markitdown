@@ -1,5 +1,5 @@
-using MarkItDown.Core;
-using MarkItDown.Core.Converters;
+using MarkItDown;
+using MarkItDown.Converters;
 using Shouldly;
 
 namespace MarkItDown.Tests;
@@ -150,7 +150,7 @@ public class NewConvertersTests
     public void MarkItDown_RegistersNewConverters_CanHandleNewFormats(string extension, string mimeType)
     {
         // Arrange
-        var markItDown = new MarkItDown.Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var registeredConverters = markItDown.GetRegisteredConverters();
 
         // Act

@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using MarkItDown.Core;
+using MarkItDown;
 
 namespace MarkItDown.Tests;
 

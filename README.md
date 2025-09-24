@@ -169,73 +169,105 @@ dotnet add package ManagedCode.MarkItDown
 
 ## 💻 Usage
 
-### Basic API Usage
+### Convert a local file
 
 ```csharp
-using MarkItDown.Core;
+using MarkItDown;
 
-// Simple conversion
+// Convert a DOCX file and print the Markdown
 var markItDown = new MarkItDown();
-var result = await markItDown.ConvertAsync("document.html");
+DocumentConverterResult result = await markItDown.ConvertAsync("report.docx");
 Console.WriteLine(result.Markdown);
 ```
 
-### Advanced Usage with Logging
+### Convert a stream with metadata overrides
 
 ```csharp
-using MarkItDown.Core;
-using Microsoft.Extensions.Logging;
+using System.IO;
+using System.Text;
+using MarkItDown;
 
-// With logging and HTTP client for web content
-using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-var logger = loggerFactory.CreateLogger<Program>();
+using var stream = File.OpenRead("invoice.html");
+var streamInfo = new StreamInfo(
+    mimeType: "text/html",
+    extension: ".html",
+    charset: Encoding.UTF8,
+    fileName: "invoice.html");
 
-using var httpClient = new HttpClient();
-var markItDown = new MarkItDown(logger, httpClient);
-
-// Convert from file
-var fileResult = await markItDown.ConvertAsync("document.html");
-
-// Convert from URL
-var urlResult = await markItDown.ConvertFromUrlAsync("https://example.com");
-
-// Convert from URI (file:, data:, http:, https:)
-var dataResult = await markItDown.ConvertUriAsync("data:text/html;base64,PGgxPkhlbGxvPC9oMT4=");
-
-// Convert from stream with optional overrides
-using var stream = File.OpenRead("document.html");
-var streamInfo = new StreamInfo(mimeType: "text/html", extension: ".html");
-var streamResult = await markItDown.ConvertAsync(stream, streamInfo);
+var markItDown = new MarkItDown();
+var result = await markItDown.ConvertAsync(stream, streamInfo);
+Console.WriteLine(result.Title);
 ```
 
-### Custom Converters
+### Convert content from HTTP/HTTPS
+
+```csharp
+using MarkItDown;
+using Microsoft.Extensions.Logging;
+
+using var loggerFactory = LoggerFactory.Create(static builder => builder.AddConsole());
+using var httpClient = new HttpClient();
+
+var markItDown = new MarkItDown(
+    logger: loggerFactory.CreateLogger<MarkItDown>(),
+    httpClient: httpClient);
+
+DocumentConverterResult urlResult = await markItDown.ConvertFromUrlAsync("https://contoso.example/blog");
+Console.WriteLine(urlResult.Title);
+```
+
+### Customise the pipeline with options
+
+```csharp
+using Azure;
+using MarkItDown;
+
+var options = new MarkItDownOptions
+{
+    // Plug in your own services (Azure AI, OpenAI, etc.)
+    ImageCaptioner = async (bytes, info, token) =>
+        await myCaptionService.DescribeAsync(bytes, info, token),
+    AudioTranscriber = async (bytes, info, token) =>
+        await speechClient.TranscribeAsync(bytes, info, token),
+    DocumentIntelligence = new DocumentIntelligenceOptions
+    {
+        Endpoint = "https://<your-resource>.cognitiveservices.azure.com/",
+        Credential = new AzureKeyCredential("<document-intelligence-key>")
+    }
+};
+
+var markItDown = new MarkItDown(options);
+```
+
+### Custom converters
 
 Create your own format converters by implementing `IDocumentConverter`:
 
 ```csharp
-using MarkItDown.Core;
+using System.IO;
+using MarkItDown;
 
-public class MyCustomConverter : IDocumentConverter
+public sealed class MyCustomConverter : IDocumentConverter
 {
-    public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
-    {
-        return streamInfo.Extension == ".mycustomformat";
-    }
+    public int Priority => ConverterPriority.SpecificFileFormat;
 
-    public async Task<DocumentConverterResult> ConvertAsync(
-        Stream stream, 
-        StreamInfo streamInfo, 
+    public bool AcceptsInput(StreamInfo streamInfo) =>
+        string.Equals(streamInfo.Extension, ".mycustom", StringComparison.OrdinalIgnoreCase);
+
+    public Task<DocumentConverterResult> ConvertAsync(
+        Stream stream,
+        StreamInfo streamInfo,
         CancellationToken cancellationToken = default)
     {
-        // Your conversion logic here
-        var markdown = "# Converted from custom format\n\nContent here...";
-        return new DocumentConverterResult(markdown, "Document Title");
+        stream.Seek(0, SeekOrigin.Begin);
+        using var reader = new StreamReader(stream, leaveOpen: true);
+        var markdown = "# Converted from custom format\n\n" + reader.ReadToEnd();
+        return Task.FromResult(new DocumentConverterResult(markdown, "Custom document"));
     }
 }
 
-// Register the custom converter
 var markItDown = new MarkItDown();
-markItDown.RegisterConverter(new MyCustomConverter(), ConverterPriority.SpecificFileFormat);
+markItDown.RegisterConverter(new MyCustomConverter());
 ```
 
 ## 🏗️ Architecture
@@ -287,16 +319,28 @@ dotnet test
 dotnet pack --configuration Release
 ```
 
+### Tests & Coverage
+
+```bash
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+The command emits standard test results plus a Cobertura coverage report at
+`tests/MarkItDown.Tests/TestResults/<guid>/coverage.cobertura.xml`. Tools such as
+[ReportGenerator](https://github.com/danielpalme/ReportGenerator) can turn this into
+HTML or Markdown dashboards.
+
 ### Project Structure
 
 ```
 ├── src/
-│   ├── MarkItDown.Core/           # Core library
+│   ├── MarkItDown/                # Core library
 │   │   ├── Converters/            # Format-specific converters (HTML, PDF, audio, etc.)
 │   │   ├── MarkItDown.cs          # Main conversion engine
 │   │   ├── StreamInfoGuesser.cs   # MIME/charset/extension detection helpers
 │   │   ├── MarkItDownOptions.cs   # Runtime configuration flags
 │   │   └── ...                    # Shared utilities (UriUtilities, MimeMapping, etc.)
+│   └── MarkItDown.Cli/            # CLI host (under active development)
 ├── tests/
 │   └── MarkItDown.Tests/          # xUnit + Shouldly tests, Python parity vectors (WIP)
 ├── Directory.Build.props          # Shared build + packaging settings

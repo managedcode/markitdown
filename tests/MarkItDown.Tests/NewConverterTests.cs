@@ -1,6 +1,6 @@
 using System.Text;
-using MarkItDown.Core;
-using MarkItDown.Core.Converters;
+using MarkItDown;
+using MarkItDown.Converters;
 using Xunit;
 
 namespace MarkItDown.Tests;
@@ -98,9 +98,11 @@ public class NewConverterTests
 
         // Assert
         Assert.Contains("# test", result.Markdown);
-        Assert.Contains("**Name:** John", result.Markdown);
-        Assert.Contains("**Age:** 25", result.Markdown);
-        Assert.Contains("**City:** New York", result.Markdown);
+        Assert.Contains("```json", result.Markdown);
+        Assert.Contains("\"name\": \"John\"", result.Markdown);
+        Assert.Contains("\"age\": 25", result.Markdown);
+        Assert.Contains("\"city\": \"New York\"", result.Markdown);
+        Assert.EndsWith("```", result.Markdown.TrimEnd());
     }
 
     [Fact]
@@ -243,7 +245,7 @@ public class NewConverterTests
     public void MarkItDown_RegistersNewConverters_CanHandleNewFormats(string extension, string mimeType)
     {
         // Arrange
-        var markItDown = new MarkItDown.Core.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDown();
         var converters = markItDown.GetRegisteredConverters();
 
         // Act
