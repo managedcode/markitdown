@@ -42,7 +42,7 @@ jobs:
         run: dotnet test --configuration Release --no-build --verbosity normal
 
       - name: Pack NuGet packages
-        run: dotnet pack src/MarkItDown.Core/MarkItDown.Core.csproj --configuration Release --no-build --output ./artifacts
+        run: dotnet pack --configuration Release --no-build --output ./artifacts
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
