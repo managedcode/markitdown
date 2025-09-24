@@ -1,4 +1,7 @@
+using System.Collections.Generic;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MarkItDown.Converters;
 
@@ -39,13 +42,19 @@ public sealed class AudioConverter : IDocumentConverter
         "BitsPerSample",
     };
 
-    private readonly string? _exifToolPath;
-    private readonly Func<byte[], StreamInfo, CancellationToken, Task<string?>>? _transcribeAsync;
+    private readonly IAudioMetadataExtractor metadataExtractor;
+    private readonly IAudioTranscriber transcriber;
 
     public AudioConverter(string? exifToolPath = null, Func<byte[], StreamInfo, CancellationToken, Task<string?>>? transcribeAsync = null)
+        : this(new ExifToolAudioMetadataExtractor(exifToolPath),
+            transcribeAsync is null ? NoOpAudioTranscriber.Instance : new DelegateAudioTranscriber(transcribeAsync))
     {
-        _exifToolPath = exifToolPath;
-        _transcribeAsync = transcribeAsync;
+    }
+
+    internal AudioConverter(IAudioMetadataExtractor metadataExtractor, IAudioTranscriber transcriber)
+    {
+        this.metadataExtractor = metadataExtractor ?? throw new ArgumentNullException(nameof(metadataExtractor));
+        this.transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
     }
 
     public int Priority => 460;
@@ -76,7 +85,7 @@ public sealed class AudioConverter : IDocumentConverter
         await stream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
         var bytes = memory.ToArray();
 
-        var metadata = await ExifToolMetadataExtractor.ExtractAsync(bytes, streamInfo.Extension, _exifToolPath, cancellationToken).ConfigureAwait(false);
+        var metadata = await metadataExtractor.ExtractAsync(bytes, streamInfo, cancellationToken).ConfigureAwait(false);
         var builder = new StringBuilder();
 
         foreach (var field in MetadataFields)
@@ -110,18 +119,65 @@ public sealed class AudioConverter : IDocumentConverter
 
     private async Task<string?> TryTranscribeAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
     {
-        if (_transcribeAsync is null)
-        {
-            return null;
-        }
-
         try
         {
-            return await _transcribeAsync(audioBytes, streamInfo, cancellationToken).ConfigureAwait(false);
+            return await transcriber.TranscribeAsync(audioBytes, streamInfo, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
             return null;
         }
+    }
+
+    internal interface IAudioMetadataExtractor
+    {
+        Task<IReadOnlyDictionary<string, string>> ExtractAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken);
+    }
+
+    internal interface IAudioTranscriber
+    {
+        Task<string?> TranscribeAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken);
+    }
+
+    private sealed class ExifToolAudioMetadataExtractor : IAudioMetadataExtractor
+    {
+        private readonly string? exifToolPath;
+
+        public ExifToolAudioMetadataExtractor(string? exifToolPath)
+        {
+            this.exifToolPath = exifToolPath;
+        }
+
+        public async Task<IReadOnlyDictionary<string, string>> ExtractAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
+        {
+            var result = await ExifToolMetadataExtractor
+                .ExtractAsync(audioBytes, streamInfo.Extension, exifToolPath, cancellationToken)
+                .ConfigureAwait(false);
+
+            return result;
+        }
+    }
+
+    private sealed class DelegateAudioTranscriber : IAudioTranscriber
+    {
+        private readonly Func<byte[], StreamInfo, CancellationToken, Task<string?>> factory;
+
+        public DelegateAudioTranscriber(Func<byte[], StreamInfo, CancellationToken, Task<string?>> factory)
+            => this.factory = factory;
+
+        public Task<string?> TranscribeAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
+            => factory(audioBytes, streamInfo, cancellationToken);
+    }
+
+    private sealed class NoOpAudioTranscriber : IAudioTranscriber
+    {
+        public static NoOpAudioTranscriber Instance { get; } = new();
+
+        private NoOpAudioTranscriber()
+        {
+        }
+
+        public Task<string?> TranscribeAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
+            => Task.FromResult<string?>(null);
     }
 }

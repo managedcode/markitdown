@@ -2,21 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Runtime.Versioning;
 using ManagedCode.MimeTypes;
 using MarkItDown;
 using PDFtoImage;
 using SkiaSharp;
 using UglyToad.PdfPig;
-using UglyToad.PdfPig.Content;
 
 namespace MarkItDown.Converters;
 
 /// <summary>
-/// Converter for PDF files to Markdown using PdfPig.
+/// Converter for PDF files to Markdown using PdfPig for text extraction and optional page image rendering.
 /// </summary>
 public sealed class PdfConverter : IDocumentConverter
 {
@@ -29,6 +28,20 @@ public sealed class PdfConverter : IDocumentConverter
     {
         MimeHelper.PDF
     };
+
+    private readonly IPdfTextExtractor textExtractor;
+    private readonly IPdfImageRenderer imageRenderer;
+
+    public PdfConverter()
+        : this(new PdfPigTextExtractor(), new PdfToImageRenderer())
+    {
+    }
+
+    internal PdfConverter(IPdfTextExtractor textExtractor, IPdfImageRenderer imageRenderer)
+    {
+        this.textExtractor = textExtractor ?? throw new ArgumentNullException(nameof(textExtractor));
+        this.imageRenderer = imageRenderer ?? throw new ArgumentNullException(nameof(imageRenderer));
+    }
 
     public int Priority => 200; // Between HTML and plain text
 
@@ -55,21 +68,19 @@ public sealed class PdfConverter : IDocumentConverter
         if (!AcceptsInput(streamInfo))
             return false;
 
-        // Validate PDF header if we have access to the stream
         if (stream.CanSeek && stream.Length > 4)
         {
             var originalPosition = stream.Position;
             try
             {
                 stream.Position = 0;
-                var buffer = new byte[4];
-                var bytesRead = stream.Read(buffer, 0, 4);
+                Span<byte> buffer = stackalloc byte[4];
+                var bytesRead = stream.Read(buffer);
                 stream.Position = originalPosition;
 
                 if (bytesRead == 4)
                 {
-                    var header = Encoding.ASCII.GetString(buffer);
-                    return header == "%PDF";
+                    return buffer[0] == '%' && buffer[1] == 'P' && buffer[2] == 'D' && buffer[3] == 'F';
                 }
             }
             catch
@@ -85,27 +96,15 @@ public sealed class PdfConverter : IDocumentConverter
     {
         try
         {
-            var workingStream = await EnsureSeekableStreamAsync(stream, cancellationToken).ConfigureAwait(false);
-            try
-            {
-                workingStream.Position = 0;
-                var extractedText = await ExtractTextFromPdfAsync(workingStream, cancellationToken).ConfigureAwait(false);
+            var pdfBytes = await ReadAllBytesAsync(stream, cancellationToken).ConfigureAwait(false);
 
-                workingStream.Position = 0;
-                var pageImages = await RenderPdfImagesAsync(workingStream, cancellationToken).ConfigureAwait(false);
+            var extractedText = await textExtractor.ExtractTextAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+            var pageImages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
 
-                var markdown = AppendImages(ConvertTextToMarkdown(extractedText), pageImages);
-                var title = ExtractTitle(extractedText);
+            var markdown = AppendImages(ConvertTextToMarkdown(extractedText), pageImages);
+            var title = ExtractTitle(extractedText);
 
-                return new DocumentConverterResult(markdown, title);
-            }
-            finally
-            {
-                if (!ReferenceEquals(workingStream, stream))
-                {
-                    await workingStream.DisposeAsync().ConfigureAwait(false);
-                }
-            }
+            return new DocumentConverterResult(markdown, title);
         }
         catch (Exception ex) when (!(ex is MarkItDownException))
         {
@@ -113,102 +112,22 @@ public sealed class PdfConverter : IDocumentConverter
         }
     }
 
-    private static async Task<Stream> EnsureSeekableStreamAsync(Stream stream, CancellationToken cancellationToken)
+    private static async Task<byte[]> ReadAllBytesAsync(Stream stream, CancellationToken cancellationToken)
     {
+        if (stream is MemoryStream existingMemory && stream.CanSeek)
+        {
+            stream.Position = 0;
+            return existingMemory.ToArray();
+        }
+
+        await using var memory = new MemoryStream();
         if (stream.CanSeek)
         {
-            return stream;
+            stream.Position = 0;
         }
 
-        var buffer = new MemoryStream();
-        await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
-        buffer.Position = 0;
-        return buffer;
-    }
-
-    private static async Task<string> ExtractTextFromPdfAsync(Stream stream, CancellationToken cancellationToken)
-    {
-        var textBuilder = new StringBuilder();
-
-        await Task.Run(() =>
-        {
-            using var pdfDocument = PdfDocument.Open(stream);
-
-            for (int pageNum = 1; pageNum <= pdfDocument.NumberOfPages; pageNum++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var page = pdfDocument.GetPage(pageNum);
-                var pageText = page.Text;
-
-                if (!string.IsNullOrWhiteSpace(pageText))
-                {
-                    if (textBuilder.Length > 0)
-                    {
-                        textBuilder.AppendLine("\n---\n"); // Page separator
-                    }
-                    textBuilder.AppendLine(pageText.Trim());
-                }
-            }
-        }, cancellationToken);
-
-        return textBuilder.ToString();
-    }
-
-    private static async Task<IReadOnlyList<string>> RenderPdfImagesAsync(Stream stream, CancellationToken cancellationToken)
-    {
-        if (!(OperatingSystem.IsWindows()
-            || OperatingSystem.IsLinux()
-            || OperatingSystem.IsMacOS()
-            || OperatingSystem.IsMacCatalyst()
-            || OperatingSystem.IsAndroid()
-            || OperatingSystem.IsIOS()))
-        {
-            return Array.Empty<string>();
-        }
-
-        return await RenderPdfImagesOnSupportedPlatformsAsync(stream, cancellationToken).ConfigureAwait(false);
-    }
-
-    [SupportedOSPlatform("windows")]
-    [SupportedOSPlatform("linux")]
-    [SupportedOSPlatform("macos")]
-    [SupportedOSPlatform("maccatalyst")]
-    [SupportedOSPlatform("android")]
-    [SupportedOSPlatform("ios")]
-    private static Task<IReadOnlyList<string>> RenderPdfImagesOnSupportedPlatformsAsync(Stream stream, CancellationToken cancellationToken)
-    {
-        var options = new RenderOptions
-        {
-            Dpi = 144,
-            WithAnnotations = true,
-            WithAspectRatio = true,
-            AntiAliasing = PdfAntiAliasing.All,
-        };
-
-        return Task.Run(() =>
-        {
-            stream.Position = 0;
-            var images = new List<string>();
-
-#pragma warning disable CA1416 // PDFtoImage is guarded by runtime platform checks above
-            foreach (var bitmap in Conversion.ToImages(stream, leaveOpen: true, password: null, options))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                using var bmp = bitmap;
-                using var data = bmp.Encode(SKEncodedImageFormat.Png, quality: 90);
-                if (data is null)
-                {
-                    continue;
-                }
-
-                images.Add(Convert.ToBase64String(data.Span));
-            }
-#pragma warning restore CA1416
-
-            stream.Position = 0;
-            return (IReadOnlyList<string>)images;
-        }, cancellationToken);
+        await stream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
+        return memory.ToArray();
     }
 
     private static string ConvertTextToMarkdown(string text)
@@ -218,26 +137,23 @@ public sealed class PdfConverter : IDocumentConverter
 
         var lines = text.Split('\n', StringSplitOptions.None);
         var result = new StringBuilder();
-        
+
         foreach (var line in lines)
         {
             var trimmedLine = line.Trim();
 
-            // Skip empty lines
             if (string.IsNullOrWhiteSpace(trimmedLine))
             {
                 result.AppendLine();
                 continue;
             }
 
-            // Handle page separators
             if (trimmedLine == "---")
             {
                 result.AppendLine("\n---\n");
                 continue;
             }
 
-            // Detect potential headers (lines that are all caps and short)
             if (IsLikelyHeader(trimmedLine))
             {
                 result.AppendLine($"## {trimmedLine}");
@@ -245,14 +161,12 @@ public sealed class PdfConverter : IDocumentConverter
                 continue;
             }
 
-            // Handle bullet points and numbered lists
             if (IsListItem(trimmedLine))
             {
                 result.AppendLine(ConvertListItem(trimmedLine));
                 continue;
             }
 
-            // Regular paragraph
             result.AppendLine(trimmedLine);
         }
 
@@ -261,44 +175,31 @@ public sealed class PdfConverter : IDocumentConverter
 
     private static bool IsLikelyHeader(string line)
     {
-        // Consider a line a header if it's:
-        // - Relatively short (less than 80 characters)
-        // - Has more uppercase than lowercase letters
-        // - Doesn't end with punctuation that suggests it's not a title
         if (line.Length > 80 || line.EndsWith('.') || line.EndsWith(','))
             return false;
 
         var upperCount = line.Count(char.IsUpper);
         var lowerCount = line.Count(char.IsLower);
-        
+
         return upperCount > lowerCount && upperCount > 2;
     }
 
     private static bool IsListItem(string line)
     {
-        // Check for bullet points
         if (line.StartsWith("•") || line.StartsWith("-") || line.StartsWith("*"))
             return true;
 
-        // Check for numbered lists
         var match = System.Text.RegularExpressions.Regex.Match(line, @"^\d+\.?\s+");
         return match.Success;
     }
 
     private static string ConvertListItem(string line)
     {
-        // Convert bullet points
         if (line.StartsWith("•"))
             return line.Replace("•", "-");
 
-        // Convert numbered items
         var match = System.Text.RegularExpressions.Regex.Match(line, @"^(\d+)\.?\s+(.*)");
-        if (match.Success)
-        {
-            return $"{match.Groups[1].Value}. {match.Groups[2].Value}";
-        }
-
-        return line;
+        return match.Success ? $"{match.Groups[1].Value}. {match.Groups[2].Value}" : line;
     }
 
     private static string? ExtractTitle(string text)
@@ -307,14 +208,13 @@ public sealed class PdfConverter : IDocumentConverter
             return null;
 
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        
-        // Look for the first substantial line that could be a title
-        foreach (var line in lines.Take(10)) // Check first 10 lines only
+
+        foreach (var line in lines.Take(10))
         {
             var trimmedLine = line.Trim();
-            
-            if (trimmedLine.Length > 5 && trimmedLine.Length < 100 && 
-                !trimmedLine.Contains("Page ") && 
+
+            if (trimmedLine.Length > 5 && trimmedLine.Length < 100 &&
+                !trimmedLine.Contains("Page ") &&
                 !trimmedLine.All(char.IsDigit))
             {
                 return trimmedLine;
@@ -355,5 +255,101 @@ public sealed class PdfConverter : IDocumentConverter
         }
 
         return builder.ToString().TrimEnd();
+    }
+
+    internal interface IPdfTextExtractor
+    {
+        Task<string> ExtractTextAsync(byte[] pdfBytes, CancellationToken cancellationToken);
+    }
+
+    internal interface IPdfImageRenderer
+    {
+        Task<IReadOnlyList<string>> RenderImagesAsync(byte[] pdfBytes, CancellationToken cancellationToken);
+    }
+
+    private sealed class PdfPigTextExtractor : IPdfTextExtractor
+    {
+        public Task<string> ExtractTextAsync(byte[] pdfBytes, CancellationToken cancellationToken)
+        {
+            return Task.Run(() =>
+            {
+                var builder = new StringBuilder();
+
+                using var pdfDocument = PdfDocument.Open(pdfBytes);
+
+                for (var pageNumber = 1; pageNumber <= pdfDocument.NumberOfPages; pageNumber++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var page = pdfDocument.GetPage(pageNumber);
+                    var pageText = page.Text;
+
+                    if (string.IsNullOrWhiteSpace(pageText))
+                    {
+                        continue;
+                    }
+
+                    if (builder.Length > 0)
+                    {
+                        builder.AppendLine("\n---\n");
+                    }
+
+                    builder.AppendLine(pageText.Trim());
+                }
+
+                return builder.ToString();
+            }, cancellationToken);
+        }
+    }
+
+    private sealed class PdfToImageRenderer : IPdfImageRenderer
+    {
+        public Task<IReadOnlyList<string>> RenderImagesAsync(byte[] pdfBytes, CancellationToken cancellationToken)
+        {
+            if (!(OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS() ||
+                  OperatingSystem.IsMacCatalyst() || OperatingSystem.IsAndroid() || OperatingSystem.IsIOS()))
+            {
+                return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+            }
+
+            return RenderOnSupportedPlatformsAsync(pdfBytes, cancellationToken);
+        }
+
+        [SupportedOSPlatform("windows")]
+        [SupportedOSPlatform("linux")]
+        [SupportedOSPlatform("macos")]
+        [SupportedOSPlatform("maccatalyst")]
+        [SupportedOSPlatform("android")]
+        [SupportedOSPlatform("ios")]
+        private static Task<IReadOnlyList<string>> RenderOnSupportedPlatformsAsync(byte[] pdfBytes, CancellationToken cancellationToken)
+        {
+            return Task.Run(() =>
+            {
+                var images = new List<string>();
+                var options = new RenderOptions
+                {
+                    Dpi = 144,
+                    WithAnnotations = true,
+                    WithAspectRatio = true,
+                    AntiAliasing = PdfAntiAliasing.All,
+                };
+
+#pragma warning disable CA1416
+                foreach (var bitmap in Conversion.ToImages(pdfBytes, password: null, options))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    using var bmp = bitmap;
+                    using var data = bmp.Encode(SKEncodedImageFormat.Png, quality: 90);
+                    if (data is null)
+                    {
+                        continue;
+                    }
+
+                    images.Add(Convert.ToBase64String(data.Span));
+                }
+#pragma warning restore CA1416
+
+                return (IReadOnlyList<string>)images;
+            }, cancellationToken);
+        }
     }
 }

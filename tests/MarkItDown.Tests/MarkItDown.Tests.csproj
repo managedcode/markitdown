@@ -30,4 +30,10 @@
     <ProjectReference Include="..\..\src\MarkItDown\MarkItDown.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="TestFiles\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +10,8 @@ namespace MarkItDown.Tests;
 
 public class MarkItDownIntegrationTests
 {
+    public static IEnumerable<object[]> GeneralVectors => TestVectorsData.General.Select(v => new object[] { v });
+
     [Fact]
     public async Task ConvertAsync_WithValidFile_ReturnsSuccess()
     {
@@ -223,6 +226,78 @@ public class MarkItDownIntegrationTests
         Assert.Contains("console.log", result.Markdown);
     }
 
+    [Theory]
+    [MemberData(nameof(GeneralVectors))]
+    public async Task Convert_FilePath_VectorExpectations(FileTestVector vector)
+    {
+        var markItDown = new global::MarkItDown.MarkItDown();
+        var path = TestAssetLoader.GetAssetPath(vector.FileName);
+        var result = await markItDown.ConvertAsync(path);
+        AssertVectorOutput(vector, result);
+    }
+
+    [Theory]
+    [MemberData(nameof(GeneralVectors))]
+    public async Task Convert_StreamWithHints_VectorExpectations(FileTestVector vector)
+    {
+        var markItDown = new global::MarkItDown.MarkItDown();
+        var path = TestAssetLoader.GetAssetPath(vector.FileName);
+        await using var stream = File.OpenRead(path);
+        var streamInfo = new StreamInfo(
+            mimeType: vector.MimeType,
+            extension: Path.GetExtension(vector.FileName),
+            charset: TestAssetLoader.GetEncoding(vector.Charset));
+
+        var result = await markItDown.ConvertAsync(stream, streamInfo);
+        AssertVectorOutput(vector, result);
+    }
+
+    [Theory]
+    [MemberData(nameof(GeneralVectors))]
+    public async Task Convert_StreamWithoutHints_VectorExpectations(FileTestVector vector)
+    {
+        if (!vector.SupportsStreamGuess)
+        {
+            return;
+        }
+
+        var markItDown = new global::MarkItDown.MarkItDown();
+        var path = TestAssetLoader.GetAssetPath(vector.FileName);
+        await using var stream = File.OpenRead(path);
+
+        var result = await markItDown.ConvertAsync(stream, new StreamInfo());
+        AssertVectorOutput(vector, result);
+    }
+
+    [Theory]
+    [MemberData(nameof(GeneralVectors))]
+    public async Task Convert_FileUri_VectorExpectations(FileTestVector vector)
+    {
+        var markItDown = new global::MarkItDown.MarkItDown();
+        var uri = new Uri(TestAssetLoader.GetAssetPath(vector.FileName)).AbsoluteUri;
+        var result = await markItDown.ConvertUriAsync(uri, streamInfo: null);
+        AssertVectorOutput(vector, result);
+    }
+
+    [Theory]
+    [MemberData(nameof(GeneralVectors))]
+    public async Task Convert_DataUri_VectorExpectations(FileTestVector vector)
+    {
+        if (!vector.SupportsDataUri)
+        {
+            return;
+        }
+
+        var markItDown = new global::MarkItDown.MarkItDown();
+        var bytes = await File.ReadAllBytesAsync(TestAssetLoader.GetAssetPath(vector.FileName));
+        var base64 = Convert.ToBase64String(bytes);
+        var mime = vector.MimeType ?? "application/octet-stream";
+        var dataUri = $"data:{mime};base64,{base64}";
+
+        var result = await markItDown.ConvertUriAsync(dataUri, streamInfo: null);
+        AssertVectorOutput(vector, result);
+    }
+
     [Fact]
     public async Task ConvertAsync_MultipleConcurrentCalls_HandlesCorrectly()
     {
@@ -327,6 +402,21 @@ public class MarkItDownIntegrationTests
         {
             var result = new DocumentConverterResult("# Test Custom Converter\n\nThis is from the test converter.");
             return Task.FromResult(result);
+        }
+    }
+
+    private static void AssertVectorOutput(FileTestVector vector, DocumentConverterResult result)
+    {
+        Assert.NotNull(result);
+
+        foreach (var include in vector.MustInclude)
+        {
+            Assert.Contains(include, result.Markdown);
+        }
+
+        foreach (var exclude in vector.MustNotInclude)
+        {
+            Assert.DoesNotContain(exclude, result.Markdown);
         }
     }
 }

@@ -25,6 +25,7 @@
     
     <!-- Image processing support -->
     <PackageReference Include="SkiaSharp" Version="3.119.1" />
+    <PackageReference Include="Sylvan.Data.Csv" Version="1.4.0" />
   </ItemGroup>
 
   <ItemGroup>

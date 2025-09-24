@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using Sylvan.Data.Csv;
 using ManagedCode.MimeTypes;
 
 namespace MarkItDown.Converters;
@@ -47,21 +49,42 @@ public sealed class CsvConverter : IDocumentConverter
             if (stream.CanSeek)
                 stream.Position = 0;
 
-            // Read the content
             using var reader = new StreamReader(stream, streamInfo.Charset ?? Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
-            var content = await reader.ReadToEndAsync(cancellationToken);
+            using var csv = CsvDataReader.Create(reader, new CsvDataReaderOptions
+            {
+                HasHeaders = false,
+                BufferSize = 64 * 1024,
+            });
 
-            if (string.IsNullOrWhiteSpace(content))
+            if (!await csv.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
                 return new DocumentConverterResult(string.Empty);
+            }
 
-            // Parse CSV content
-            var rows = ParseCsvContent(content);
+            var rows = new List<string[]>();
+            var maxColumns = 0;
+
+            do
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var values = new string[csv.FieldCount];
+                for (var i = 0; i < csv.FieldCount; i++)
+                {
+                    values[i] = EscapeMarkdownTableCell(csv.IsDBNull(i) ? string.Empty : csv.GetString(i) ?? string.Empty);
+                }
+
+                maxColumns = Math.Max(maxColumns, values.Length);
+                rows.Add(values);
+            }
+            while (await csv.ReadAsync(cancellationToken).ConfigureAwait(false));
 
             if (rows.Count == 0)
+            {
                 return new DocumentConverterResult(string.Empty);
+            }
 
-            // Create markdown table
-            var markdownTable = CreateMarkdownTable(rows);
+            var markdownTable = CreateMarkdownTable(rows, maxColumns);
 
             return new DocumentConverterResult(
                 markdown: markdownTable,
@@ -74,98 +97,35 @@ public sealed class CsvConverter : IDocumentConverter
         }
     }
 
-    private static List<List<string>> ParseCsvContent(string content)
-    {
-        var rows = new List<List<string>>();
-        var lines = content.Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var line in lines)
-        {
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-
-            var row = ParseCsvLine(line.Trim());
-            if (row.Count > 0)
-                rows.Add(row);
-        }
-
-        return rows;
-    }
-
-    private static List<string> ParseCsvLine(string line)
-    {
-        var fields = new List<string>();
-        var currentField = new StringBuilder();
-        var inQuotes = false;
-        var i = 0;
-
-        while (i < line.Length)
-        {
-            var c = line[i];
-
-            if (c == '"')
-            {
-                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
-                {
-                    // Escaped quote
-                    currentField.Append('"');
-                    i += 2;
-                }
-                else
-                {
-                    // Toggle quote state
-                    inQuotes = !inQuotes;
-                    i++;
-                }
-            }
-            else if (c == ',' && !inQuotes)
-            {
-                // Field separator
-                fields.Add(currentField.ToString());
-                currentField.Clear();
-                i++;
-            }
-            else
-            {
-                currentField.Append(c);
-                i++;
-            }
-        }
-
-        // Add the last field
-        fields.Add(currentField.ToString());
-
-        return fields;
-    }
-
-    private static string CreateMarkdownTable(List<List<string>> rows)
+    private static string CreateMarkdownTable(List<string[]> rows, int maxColumns)
     {
         if (rows.Count == 0)
             return string.Empty;
 
         var result = new StringBuilder();
-        var maxColumns = rows.Max(r => r.Count);
 
-        // Ensure all rows have the same number of columns
-        foreach (var row in rows)
-        {
-            while (row.Count < maxColumns)
-                row.Add(string.Empty);
-        }
+        // Header row is the first line
+        var header = PadRow(rows[0], maxColumns);
+        result.AppendLine("| " + string.Join(" | ", header) + " |");
 
-        // Add header row
-        result.AppendLine("| " + string.Join(" | ", rows[0].Select(EscapeMarkdownTableCell)) + " |");
-
-        // Add separator row
+        // Separator row
         result.AppendLine("| " + string.Join(" | ", Enumerable.Repeat("---", maxColumns)) + " |");
 
-        // Add data rows
         for (var i = 1; i < rows.Count; i++)
         {
-            result.AppendLine("| " + string.Join(" | ", rows[i].Select(EscapeMarkdownTableCell)) + " |");
+            var row = PadRow(rows[i], maxColumns);
+            result.AppendLine("| " + string.Join(" | ", row) + " |");
         }
 
         return result.ToString().TrimEnd();
+    }
+
+    private static IEnumerable<string> PadRow(string[] row, int maxColumns)
+    {
+        for (var i = 0; i < maxColumns; i++)
+        {
+            yield return i < row.Length ? row[i] : string.Empty;
+        }
     }
 
     private static string EscapeMarkdownTableCell(string cell)
