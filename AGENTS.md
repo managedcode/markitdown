@@ -10,6 +10,7 @@ If I tell you to remember something, you do the same, update
 
 ## Rules to follow
 - MIME handling: always use `ManagedCode.MimeTypes` for MIME constants, lookups, and validation logic.
+- Treat this repository as a high-fidelity port of `microsoft-markitdown`: every test fixture copied from the upstream `tests/test_files/` directory must be referenced by .NET tests (either as positive conversions or explicit unsupported cases). No orphaned fixtures.
 
 # Repository Guidelines
 

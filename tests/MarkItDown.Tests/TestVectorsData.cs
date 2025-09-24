@@ -106,6 +106,18 @@ internal static class TestVectorsData
             SupportsStreamGuess: false
         ),
         new(
+            FileName: "equations.docx",
+            MimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            Charset: null,
+            Url: null,
+            MustInclude: new[]
+            {
+                "From Eq. 36.1.3",
+            },
+            MustNotInclude: Array.Empty<string>(),
+            SupportsStreamGuess: false
+        ),
+        new(
             FileName: "test_serp.html",
             MimeType: "text/html",
             Charset: "utf-8",
@@ -116,6 +128,16 @@ internal static class TestVectorsData
                 "Microsoft Corporation is** an American multinational corporation and technology company headquartered**",
             },
             MustNotInclude: Array.Empty<string>()
+        ),
+        new(
+            FileName: "test.epub",
+            MimeType: "application/epub+zip",
+            Charset: null,
+            Url: null,
+            MustInclude: Array.Empty<string>(),
+            MustNotInclude: Array.Empty<string>(),
+            SupportsStreamGuess: false,
+            SupportsDataUri: false
         ),
         new(
             FileName: "test_mskanji.csv",
@@ -225,6 +247,18 @@ internal static class TestVectorsData
                 "*No image metadata available.*",
             },
             MustNotInclude: Array.Empty<string>()
+        ),
+        new(
+            FileName: "test.jpg",
+            MimeType: "image/jpeg",
+            Charset: null,
+            Url: null,
+            MustInclude: new[]
+            {
+                "*No image metadata available.*",
+            },
+            MustNotInclude: Array.Empty<string>(),
+            SupportsStreamGuess: false
         ),
     };
 }

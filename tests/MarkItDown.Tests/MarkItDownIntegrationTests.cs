@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -11,6 +12,12 @@ namespace MarkItDown.Tests;
 public class MarkItDownIntegrationTests
 {
     public static IEnumerable<object[]> GeneralVectors => TestVectorsData.General.Select(v => new object[] { v });
+    public static IEnumerable<object[]> UnsupportedVectors => new List<object[]>
+    {
+        new object[] { "random.bin", new StreamInfo(mimeType: "application/octet-stream", extension: ".bin") },
+        new object[] { "test.xls", new StreamInfo(mimeType: "application/vnd.ms-excel", extension: ".xls") },
+        new object[] { "test_outlook_msg.msg", new StreamInfo(mimeType: "application/vnd.ms-outlook", extension: ".msg") },
+    };
 
     [Fact]
     public async Task ConvertAsync_WithValidFile_ReturnsSuccess()
@@ -403,6 +410,49 @@ public class MarkItDownIntegrationTests
             var result = new DocumentConverterResult("# Test Custom Converter\n\nThis is from the test converter.");
             return Task.FromResult(result);
         }
+    }
+
+    [Theory]
+    [MemberData(nameof(UnsupportedVectors))]
+    public async Task Convert_FilePath_UnsupportedThrows(string fileName, StreamInfo streamInfo)
+    {
+        Assert.NotNull(streamInfo);
+        var markItDown = new global::MarkItDown.MarkItDown();
+        var path = TestAssetLoader.GetAssetPath(fileName);
+
+        await Assert.ThrowsAsync<UnsupportedFormatException>(() => markItDown.ConvertAsync(path));
+    }
+
+    [Theory]
+    [MemberData(nameof(UnsupportedVectors))]
+    public async Task Convert_StreamWithHints_UnsupportedThrows(string fileName, StreamInfo streamInfo)
+    {
+        var markItDown = new global::MarkItDown.MarkItDown();
+        await using var stream = TestAssetLoader.OpenAsset(fileName);
+
+        await Assert.ThrowsAsync<UnsupportedFormatException>(() => markItDown.ConvertAsync(stream, streamInfo));
+    }
+
+    [Theory]
+    [MemberData(nameof(UnsupportedVectors))]
+    public async Task Convert_StreamWithoutHints_UnsupportedThrows(string fileName, StreamInfo streamInfo)
+    {
+        Assert.NotNull(streamInfo);
+        var markItDown = new global::MarkItDown.MarkItDown();
+        await using var stream = TestAssetLoader.OpenAsset(fileName);
+
+        await Assert.ThrowsAsync<UnsupportedFormatException>(() => markItDown.ConvertAsync(stream, new StreamInfo()));
+    }
+
+    [Theory]
+    [MemberData(nameof(UnsupportedVectors))]
+    public async Task Convert_DataUri_UnsupportedThrows(string fileName, StreamInfo streamInfo)
+    {
+        var markItDown = new global::MarkItDown.MarkItDown();
+        var bytes = await File.ReadAllBytesAsync(TestAssetLoader.GetAssetPath(fileName));
+        var dataUri = $"data:{streamInfo.MimeType ?? "application/octet-stream"};base64,{Convert.ToBase64String(bytes)}";
+
+        await Assert.ThrowsAsync<UnsupportedFormatException>(() => markItDown.ConvertUriAsync(dataUri));
     }
 
     private static void AssertVectorOutput(FileTestVector vector, DocumentConverterResult result)
