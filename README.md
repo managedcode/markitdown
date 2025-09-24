@@ -155,7 +155,7 @@ dotnet add package ManagedCode.MarkItDown
 ```
 
 ### Prerequisites
-- .NET 9.0 SDK or later
+- .NET 9.0 SDK or later (project targets net9.0)
 - Compatible with .NET 9 apps and libraries
 
 ### Optional Dependencies for Advanced Features
