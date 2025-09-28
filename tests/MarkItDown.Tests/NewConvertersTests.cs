@@ -147,6 +147,7 @@ public class NewConvertersTests
     [InlineData(".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")]
     [InlineData(".jpg", "image/jpeg")]
     [InlineData(".png", "image/png")]
+    [InlineData(".eml", "message/rfc822")]
     public void MarkItDown_RegistersNewConverters_CanHandleNewFormats(string extension, string mimeType)
     {
         // Arrange
@@ -159,5 +160,65 @@ public class NewConvertersTests
 
         // Assert
         canHandle.ShouldBeTrue($"Should have a converter that can handle {extension} files");
+    }
+
+    [Fact]
+    public void EmlConverter_AcceptsInput_ValidEmlExtension_ReturnsTrue()
+    {
+        // Arrange
+        var converter = new EmlConverter();
+        var streamInfo = new StreamInfo(mimeType: "message/rfc822", extension: ".eml");
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void EmlConverter_AcceptsInput_InvalidExtension_ReturnsFalse()
+    {
+        // Arrange
+        var converter = new EmlConverter();
+        var streamInfo = new StreamInfo(mimeType: "text/plain", extension: ".txt");
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        result.ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(".eml", "message/rfc822")]
+    [InlineData(".eml", "message/email")]
+    [InlineData(".eml", "application/email")]
+    [InlineData(".eml", "text/email")]
+    public void EmlConverter_AcceptsInput_ValidMimeTypes_ReturnsTrue(string extension, string mimeType)
+    {
+        // Arrange
+        var converter = new EmlConverter();
+        var streamInfo = new StreamInfo(mimeType: mimeType, extension: extension);
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        result.ShouldBeTrue($"Should accept {extension} files with MIME type {mimeType}");
+    }
+
+    [Fact]
+    public void EmlConverter_Priority_IsBetweenPptxAndEpub()
+    {
+        // Arrange
+        var emlConverter = new EmlConverter();
+        var epubConverter = new EpubConverter();
+        var pptxConverter = new PptxConverter();
+
+        // Act & Assert
+        // Lower number = higher priority, so EML (240) should be between PPTX (230) and EPUB (250)
+        emlConverter.Priority.ShouldBeGreaterThan(pptxConverter.Priority);
+        emlConverter.Priority.ShouldBeLessThan(epubConverter.Priority);
     }
 }

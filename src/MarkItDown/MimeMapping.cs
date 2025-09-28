@@ -39,6 +39,7 @@ internal static class MimeMapping
         [".m4a"] = "audio/mp4",
         [".mp4"] = "video/mp4",
         [".msg"] = "application/vnd.ms-outlook",
+        [".eml"] = "message/rfc822",
     };
 
     private static readonly Dictionary<string, string> MimeToExtension = ExtensionToMime

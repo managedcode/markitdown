@@ -47,6 +47,7 @@ A modern C#/.NET library for converting a wide range of document formats (HTML, 
 | **JSON** | `.json`, `.jsonl`, `.ndjson` | ✅ Supported | Structured JSON data with formatting |
 | **XML** | `.xml`, `.xsd`, `.xsl`, `.rss`, `.atom` | ✅ Supported | XML documents with structure preservation |
 | **EPUB** | `.epub` | ✅ Supported | E-book files with metadata and content |
+| **Email** | `.eml` | ✅ Supported | Email files with headers, content, and attachment info |
 | **ZIP** | `.zip` | ✅ Supported | Archive processing with recursive file conversion |
 | **Jupyter Notebook** | `.ipynb` | ✅ Supported | Python notebooks with code and markdown cells |
 | **RSS/Atom Feeds** | `.rss`, `.atom`, `.xml` | ✅ Supported | Web feeds with structured content and metadata |
@@ -197,6 +198,32 @@ var streamInfo = new StreamInfo(
 var markItDown = new MarkItDown();
 var result = await markItDown.ConvertAsync(stream, streamInfo);
 Console.WriteLine(result.Title);
+```
+
+### Convert email files (EML)
+
+```csharp
+using MarkItDown;
+
+// Convert an EML file to Markdown
+var markItDown = new MarkItDown();
+DocumentConverterResult result = await markItDown.ConvertAsync("message.eml");
+
+// The result includes email headers and content
+Console.WriteLine($"Subject: {result.Title}");
+Console.WriteLine(result.Markdown);
+// Output includes:
+// # Email
+// **Subject:** Important Project Update
+// **From:** sender@example.com
+// **To:** recipient@example.com
+// **Date:** 2024-01-15 10:30:00 +00:00
+// 
+// ## Message Content
+// [Email body content converted to Markdown]
+// 
+// ## Attachments (if any)
+// - file.pdf (application/pdf) - 1.2 MB
 ```
 
 ### Convert content from HTTP/HTTPS
