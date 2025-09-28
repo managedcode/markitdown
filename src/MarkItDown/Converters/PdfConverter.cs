@@ -271,33 +271,30 @@ public sealed class PdfConverter : IDocumentConverter
     {
         public Task<string> ExtractTextAsync(byte[] pdfBytes, CancellationToken cancellationToken)
         {
-            return Task.Run(() =>
+            var builder = new StringBuilder();
+
+            using var pdfDocument = PdfDocument.Open(pdfBytes);
+
+            for (var pageNumber = 1; pageNumber <= pdfDocument.NumberOfPages; pageNumber++)
             {
-                var builder = new StringBuilder();
+                cancellationToken.ThrowIfCancellationRequested();
+                var page = pdfDocument.GetPage(pageNumber);
+                var pageText = page.Text;
 
-                using var pdfDocument = PdfDocument.Open(pdfBytes);
-
-                for (var pageNumber = 1; pageNumber <= pdfDocument.NumberOfPages; pageNumber++)
+                if (string.IsNullOrWhiteSpace(pageText))
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var page = pdfDocument.GetPage(pageNumber);
-                    var pageText = page.Text;
-
-                    if (string.IsNullOrWhiteSpace(pageText))
-                    {
-                        continue;
-                    }
-
-                    if (builder.Length > 0)
-                    {
-                        builder.AppendLine("\n---\n");
-                    }
-
-                    builder.AppendLine(pageText.Trim());
+                    continue;
                 }
 
-                return builder.ToString();
-            }, cancellationToken);
+                if (builder.Length > 0)
+                {
+                    builder.AppendLine("\n---\n");
+                }
+
+                builder.AppendLine(pageText.Trim());
+            }
+
+            return Task.FromResult(builder.ToString());
         }
     }
 
@@ -322,34 +319,31 @@ public sealed class PdfConverter : IDocumentConverter
         [SupportedOSPlatform("ios")]
         private static Task<IReadOnlyList<string>> RenderOnSupportedPlatformsAsync(byte[] pdfBytes, CancellationToken cancellationToken)
         {
-            return Task.Run(() =>
+            var images = new List<string>();
+            var options = new RenderOptions
             {
-                var images = new List<string>();
-                var options = new RenderOptions
-                {
-                    Dpi = 144,
-                    WithAnnotations = true,
-                    WithAspectRatio = true,
-                    AntiAliasing = PdfAntiAliasing.All,
-                };
+                Dpi = 144,
+                WithAnnotations = true,
+                WithAspectRatio = true,
+                AntiAliasing = PdfAntiAliasing.All,
+            };
 
 #pragma warning disable CA1416
-                foreach (var bitmap in Conversion.ToImages(pdfBytes, password: null, options))
+            foreach (var bitmap in Conversion.ToImages(pdfBytes, password: null, options))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using var bmp = bitmap;
+                using var data = bmp.Encode(SKEncodedImageFormat.Png, quality: 90);
+                if (data is null)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    using var bmp = bitmap;
-                    using var data = bmp.Encode(SKEncodedImageFormat.Png, quality: 90);
-                    if (data is null)
-                    {
-                        continue;
-                    }
-
-                    images.Add(Convert.ToBase64String(data.Span));
+                    continue;
                 }
+
+                images.Add(Convert.ToBase64String(data.Span));
+            }
 #pragma warning restore CA1416
 
-                return (IReadOnlyList<string>)images;
-            }, cancellationToken);
+            return Task.FromResult<IReadOnlyList<string>>(images);
         }
     }
 }

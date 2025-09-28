@@ -89,22 +89,19 @@ public sealed class DocxConverter : IDocumentConverter
         }
     }
 
-    private static async Task<string> ExtractTextFromDocxAsync(Stream stream, CancellationToken cancellationToken)
+    private static Task<string> ExtractTextFromDocxAsync(Stream stream, CancellationToken cancellationToken)
     {
         var result = new StringBuilder();
 
-        await Task.Run(() =>
+        using var wordDocument = WordprocessingDocument.Open(stream, false);
+        var body = wordDocument.MainDocumentPart?.Document?.Body;
+
+        if (body != null)
         {
-            using var wordDocument = WordprocessingDocument.Open(stream, false);
-            var body = wordDocument.MainDocumentPart?.Document?.Body;
+            ProcessBodyElements(body, result, cancellationToken);
+        }
 
-            if (body != null)
-            {
-                ProcessBodyElements(body, result, cancellationToken);
-            }
-        }, cancellationToken);
-
-        return result.ToString().Trim();
+        return Task.FromResult(result.ToString().Trim());
     }
 
     private static void ProcessBodyElements(Body body, StringBuilder result, CancellationToken cancellationToken)
