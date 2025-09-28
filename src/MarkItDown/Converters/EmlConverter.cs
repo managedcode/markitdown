@@ -30,7 +30,7 @@ public sealed class EmlConverter : IDocumentConverter
 
     private readonly HtmlConverter _htmlConverter;
 
-    public int Priority => 240; // Between EPUB and PPTX
+    public int Priority => 240; // Between PPTX (230) and EPUB (250) - lower numbers = higher priority
 
     public EmlConverter()
     {
@@ -196,13 +196,13 @@ public sealed class EmlConverter : IDocumentConverter
                     // Try to get size from Content-Length header or content disposition
                     if (part.ContentDisposition?.Size.HasValue == true)
                     {
-                        size = FormatFileSize(part.ContentDisposition.Size.Value);
+                        size = FileUtilities.FormatFileSize(part.ContentDisposition.Size.Value);
                     }
                     else if (part.Headers.Contains("Content-Length"))
                     {
                         if (long.TryParse(part.Headers["Content-Length"], out var contentLength))
                         {
-                            size = FormatFileSize(contentLength);
+                            size = FileUtilities.FormatFileSize(contentLength);
                         }
                     }
                 }
@@ -259,21 +259,6 @@ public sealed class EmlConverter : IDocumentConverter
             .Replace("*", "\\*")    // Escape asterisks
             .Replace("_", "\\_");   // Escape underscores
         // Don't escape angle brackets, parentheses, and other characters in email contexts
-    }
-
-    private static string FormatFileSize(long bytes)
-    {
-        string[] sizes = { "bytes", "KB", "MB", "GB" };
-        double len = bytes;
-        int order = 0;
-        
-        while (len >= 1024 && order < sizes.Length - 1)
-        {
-            order++;
-            len /= 1024;
-        }
-        
-        return $"{len:0.##} {sizes[order]}";
     }
 
     private sealed record AttachmentInfo(string Name, string ContentType, string Size);

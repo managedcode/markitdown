@@ -151,7 +151,7 @@ public sealed class ZipConverter : IDocumentConverter
         // Add basic file information
         if (entry.Length > 0)
         {
-            markdown.AppendLine($"**Size:** {FormatFileSize(entry.Length)}");
+            markdown.AppendLine($"**Size:** {FileUtilities.FormatFileSize(entry.Length)}");
         }
 
         if (entry.LastWriteTime != DateTimeOffset.MinValue)
@@ -173,7 +173,7 @@ public sealed class ZipConverter : IDocumentConverter
         const long maxFileSize = 50 * 1024 * 1024; // 50MB
         if (entry.Length > maxFileSize)
         {
-            markdown.AppendLine($"*File too large to process ({FormatFileSize(entry.Length)})*");
+            markdown.AppendLine($"*File too large to process ({FileUtilities.FormatFileSize(entry.Length)})*");
             markdown.AppendLine();
             return;
         }
@@ -252,20 +252,5 @@ public sealed class ZipConverter : IDocumentConverter
         }
 
         return null;
-    }
-
-    private static string FormatFileSize(long bytes)
-    {
-        string[] sizes = { "B", "KB", "MB", "GB" };
-        double len = bytes;
-        int order = 0;
-
-        while (len >= 1024 && order < sizes.Length - 1)
-        {
-            order++;
-            len /= 1024;
-        }
-
-        return $"{len:0.##} {sizes[order]}";
     }
 }
