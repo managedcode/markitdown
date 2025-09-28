@@ -89,28 +89,25 @@ public sealed class XlsxConverter : IDocumentConverter
         }
     }
 
-    private static async Task<string> ExtractDataFromXlsxAsync(Stream stream, CancellationToken cancellationToken)
+    private static Task<string> ExtractDataFromXlsxAsync(Stream stream, CancellationToken cancellationToken)
     {
         var result = new StringBuilder();
 
-        await Task.Run(() =>
+        using var spreadsheetDocument = SpreadsheetDocument.Open(stream, false);
+        var workbookPart = spreadsheetDocument.WorkbookPart;
+        
+        if (workbookPart?.Workbook?.Sheets != null)
         {
-            using var spreadsheetDocument = SpreadsheetDocument.Open(stream, false);
-            var workbookPart = spreadsheetDocument.WorkbookPart;
-            
-            if (workbookPart?.Workbook?.Sheets != null)
+            foreach (var sheet in workbookPart.Workbook.Sheets.Elements<Sheet>())
             {
-                foreach (var sheet in workbookPart.Workbook.Sheets.Elements<Sheet>())
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    
-                    var worksheetPart = (WorksheetPart)workbookPart.GetPartById(sheet.Id!);
-                    ProcessWorksheet(worksheetPart, sheet.Name?.Value ?? "Sheet", result, workbookPart);
-                }
+                cancellationToken.ThrowIfCancellationRequested();
+                
+                var worksheetPart = (WorksheetPart)workbookPart.GetPartById(sheet.Id!);
+                ProcessWorksheet(worksheetPart, sheet.Name?.Value ?? "Sheet", result, workbookPart);
             }
-        }, cancellationToken);
+        }
 
-        return result.ToString().Trim();
+        return Task.FromResult(result.ToString().Trim());
     }
 
     private static void ProcessWorksheet(WorksheetPart worksheetPart, string sheetName, StringBuilder result, WorkbookPart workbookPart)

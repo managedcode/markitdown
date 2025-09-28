@@ -91,31 +91,28 @@ public sealed class PptxConverter : IDocumentConverter
         }
     }
 
-    private static async Task<string> ExtractContentFromPptxAsync(Stream stream, CancellationToken cancellationToken)
+    private static Task<string> ExtractContentFromPptxAsync(Stream stream, CancellationToken cancellationToken)
     {
         var result = new StringBuilder();
 
-        await Task.Run(() =>
+        using var presentationDocument = PresentationDocument.Open(stream, false);
+        var presentationPart = presentationDocument.PresentationPart;
+        
+        if (presentationPart?.Presentation?.SlideIdList != null)
         {
-            using var presentationDocument = PresentationDocument.Open(stream, false);
-            var presentationPart = presentationDocument.PresentationPart;
+            var slideCount = 0;
             
-            if (presentationPart?.Presentation?.SlideIdList != null)
+            foreach (var slideId in presentationPart.Presentation.SlideIdList.Elements<SlideId>())
             {
-                var slideCount = 0;
+                cancellationToken.ThrowIfCancellationRequested();
                 
-                foreach (var slideId in presentationPart.Presentation.SlideIdList.Elements<SlideId>())
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    
-                    slideCount++;
-                    var slidePart = (SlidePart)presentationPart.GetPartById(slideId.RelationshipId!);
-                    ProcessSlide(slidePart, slideCount, result);
-                }
+                slideCount++;
+                var slidePart = (SlidePart)presentationPart.GetPartById(slideId.RelationshipId!);
+                ProcessSlide(slidePart, slideCount, result);
             }
-        }, cancellationToken);
+        }
 
-        return result.ToString().Trim();
+        return Task.FromResult(result.ToString().Trim());
     }
 
     private static void ProcessSlide(SlidePart slidePart, int slideNumber, StringBuilder result)
