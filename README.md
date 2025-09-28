@@ -4,7 +4,38 @@
 [![NuGet](https://img.shields.io/nuget/v/ManagedCode.MarkItDown.svg)](https://www.nuget.org/packages/ManagedCode.MarkItDown)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A modern C#/.NET library for converting a wide range of document formats (HTML, PDF, DOCX, XLSX, EPUB, archives, URLs, etc.) into high-quality Markdown suitable for Large Language Models (LLMs), search indexing, and text analytics. The project mirrors the original Microsoft Python implementation while embracing .NET idioms, async APIs, and new integrations.
+🚀 **Transform any document into LLM-ready Markdown with this powerful C#/.NET library!**
+
+MarkItDown is a comprehensive document conversion library that transforms diverse file formats (HTML, PDF, DOCX, XLSX, EPUB, archives, URLs, and more) into clean, high-quality Markdown. Perfect for AI workflows, RAG (Retrieval-Augmented Generation) systems, content processing pipelines, and text analytics applications.
+
+**Why MarkItDown for .NET?**
+- 🎯 **Built for modern C# developers** - Native .NET 9 library with async/await throughout
+- 🧠 **LLM-optimized output** - Clean Markdown that AI models love to consume  
+- 📦 **Zero-friction NuGet package** - Just `dotnet add package ManagedCode.MarkItDown` and go
+- 🔄 **Stream-based processing** - Handle large documents efficiently without temporary files
+- 🛠️ **Highly extensible** - Add custom converters or integrate with AI services for captions/transcription
+
+This is a high-fidelity C# port of Microsoft's original [MarkItDown Python library](https://github.com/microsoft/markitdown), reimagined for the .NET ecosystem with modern async patterns, improved performance, and enterprise-ready features.
+
+## 🌟 Why Choose MarkItDown?
+
+### For AI & LLM Applications
+- **Perfect for RAG systems** - Convert documents to searchable, contextual Markdown chunks
+- **Token-efficient** - Clean output maximizes your LLM token budget
+- **Structured data preservation** - Tables, headers, and lists maintain semantic meaning
+- **Metadata extraction** - Rich document properties for enhanced context
+
+### For .NET Developers  
+- **Native performance** - Built from the ground up for .NET, not a wrapper
+- **Modern async/await** - Non-blocking I/O with full cancellation support
+- **Memory efficient** - Stream-based processing avoids loading entire files into memory
+- **Enterprise ready** - Proper error handling, logging, and configuration options
+
+### For Content Processing
+- **22+ file formats supported** - From Office documents to web pages to archives
+- **Batch processing ready** - Handle hundreds of documents efficiently
+- **Extensible architecture** - Add custom converters for proprietary formats
+- **Smart format detection** - Automatic MIME type and encoding detection
 
 ## Table of Contents
 
@@ -152,12 +183,112 @@ Install-Package ManagedCode.MarkItDown
 dotnet add package ManagedCode.MarkItDown
 
 # PackageReference (add to your .csproj)
-<PackageReference Include="ManagedCode.MarkItDown" Version="1.0.0" />
+<PackageReference Include="ManagedCode.MarkItDown" Version="0.0.3" />
 ```
 
 ### Prerequisites
 - .NET 9.0 SDK or later
 - Compatible with .NET 9 apps and libraries
+
+### 🏃‍♂️ 60-Second Quick Start
+
+```csharp
+using MarkItDown;
+
+// Create converter instance
+var markItDown = new MarkItDown();
+
+// Convert any file to Markdown
+var result = await markItDown.ConvertAsync("document.pdf");
+Console.WriteLine(result.Markdown);
+
+// That's it! MarkItDown handles format detection automatically
+```
+
+### 📚 Real-World Examples
+
+**RAG System Document Ingestion**
+```csharp
+using MarkItDown;
+using Microsoft.Extensions.Logging;
+
+// Set up logging to track conversion progress
+using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+var logger = loggerFactory.CreateLogger<MarkItDown>();
+var markItDown = new MarkItDown(logger: logger);
+
+// Convert documents for vector database ingestion
+string[] documents = { "report.pdf", "data.xlsx", "webpage.html" };
+var markdownChunks = new List<string>();
+
+foreach (var doc in documents)
+{
+    try 
+    {
+        var result = await markItDown.ConvertAsync(doc);
+        markdownChunks.Add($"# Document: {result.Title ?? Path.GetFileName(doc)}\n\n{result.Markdown}");
+        logger.LogInformation("Converted {Document} ({Length} characters)", doc, result.Markdown.Length);
+    }
+    catch (UnsupportedFormatException ex)
+    {
+        logger.LogWarning("Skipped unsupported file {Document}: {Error}", doc, ex.Message);
+    }
+}
+
+// markdownChunks now ready for embedding and vector storage
+```
+
+**Batch Email Processing**
+```csharp
+using MarkItDown;
+
+var markItDown = new MarkItDown();
+var emailFolder = @"C:\Emails\Exports";
+var outputFolder = @"C:\ProcessedEmails";
+
+await foreach (var emlFile in Directory.EnumerateFiles(emailFolder, "*.eml").ToAsyncEnumerable())
+{
+    var result = await markItDown.ConvertAsync(emlFile);
+    
+    // Extract metadata
+    Console.WriteLine($"Email: {result.Title}");
+    Console.WriteLine($"Converted to {result.Markdown.Length} characters of Markdown");
+    
+    // Save processed version
+    var outputPath = Path.Combine(outputFolder, Path.ChangeExtension(Path.GetFileName(emlFile), ".md"));
+    await File.WriteAllTextAsync(outputPath, result.Markdown);
+}
+```
+
+**Web Content Processing**
+```csharp
+using MarkItDown;
+using Microsoft.Extensions.Logging;
+
+using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+using var httpClient = new HttpClient();
+
+var markItDown = new MarkItDown(
+    logger: loggerFactory.CreateLogger<MarkItDown>(),
+    httpClient: httpClient);
+
+// Convert web pages directly
+var urls = new[] 
+{
+    "https://en.wikipedia.org/wiki/Machine_learning",
+    "https://docs.microsoft.com/en-us/dotnet/csharp/",
+    "https://github.com/microsoft/semantic-kernel"
+};
+
+foreach (var url in urls)
+{
+    var result = await markItDown.ConvertFromUrlAsync(url);
+    Console.WriteLine($"📄 {result.Title}");
+    Console.WriteLine($"🔗 Source: {url}");
+    Console.WriteLine($"📝 Content: {result.Markdown.Length} characters");
+    Console.WriteLine("---");
+}
+```
 
 ### Optional Dependencies for Advanced Features
 - **PDF Support**: Provided via PdfPig (bundled)
@@ -297,6 +428,254 @@ var markItDown = new MarkItDown();
 markItDown.RegisterConverter(new MyCustomConverter());
 ```
 
+## 🎯 Advanced Usage Patterns
+
+### Custom Format Converters
+
+```csharp
+using MarkItDown;
+
+public class PowerBIConverter : IDocumentConverter
+{
+    public int Priority => 150; // Between HTML and PlainText
+
+    public bool AcceptsInput(StreamInfo streamInfo) =>
+        streamInfo.Extension?.ToLowerInvariant() == ".pbix" ||
+        streamInfo.MimeType?.Contains("powerbi") == true;
+
+    public async Task<DocumentConverterResult> ConvertAsync(
+        Stream stream, 
+        StreamInfo streamInfo, 
+        CancellationToken cancellationToken = default)
+    {
+        // Custom PowerBI file processing logic here
+        var markdown = await ProcessPowerBIFile(stream, cancellationToken);
+        return new DocumentConverterResult(markdown, "PowerBI Report");
+    }
+    
+    private async Task<string> ProcessPowerBIFile(Stream stream, CancellationToken cancellationToken)
+    {
+        // Implementation details...
+        await Task.Delay(100, cancellationToken); // Placeholder
+        return "# PowerBI Report\n\nProcessed PowerBI content here...";
+    }
+}
+```
+
+### Batch Processing with Progress Tracking
+
+```csharp
+using MarkItDown;
+using Microsoft.Extensions.Logging;
+
+public class DocumentProcessor
+{
+    private readonly MarkItDown _markItDown;
+    private readonly ILogger<DocumentProcessor> _logger;
+
+    public DocumentProcessor(ILogger<DocumentProcessor> logger)
+    {
+        _logger = logger;
+        _markItDown = new MarkItDown(logger: logger);
+    }
+
+    public async Task<List<ProcessedDocument>> ProcessDirectoryAsync(
+        string directoryPath, 
+        string outputPath,
+        IProgress<ProcessingProgress>? progress = null)
+    {
+        var files = Directory.EnumerateFiles(directoryPath, "*", SearchOption.AllDirectories)
+            .Where(f => !Path.GetFileName(f).StartsWith('.'))
+            .ToList();
+
+        var results = new List<ProcessedDocument>();
+        var processed = 0;
+
+        await Parallel.ForEachAsync(files, new ParallelOptions 
+        { 
+            MaxDegreeOfParallelism = Environment.ProcessorCount 
+        },
+        async (file, cancellationToken) =>
+        {
+            try
+            {
+                var result = await _markItDown.ConvertAsync(file, cancellationToken: cancellationToken);
+                var outputFile = Path.Combine(outputPath, 
+                    Path.ChangeExtension(Path.GetRelativePath(directoryPath, file), ".md"));
+                
+                Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+                await File.WriteAllTextAsync(outputFile, result.Markdown, cancellationToken);
+                
+                lock (results)
+                {
+                    results.Add(new ProcessedDocument(file, outputFile, result.Markdown.Length));
+                    processed++;
+                    progress?.Report(new ProcessingProgress(processed, files.Count, file));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process {File}", file);
+            }
+        });
+
+        return results;
+    }
+}
+
+public record ProcessedDocument(string InputPath, string OutputPath, int CharacterCount);
+public record ProcessingProgress(int Processed, int Total, string CurrentFile);
+```
+
+### Integration with Vector Databases
+
+```csharp
+using MarkItDown;
+using Microsoft.Extensions.VectorData;
+
+public class DocumentIndexer
+{
+    private readonly MarkItDown _markItDown;
+    private readonly IVectorStore _vectorStore;
+
+    public DocumentIndexer(IVectorStore vectorStore)
+    {
+        _vectorStore = vectorStore;
+        _markItDown = new MarkItDown();
+    }
+
+    public async Task IndexDocumentAsync<T>(string filePath) where T : class
+    {
+        // Convert to Markdown
+        var result = await _markItDown.ConvertAsync(filePath);
+        
+        // Split into chunks for better vector search
+        var chunks = SplitIntoChunks(result.Markdown, maxChunkSize: 500);
+        
+        var collection = _vectorStore.GetCollection<T>("documents");
+        
+        for (int i = 0; i < chunks.Count; i++)
+        {
+            var document = new DocumentChunk
+            {
+                Id = $"{Path.GetFileName(filePath)}_{i}",
+                Content = chunks[i],
+                Title = result.Title ?? Path.GetFileName(filePath),
+                Source = filePath,
+                ChunkIndex = i
+            };
+
+            await collection.UpsertAsync(document);
+        }
+    }
+    
+    private List<string> SplitIntoChunks(string markdown, int maxChunkSize)
+    {
+        // Smart chunking logic that preserves markdown structure
+        var chunks = new List<string>();
+        var lines = markdown.Split('\n');
+        var currentChunk = new StringBuilder();
+        
+        foreach (var line in lines)
+        {
+            if (currentChunk.Length + line.Length > maxChunkSize && currentChunk.Length > 0)
+            {
+                chunks.Add(currentChunk.ToString().Trim());
+                currentChunk.Clear();
+            }
+            currentChunk.AppendLine(line);
+        }
+        
+        if (currentChunk.Length > 0)
+            chunks.Add(currentChunk.ToString().Trim());
+            
+        return chunks;
+    }
+}
+
+public class DocumentChunk
+{
+    public string Id { get; set; } = "";
+    public string Content { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Source { get; set; } = "";
+    public int ChunkIndex { get; set; }
+}
+```
+
+### Cloud Function Integration
+
+```csharp
+// Azure Functions example
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
+using MarkItDown;
+
+public class DocumentConversionFunction
+{
+    private readonly MarkItDown _markItDown;
+    private readonly ILogger<DocumentConversionFunction> _logger;
+
+    public DocumentConversionFunction(ILogger<DocumentConversionFunction> logger)
+    {
+        _logger = logger;
+        _markItDown = new MarkItDown(logger: logger);
+    }
+
+    [Function("ConvertDocument")]
+    public async Task<HttpResponseData> ConvertDocument(
+        [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req)
+    {
+        try
+        {
+            var formData = await req.ReadFormAsync();
+            var file = formData.Files.FirstOrDefault();
+            
+            if (file == null)
+            {
+                var badResponse = req.CreateResponse(System.Net.HttpStatusCode.BadRequest);
+                await badResponse.WriteStringAsync("No file uploaded");
+                return badResponse;
+            }
+
+            var streamInfo = new StreamInfo(
+                extension: Path.GetExtension(file.FileName),
+                fileName: file.FileName,
+                mimeType: file.ContentType
+            );
+
+            var result = await _markItDown.ConvertAsync(file.OpenReadStream(), streamInfo);
+            
+            var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+            response.Headers.Add("Content-Type", "application/json");
+            
+            await response.WriteAsJsonAsync(new 
+            { 
+                title = result.Title,
+                markdown = result.Markdown,
+                characterCount = result.Markdown.Length
+            });
+            
+            return response;
+        }
+        catch (UnsupportedFormatException ex)
+        {
+            var response = req.CreateResponse(System.Net.HttpStatusCode.UnsupportedMediaType);
+            await response.WriteStringAsync($"Unsupported file format: {ex.Message}");
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Document conversion failed");
+            var response = req.CreateResponse(System.Net.HttpStatusCode.InternalServerError);
+            await response.WriteStringAsync("Internal server error");
+            return response;
+        }
+    }
+}
+```
+
 ## 🏗️ Architecture
 
 ### Core Components
@@ -309,17 +688,27 @@ markItDown.RegisterConverter(new MyCustomConverter());
 
 ### Built-in Converters
 
-- **`PlainTextConverter`** - Handles text, JSON, NDJSON, Markdown, etc.
-- **`HtmlConverter`** - Converts HTML to Markdown using AngleSharp
-- **`PdfConverter`** - PdfPig-based extraction with Markdown heuristics
-- **`Docx/Xlsx/Pptx` Converters** - Office Open XML processing
-- **`ImageConverter`** - Exif metadata + optional captions
-- **`AudioConverter`** - Metadata + optional transcription
-- **`WikipediaConverter`** - Article-only extraction from Wikipedia
-- **`BingSerpConverter`** - Summaries for Bing search result pages
-- **`YouTubeUrlConverter`** - Video metadata markdown
-- **`ZipConverter`** - Recursive archive handling
-- **`RssFeedConverter`**, **`JsonConverter`**, **`CsvConverter`**, **`XmlConverter`**, **`JupyterNotebookConverter`**, **`EpubConverter`**
+MarkItDown includes these converters in priority order:
+
+- **`YouTubeUrlConverter`** - Video metadata from YouTube URLs
+- **`HtmlConverter`** - HTML to Markdown using AngleSharp
+- **`WikipediaConverter`** - Clean article extraction from Wikipedia pages
+- **`BingSerpConverter`** - Search result summaries from Bing
+- **`RssFeedConverter`** - RSS/Atom feeds with article processing
+- **`JsonConverter`** - Structured JSON data with formatting
+- **`JupyterNotebookConverter`** - Python notebooks with code and markdown cells
+- **`CsvConverter`** - CSV files as Markdown tables
+- **`EpubConverter`** - E-book content and metadata
+- **`EmlConverter`** - Email files with headers and attachments
+- **`XmlConverter`** - XML documents with structure preservation
+- **`ZipConverter`** - Archive processing with recursive conversion
+- **`PdfConverter`** - PDF text extraction using PdfPig
+- **`DocxConverter`** - Microsoft Word documents
+- **`XlsxConverter`** - Microsoft Excel spreadsheets 
+- **`PptxConverter`** - Microsoft PowerPoint presentations
+- **`AudioConverter`** - Audio metadata and optional transcription
+- **`ImageConverter`** - Image metadata via ExifTool and optional captions
+- **`PlainTextConverter`** - Plain text, Markdown, and other text formats (fallback)
 
 ### Converter Priority & Detection
 
@@ -327,7 +716,128 @@ markItDown.RegisterConverter(new MyCustomConverter());
 - Automatic stream sniffing via `StreamInfoGuesser`
 - Manual overrides via `MarkItDownOptions` or `StreamInfo`
 
+## 🚨 Error Handling & Troubleshooting
+
+### Common Exceptions
+
+```csharp
+using MarkItDown;
+
+var markItDown = new MarkItDown();
+
+try
+{
+    var result = await markItDown.ConvertAsync("document.pdf");
+    Console.WriteLine(result.Markdown);
+}
+catch (UnsupportedFormatException ex)
+{
+    // File format not supported by any converter
+    Console.WriteLine($"Cannot process this file type: {ex.Message}");
+}
+catch (FileNotFoundException ex)
+{
+    // File path doesn't exist
+    Console.WriteLine($"File not found: {ex.Message}");
+}
+catch (UnauthorizedAccessException ex)
+{
+    // Permission issues
+    Console.WriteLine($"Access denied: {ex.Message}");
+}
+catch (MarkItDownException ex)
+{
+    // General conversion errors (corrupt files, parsing issues, etc.)
+    Console.WriteLine($"Conversion failed: {ex.Message}");
+    if (ex.InnerException != null)
+        Console.WriteLine($"Details: {ex.InnerException.Message}");
+}
+```
+
+### Troubleshooting Tips
+
+**File Format Detection Issues:**
+```csharp
+// Force specific format detection
+var streamInfo = new StreamInfo(
+    mimeType: "application/pdf",  // Explicit MIME type
+    extension: ".pdf",            // Explicit extension
+    fileName: "document.pdf"      // Original filename
+);
+
+var result = await markItDown.ConvertAsync(stream, streamInfo);
+```
+
+**Memory Issues with Large Files:**
+```csharp
+// Use cancellation tokens to prevent runaway processing
+using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+
+try 
+{
+    var result = await markItDown.ConvertAsync("large-file.pdf", cancellationToken: cts.Token);
+}
+catch (OperationCanceledException)
+{
+    Console.WriteLine("Conversion timed out - file may be too large or complex");
+}
+```
+
+**Network Issues (URLs):**
+```csharp
+// Configure HttpClient for better reliability
+using var httpClient = new HttpClient();
+httpClient.Timeout = TimeSpan.FromSeconds(30);
+httpClient.DefaultRequestHeaders.Add("User-Agent", "MarkItDown/1.0");
+
+var markItDown = new MarkItDown(httpClient: httpClient);
+```
+
+**Logging for Diagnostics:**
+```csharp
+using Microsoft.Extensions.Logging;
+
+using var loggerFactory = LoggerFactory.Create(builder => 
+    builder.AddConsole().SetMinimumLevel(LogLevel.Debug));
+
+var logger = loggerFactory.CreateLogger<MarkItDown>();
+var markItDown = new MarkItDown(logger: logger);
+
+// Now you'll see detailed conversion progress in console output
+```
+
 ## 🔄 Development & Contributing
+
+### Migration from Python MarkItDown
+
+If you're familiar with the original Python library, here are the key differences:
+
+| Python | C#/.NET | Notes |
+|---------|---------|--------|
+| `MarkItDown()` | `new MarkItDown()` | Similar constructor |
+| `markitdown.convert("file.pdf")` | `await markItDown.ConvertAsync("file.pdf")` | Async pattern |
+| `markitdown.convert(stream, file_extension=".pdf")` | `await markItDown.ConvertAsync(stream, streamInfo)` | StreamInfo object |
+| `markitdown.convert_url("https://...")` | `await markItDown.ConvertFromUrlAsync("https://...")` | Async URL conversion |
+| `llm_client=...` parameter | `ImageCaptioner`, `AudioTranscriber` delegates | More flexible callback system |
+| Plugin system | Not yet implemented | Planned for future release |
+
+**Example Migration:**
+
+```python
+# Python version
+import markitdown
+md = markitdown.MarkItDown()
+result = md.convert("document.pdf")
+print(result.text_content)
+```
+
+```csharp
+// C# version  
+using MarkItDown;
+var markItDown = new MarkItDown();
+var result = await markItDown.ConvertAsync("document.pdf");
+Console.WriteLine(result.Markdown);
+```
 
 ### Building from Source
 
@@ -361,15 +871,14 @@ HTML or Markdown dashboards.
 
 ```
 ├── src/
-│   ├── MarkItDown/                # Core library
-│   │   ├── Converters/            # Format-specific converters (HTML, PDF, audio, etc.)
-│   │   ├── MarkItDown.cs          # Main conversion engine
-│   │   ├── StreamInfoGuesser.cs   # MIME/charset/extension detection helpers
-│   │   ├── MarkItDownOptions.cs   # Runtime configuration flags
-│   │   └── ...                    # Shared utilities (UriUtilities, MimeMapping, etc.)
-│   └── MarkItDown.Cli/            # CLI host (under active development)
+│   └── MarkItDown/                 # Core library
+│       ├── Converters/             # Format-specific converters (HTML, PDF, audio, etc.)
+│       ├── MarkItDown.cs          # Main conversion engine
+│       ├── StreamInfoGuesser.cs   # MIME/charset/extension detection helpers
+│       ├── MarkItDownOptions.cs   # Runtime configuration flags
+│       └── ...                    # Shared utilities (UriUtilities, MimeMapping, etc.)
 ├── tests/
-│   └── MarkItDown.Tests/          # xUnit + Shouldly tests, Python parity vectors (WIP)
+│   └── MarkItDown.Tests/          # xUnit + Shouldly tests, Python parity vectors
 ├── Directory.Build.props          # Shared build + packaging settings
 └── README.md                      # This document
 ```
@@ -387,46 +896,154 @@ HTML or Markdown dashboards.
 
 ### 🎯 Near-Term
 - Azure Document Intelligence converter (options already scaffolded)
-- Outlook `.msg` ingestion via MIT-friendly dependencies
-- Expanded CLI commands (batch mode, globbing, JSON output)
-- Richer regression suite mirroring Python test vectors
+- Outlook `.msg` ingestion via MIT-friendly dependencies  
+- Performance optimizations and memory usage improvements
+- Enhanced test coverage mirroring Python test vectors
 
 ### 🎯 Future Ideas
-- Plugin discovery & sandboxing
-- Built-in LLM caption/transcription providers
-- Incremental/streaming conversion APIs
-- Cloud-native samples (Functions, Containers, Logic Apps)
+- Plugin discovery & sandboxing for custom converters
+- Built-in LLM caption/transcription providers (OpenAI, Azure AI)
+- Incremental/streaming conversion APIs for large documents
+- Cloud-native integration samples (Azure Functions, AWS Lambda)
+- Command-line interface (CLI) for batch processing
 
 ## 📈 Performance
 
-MarkItDown is designed for high performance with:
-- **Stream-based processing** – Avoids writing temporary files by default
-- **Async/await everywhere** – Non-blocking I/O with cancellation support
-- **Minimal allocations** – Smart buffer reuse and pay-for-play converters
-- **Fast detection** – Lightweight sniffing before converter dispatch
-- **Extensible hooks** – Offload captions/transcripts to background workers
+MarkItDown is designed for high-performance document processing in production environments:
+
+### 🚀 Performance Characteristics
+
+| Feature | Benefit | Impact |
+|---------|---------|--------|
+| **Stream-based processing** | No temporary files created | Faster I/O, lower disk usage |
+| **Async/await throughout** | Non-blocking operations | Better scalability, responsive UIs |
+| **Memory efficient** | Smart buffer reuse | Lower memory footprint for large documents |
+| **Fast format detection** | Lightweight MIME/extension sniffing | Quick routing to appropriate converter |
+| **Parallel processing ready** | Thread-safe converter instances | Handle multiple documents concurrently |
+
+### 📊 Performance Considerations
+
+MarkItDown's performance depends on:
+- **Document size and complexity** - Larger files with more formatting take longer to process
+- **File format** - Some formats (like PDF) require more processing than others (like plain text)
+- **Available system resources** - Memory, CPU, and I/O capabilities
+- **Optional services** - Image captioning and audio transcription add processing time
+
+Performance will vary based on your specific documents and environment. For production workloads, we recommend benchmarking with your actual document types and sizes.
+
+### ⚡ Optimization Tips
+
+```csharp
+// 1. Reuse MarkItDown instances (they're thread-safe)
+var markItDown = new MarkItDown();
+await Task.WhenAll(
+    markItDown.ConvertAsync("file1.pdf"),
+    markItDown.ConvertAsync("file2.docx"),
+    markItDown.ConvertAsync("file3.html")
+);
+
+// 2. Use cancellation tokens for timeouts
+using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+var result = await markItDown.ConvertAsync("large-file.pdf", cancellationToken: cts.Token);
+
+// 3. Configure HttpClient for web content (reuse connections)
+using var httpClient = new HttpClient();
+var markItDown = new MarkItDown(httpClient: httpClient);
+
+// 4. Pre-specify StreamInfo to skip format detection
+var streamInfo = new StreamInfo(mimeType: "application/pdf", extension: ".pdf");
+var result = await markItDown.ConvertAsync(stream, streamInfo);
+```
 
 ## 🔧 Configuration
+
+### Basic Configuration
 
 ```csharp
 var options = new MarkItDownOptions
 {
-    EnableBuiltins = true,
-    EnablePlugins = false,
-    ExifToolPath = "/usr/local/bin/exiftool",
+    EnableBuiltins = true,      // Use built-in converters (default: true)
+    EnablePlugins = false,      // Plugin system (reserved for future use)
+    ExifToolPath = "/usr/local/bin/exiftool"  // Path to exiftool binary (optional)
+};
+
+var markItDown = new MarkItDown(options);
+```
+
+### Advanced AI Integration
+
+```csharp
+using Azure;
+using OpenAI;
+
+var options = new MarkItDownOptions
+{
+    // Azure AI Vision for image captions
     ImageCaptioner = async (bytes, info, token) =>
     {
-        // Call your preferred vision or LLM service here
-        return await Task.FromResult("A scenic mountain landscape at sunset.");
+        var client = new VisionServiceClient("your-endpoint", new AzureKeyCredential("your-key"));
+        var result = await client.AnalyzeImageAsync(bytes, token);
+        return $"Image: {result.Description?.Captions?.FirstOrDefault()?.Text ?? "Visual content"}";
     },
+    
+    // OpenAI Whisper for audio transcription  
     AudioTranscriber = async (bytes, info, token) =>
     {
-        // Route to speech-to-text provider
-        return await Task.FromResult("Welcome to the MarkItDown demo.");
+        var client = new OpenAIClient("your-api-key");
+        using var stream = new MemoryStream(bytes);
+        var result = await client.AudioEndpoint.CreateTranscriptionAsync(
+            stream, 
+            Path.GetFileName(info.FileName) ?? "audio", 
+            cancellationToken: token);
+        return result.Text;
+    },
+    
+    // Azure Document Intelligence for enhanced PDF/form processing
+    DocumentIntelligence = new DocumentIntelligenceOptions
+    {
+        Endpoint = "https://your-resource.cognitiveservices.azure.com/",
+        Credential = new AzureKeyCredential("your-document-intelligence-key"),
+        ApiVersion = "2023-10-31-preview"
     }
 };
 
 var markItDown = new MarkItDown(options);
+```
+
+### Production Configuration with Error Handling
+
+```csharp
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+
+// Set up dependency injection
+var services = new ServiceCollection();
+services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Information));
+services.AddHttpClient();
+
+var serviceProvider = services.BuildServiceProvider();
+var logger = serviceProvider.GetRequiredService<ILogger<MarkItDown>>();
+var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+
+var options = new MarkItDownOptions
+{
+    // Graceful degradation for image processing
+    ImageCaptioner = async (bytes, info, token) =>
+    {
+        try
+        {
+            // Your AI service call here
+            return await CallVisionServiceAsync(bytes, token);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("Image captioning failed: {Error}", ex.Message);
+            return $"[Image: {info.FileName ?? "unknown"}]";  // Fallback
+        }
+    }
+};
+
+var markItDown = new MarkItDown(options, logger, httpClientFactory.CreateClient());
 ```
 
 ## 📄 License
@@ -435,7 +1052,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-This project is a C# conversion of the original [Microsoft MarkItDown](https://github.com/microsoft/markitdown) Python library. The original project was created by the Microsoft AutoGen team.
+This project is a comprehensive C# port of the original [Microsoft MarkItDown](https://github.com/microsoft/markitdown) Python library, created by the Microsoft AutoGen team. We've reimagined it specifically for the .NET ecosystem while maintaining compatibility with the original's design philosophy and capabilities.
+
+**Key differences in this .NET version:**
+- 🎯 **Native .NET performance** - Built from scratch in C#, not a Python wrapper
+- 🔄 **Modern async patterns** - Full async/await support with cancellation tokens
+- 📦 **NuGet ecosystem integration** - Easy installation and dependency management
+- 🛠️ **Enterprise features** - Comprehensive logging, error handling, and configuration
+- 🚀 **Enhanced performance** - Stream-based processing and memory optimizations
+
+**Maintained by:** [ManagedCode](https://github.com/managedcode) team  
+**Original inspiration:** Microsoft AutoGen team  
+**License:** MIT (same as the original Python version)
+
+We're committed to maintaining feature parity with the upstream Python project while delivering the performance and developer experience that .NET developers expect.
 
 ## 📞 Support
 
