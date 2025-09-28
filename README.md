@@ -921,29 +921,15 @@ MarkItDown is designed for high-performance document processing in production en
 | **Fast format detection** | Lightweight MIME/extension sniffing | Quick routing to appropriate converter |
 | **Parallel processing ready** | Thread-safe converter instances | Handle multiple documents concurrently |
 
-### 📊 Real-World Performance Examples
+### 📊 Performance Considerations
 
-**Typical Performance (measured on .NET 9, modern hardware):**
+MarkItDown's performance depends on:
+- **Document size and complexity** - Larger files with more formatting take longer to process
+- **File format** - Some formats (like PDF) require more processing than others (like plain text)
+- **Available system resources** - Memory, CPU, and I/O capabilities
+- **Optional services** - Image captioning and audio transcription add processing time
 
-```csharp
-// Small documents (< 1MB)
-await markItDown.ConvertAsync("report.pdf");     // ~100-300ms
-await markItDown.ConvertAsync("email.eml");      // ~50-150ms  
-await markItDown.ConvertAsync("webpage.html");   // ~25-100ms
-
-// Medium documents (1-10MB)  
-await markItDown.ConvertAsync("presentation.pptx"); // ~500ms-2s
-await markItDown.ConvertAsync("spreadsheet.xlsx");  // ~300ms-1s
-
-// Large documents (10MB+)
-await markItDown.ConvertAsync("book.epub");      // ~1-5s (depends on content)
-await markItDown.ConvertAsync("archive.zip");    // ~2-10s (varies by files inside)
-```
-
-**Memory Usage:**
-- **Small files**: ~10-50MB peak memory
-- **Large files**: ~50-200MB peak memory (streaming prevents loading entire file)
-- **Concurrent processing**: Memory usage scales linearly with concurrent operations
+Performance will vary based on your specific documents and environment. For production workloads, we recommend benchmarking with your actual document types and sizes.
 
 ### ⚡ Optimization Tips
 
