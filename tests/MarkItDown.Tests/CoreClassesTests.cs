@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using MarkItDown;
 using System.Text;
 
@@ -160,6 +161,36 @@ public class DocumentConverterResultTests
 
         // Assert
         Assert.Equal(markdown, toString);
+    }
+
+    [Fact]
+    public void Constructor_WithSegments_SetsSegments()
+    {
+        // Arrange
+        var segments = new List<DocumentSegment>
+        {
+            new DocumentSegment("Segment content", SegmentType.Page, number: 1, label: "Page 1"),
+        };
+
+        // Act
+        var result = new DocumentConverterResult("# Test", "Title", segments);
+
+        // Assert
+        Assert.Single(result.Segments);
+        Assert.Equal("Segment content", result.Segments[0].Markdown);
+        Assert.Equal(SegmentType.Page, result.Segments[0].Type);
+        Assert.Equal(1, result.Segments[0].Number);
+    }
+
+    [Fact]
+    public void Constructor_WithoutSegments_ExposesEmptyCollection()
+    {
+        // Act
+        var result = new DocumentConverterResult("# Test");
+
+        // Assert
+        Assert.NotNull(result.Segments);
+        Assert.Empty(result.Segments);
     }
 }
 

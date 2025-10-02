@@ -36,4 +36,9 @@ public sealed record MarkItDownOptions
     /// Optional configuration for Azure Document Intelligence integration.
     /// </summary>
     public DocumentIntelligenceOptions? DocumentIntelligence { get; init; }
+
+    /// <summary>
+    /// Options that control how converter results are segmented.
+    /// </summary>
+    public SegmentOptions Segments { get; init; } = SegmentOptions.Default;
 }

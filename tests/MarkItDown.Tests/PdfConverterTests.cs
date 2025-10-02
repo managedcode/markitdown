@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MarkItDown;
@@ -14,7 +15,7 @@ public class PdfConverterTests
     public async Task ConvertAsync_CombinesTextAndImages()
     {
         // Arrange
-        var textExtractor = new StubPdfTextExtractor("First page\n---\nSecond page");
+        var textExtractor = new StubPdfTextExtractor("First page", "Second page");
         var imageRenderer = new StubPdfImageRenderer(new[] { "ZmFrZSBiYXNlNjQ=" });
         var converter = new PdfConverter(textExtractor, imageRenderer);
 
@@ -29,6 +30,14 @@ public class PdfConverterTests
         Assert.Contains("Second page", result.Markdown);
         Assert.Contains("## Page Images", result.Markdown);
         Assert.Contains("![PDF page 1](data:image/png;base64,ZmFrZSBiYXNlNjQ=)", result.Markdown);
+        Assert.Equal(4, result.Segments.Count);
+        Assert.Equal(SegmentType.Page, result.Segments[0].Type);
+        Assert.Equal(1, result.Segments[0].Number);
+        Assert.Contains("First page", result.Segments[0].Markdown);
+        Assert.Equal(SegmentType.Page, result.Segments[1].Type);
+        Assert.Equal(2, result.Segments[1].Number);
+        Assert.Equal(SegmentType.Image, result.Segments[^1].Type);
+        Assert.Equal(1, result.Segments[^1].Number);
     }
 
     [Fact]
@@ -51,14 +60,17 @@ public class PdfConverterTests
 
     private sealed class StubPdfTextExtractor : PdfConverter.IPdfTextExtractor
     {
-        private readonly string text;
+        private readonly IReadOnlyList<PdfConverter.PdfPageText> pages;
 
-        public StubPdfTextExtractor(string text) => this.text = text;
-
-        public Task<string> ExtractTextAsync(byte[] pdfBytes, CancellationToken cancellationToken)
+        public StubPdfTextExtractor(params string[] pages)
         {
-            return Task.FromResult(text);
+            this.pages = pages
+                .Select((text, index) => new PdfConverter.PdfPageText(index + 1, text))
+                .ToList();
         }
+
+        public Task<IReadOnlyList<PdfConverter.PdfPageText>> ExtractTextAsync(byte[] pdfBytes, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<PdfConverter.PdfPageText>>(pages);
     }
 
     private sealed class StubPdfImageRenderer : PdfConverter.IPdfImageRenderer

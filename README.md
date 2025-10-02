@@ -377,6 +377,7 @@ Console.WriteLine(urlResult.Title);
 ### Customise the pipeline with options
 
 ```csharp
+using System;
 using Azure;
 using MarkItDown;
 
@@ -387,6 +388,14 @@ var options = new MarkItDownOptions
         await myCaptionService.DescribeAsync(bytes, info, token),
     AudioTranscriber = async (bytes, info, token) =>
         await speechClient.TranscribeAsync(bytes, info, token),
+    Segments = new SegmentOptions
+    {
+        IncludeSegmentMetadataInMarkdown = true,
+        Audio = new AudioSegmentOptions
+        {
+            SegmentDuration = TimeSpan.FromMinutes(2)
+        }
+    },
     DocumentIntelligence = new DocumentIntelligenceOptions
     {
         Endpoint = "https://<your-resource>.cognitiveservices.azure.com/",
@@ -395,6 +404,8 @@ var options = new MarkItDownOptions
 };
 
 var markItDown = new MarkItDown(options);
+
+// Segments are still available programmatically even when annotations are disabled.
 ```
 
 ### Custom converters
@@ -682,7 +693,7 @@ public class DocumentConversionFunction
 
 - **`MarkItDown`** - Main entry point for conversions
 - **`IDocumentConverter`** - Interface for format-specific converters
-- **`DocumentConverterResult`** - Contains the converted Markdown and optional metadata
+- **`DocumentConverterResult`** - Contains the aggregate Markdown plus structured `DocumentSegment` entries
 - **`StreamInfo`** - Metadata about the input stream (MIME type, extension, charset, etc.)
 - **`ConverterRegistration`** - Associates converters with priority for selection
 
@@ -709,6 +720,26 @@ MarkItDown includes these converters in priority order:
 - **`AudioConverter`** - Audio metadata and optional transcription
 - **`ImageConverter`** - Image metadata via ExifTool and optional captions
 - **`PlainTextConverter`** - Plain text, Markdown, and other text formats (fallback)
+
+### Structured Segments & Metadata
+
+Every conversion populates `DocumentConverterResult.Segments` with strongly typed `DocumentSegment` instances. Segments preserve natural breakpoints (pages, slides, sheets, archive entries, audio ranges) alongside rich metadata:
+
+- `Type` and `Number` expose what the segment represents (for example page/slide numbers)
+- `Label` carries human-readable descriptors when available
+- `StartTime`/`EndTime` capture media timelines for audio/video content
+- `AdditionalMetadata` holds contextual properties such as archive entry paths or sheet names
+
+```csharp
+var result = await markItDown.ConvertAsync("report.pdf");
+
+foreach (var segment in result.Segments)
+{
+    Console.WriteLine($"[{segment.Type}] #{segment.Number}: {segment.Label}");
+}
+```
+
+Runtime behaviour is controlled through `SegmentOptions` on `MarkItDownOptions`. Enabling `IncludeSegmentMetadataInMarkdown` emits inline annotations like `[page:1]`, `[sheet:Sales]`, or `[timecode:00:01:00-00:02:00]` directly in the Markdown stream. Audio transcripts honour `Segments.Audio.SegmentDuration`, while still collapsing short transcripts into a single, time-aware slice.
 
 ### Converter Priority & Detection
 

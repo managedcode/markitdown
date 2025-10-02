@@ -242,7 +242,7 @@ public sealed class MarkItDown
     private IEnumerable<IDocumentConverter> CreateBuiltInConverters()
     {
         IDocumentConverter CreateImageConverter() => new ImageConverter(_options.ExifToolPath, _options.ImageCaptioner);
-        IDocumentConverter CreateAudioConverter() => new AudioConverter(_options.ExifToolPath, _options.AudioTranscriber);
+        IDocumentConverter CreateAudioConverter() => new AudioConverter(_options.ExifToolPath, _options.AudioTranscriber, _options.Segments);
 
         var converters = new List<IDocumentConverter>
         {
@@ -258,10 +258,10 @@ public sealed class MarkItDown
             new EmlConverter(),
             new XmlConverter(),
             new ZipConverter(CreateZipInnerConverters(CreateImageConverter, CreateAudioConverter)),
-            new PdfConverter(),
-            new DocxConverter(),
-            new XlsxConverter(),
-            new PptxConverter(),
+            new PdfConverter(_options.Segments),
+            new DocxConverter(_options.Segments),
+            new XlsxConverter(_options.Segments),
+            new PptxConverter(_options.Segments),
             CreateAudioConverter(),
             CreateImageConverter(),
             new PlainTextConverter(),
@@ -284,10 +284,10 @@ public sealed class MarkItDown
             new CsvConverter(),
             new EmlConverter(),
             new XmlConverter(),
-            new PdfConverter(),
-            new DocxConverter(),
-            new XlsxConverter(),
-            new PptxConverter(),
+            new PdfConverter(_options.Segments),
+            new DocxConverter(_options.Segments),
+            new XlsxConverter(_options.Segments),
+            new PptxConverter(_options.Segments),
             audioConverterFactory(),
             imageConverterFactory(),
             new PlainTextConverter(),

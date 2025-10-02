@@ -1,7 +1,10 @@
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+using DocumentFormat.OpenXml.Drawing;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Presentation;
-using DocumentFormat.OpenXml.Drawing;
-using System.Text;
 using A = DocumentFormat.OpenXml.Drawing;
 
 namespace MarkItDown.Converters;
@@ -20,6 +23,13 @@ public sealed class PptxConverter : IDocumentConverter
     {
         "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     };
+
+    private readonly SegmentOptions segmentOptions;
+
+    public PptxConverter(SegmentOptions? segmentOptions = null)
+    {
+        this.segmentOptions = segmentOptions ?? SegmentOptions.Default;
+    }
 
     public int Priority => 230; // Between XLSX and plain text
 
@@ -72,7 +82,7 @@ public sealed class PptxConverter : IDocumentConverter
         return true;
     }
 
-    public async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -80,10 +90,11 @@ public sealed class PptxConverter : IDocumentConverter
             if (stream.CanSeek)
                 stream.Position = 0;
 
-            var markdown = await ExtractContentFromPptxAsync(stream, cancellationToken);
+            var segments = ExtractSegmentsFromPptx(stream, streamInfo.FileName, cancellationToken);
+            var markdown = SegmentMarkdownComposer.Compose(segments, segmentOptions);
             var title = ExtractTitle(markdown, streamInfo.FileName ?? "PowerPoint Presentation");
 
-            return new DocumentConverterResult(markdown, title);
+            return Task.FromResult(new DocumentConverterResult(markdown, title, segments));
         }
         catch (Exception ex) when (!(ex is MarkItDownException))
         {
@@ -91,32 +102,51 @@ public sealed class PptxConverter : IDocumentConverter
         }
     }
 
-    private static Task<string> ExtractContentFromPptxAsync(Stream stream, CancellationToken cancellationToken)
+    private static IReadOnlyList<DocumentSegment> ExtractSegmentsFromPptx(Stream stream, string? fileName, CancellationToken cancellationToken)
     {
-        var result = new StringBuilder();
+        var segments = new List<DocumentSegment>();
 
         using var presentationDocument = PresentationDocument.Open(stream, false);
         var presentationPart = presentationDocument.PresentationPart;
-        
+
         if (presentationPart?.Presentation?.SlideIdList != null)
         {
-            var slideCount = 0;
-            
+            var slideIndex = 0;
+
             foreach (var slideId in presentationPart.Presentation.SlideIdList.Elements<SlideId>())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                
-                slideCount++;
+
+                slideIndex++;
                 var slidePart = (SlidePart)presentationPart.GetPartById(slideId.RelationshipId!);
-                ProcessSlide(slidePart, slideCount, result);
+                var markdown = ConvertSlideToMarkdown(slidePart, slideIndex);
+
+                if (string.IsNullOrWhiteSpace(markdown))
+                {
+                    continue;
+                }
+
+                var metadata = new Dictionary<string, string>
+                {
+                    ["slide"] = slideIndex.ToString(CultureInfo.InvariantCulture)
+                };
+
+                segments.Add(new DocumentSegment(
+                    markdown: markdown.TrimEnd(),
+                    type: SegmentType.Slide,
+                    number: slideIndex,
+                    label: $"Slide {slideIndex}",
+                    source: fileName,
+                    additionalMetadata: metadata));
             }
         }
 
-        return Task.FromResult(result.ToString().Trim());
+        return segments;
     }
 
-    private static void ProcessSlide(SlidePart slidePart, int slideNumber, StringBuilder result)
+    private static string ConvertSlideToMarkdown(SlidePart slidePart, int slideNumber)
     {
+        var result = new StringBuilder();
         result.AppendLine($"## Slide {slideNumber}");
         result.AppendLine();
 
@@ -127,15 +157,15 @@ public sealed class PptxConverter : IDocumentConverter
             {
                 if (shape is DocumentFormat.OpenXml.Presentation.Shape textShape)
                 {
-                    ProcessTextShape(textShape, result);
+                    AppendTextShape(textShape, result);
                 }
             }
         }
 
-        result.AppendLine();
+        return result.ToString().TrimEnd();
     }
 
-    private static void ProcessTextShape(DocumentFormat.OpenXml.Presentation.Shape shape, StringBuilder result)
+    private static void AppendTextShape(DocumentFormat.OpenXml.Presentation.Shape shape, StringBuilder result)
     {
         var textBody = shape.TextBody;
         if (textBody == null)

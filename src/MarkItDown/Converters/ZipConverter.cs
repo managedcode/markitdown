@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
@@ -85,6 +88,7 @@ public sealed class ZipConverter : IDocumentConverter
                 stream.Position = 0;
 
             var markdown = new StringBuilder();
+            var segments = new List<DocumentSegment>();
             var fileName = streamInfo.FileName ?? "archive.zip";
             var title = $"Content from {fileName}";
 
@@ -106,7 +110,7 @@ public sealed class ZipConverter : IDocumentConverter
 
                 try
                 {
-                    await ProcessZipEntry(entry, markdown, cancellationToken);
+                    await ProcessZipEntry(entry, fileName, markdown, segments, cancellationToken);
                     processedFiles++;
                 }
                 catch (Exception ex)
@@ -128,9 +132,20 @@ public sealed class ZipConverter : IDocumentConverter
                 markdown.Insert(title.Length + 4, $" ({processedFiles} of {totalFiles} files processed)");
             }
 
+            var headerText = processedFiles == 0
+                ? $"# {title}"
+                : $"# {title} ({processedFiles} of {totalFiles} files processed)";
+
+            segments.Insert(0, new DocumentSegment(
+                markdown: headerText,
+                type: SegmentType.Section,
+                label: title,
+                source: fileName));
+
             return new DocumentConverterResult(
                 markdown: markdown.ToString().TrimEnd(),
-                title: title
+                title: title,
+                segments: segments
             );
         }
         catch (InvalidDataException ex)
@@ -143,37 +158,35 @@ public sealed class ZipConverter : IDocumentConverter
         }
     }
 
-    private async Task ProcessZipEntry(ZipArchiveEntry entry, StringBuilder markdown, CancellationToken cancellationToken)
+    private async Task ProcessZipEntry(
+        ZipArchiveEntry entry,
+        string archiveName,
+        StringBuilder markdown,
+        List<DocumentSegment> segments,
+        CancellationToken cancellationToken)
     {
-        markdown.AppendLine($"## File: {entry.FullName}");
-        markdown.AppendLine();
+        var headerMarkdown = BuildEntryHeader(entry);
+        var entryMetadata = CreateEntryMetadata(entry, archiveName);
 
-        // Add basic file information
-        if (entry.Length > 0)
-        {
-            markdown.AppendLine($"**Size:** {FileUtilities.FormatFileSize(entry.Length)}");
-        }
+        markdown.Append(headerMarkdown);
+        segments.Add(new DocumentSegment(
+            markdown: headerMarkdown.TrimEnd(),
+            type: SegmentType.Section,
+            label: entry.FullName,
+            source: entry.FullName,
+            additionalMetadata: entryMetadata));
 
-        if (entry.LastWriteTime != DateTimeOffset.MinValue)
-        {
-            markdown.AppendLine($"**Last Modified:** {entry.LastWriteTime:yyyy-MM-dd HH:mm:ss}");
-        }
-
-        markdown.AppendLine();
-
-        // Skip empty files
         if (entry.Length == 0)
         {
-            markdown.AppendLine("*Empty file*");
+            AppendMessage("*Empty file*");
             markdown.AppendLine();
             return;
         }
 
-        // Skip very large files to avoid memory issues
         const long maxFileSize = 50 * 1024 * 1024; // 50MB
         if (entry.Length > maxFileSize)
         {
-            markdown.AppendLine($"*File too large to process ({FileUtilities.FormatFileSize(entry.Length)})*");
+            AppendMessage($"*File too large to process ({FileUtilities.FormatFileSize(entry.Length)})*");
             markdown.AppendLine();
             return;
         }
@@ -182,12 +195,10 @@ public sealed class ZipConverter : IDocumentConverter
         {
             using var entryStream = entry.Open();
             using var memoryStream = new MemoryStream();
-            
-            // Copy to memory stream so we can seek
+
             await entryStream.CopyToAsync(memoryStream, cancellationToken);
             memoryStream.Position = 0;
 
-            // Create StreamInfo for the file
             var fileExtension = Path.GetExtension(entry.Name);
             var fileName = entry.Name;
             var mimeType = MimeMapping.GetMimeType(fileExtension);
@@ -200,34 +211,136 @@ public sealed class ZipConverter : IDocumentConverter
                 url: null
             );
 
-            // Try to find a suitable converter
             var converter = FindConverter(memoryStream, fileStreamInfo, cancellationToken);
-            
+
             if (converter != null)
             {
                 memoryStream.Position = 0;
                 var result = await converter.ConvertAsync(memoryStream, fileStreamInfo, cancellationToken);
-                
+
                 if (!string.IsNullOrWhiteSpace(result.Markdown))
                 {
                     markdown.AppendLine(result.Markdown);
                 }
                 else
                 {
-                    markdown.AppendLine("*File processed but no content extracted*");
+                    AppendMessage("*File processed but no content extracted*");
+                }
+
+                if (result.Segments.Count > 0)
+                {
+                    foreach (var segment in RemapSegments(result, entry, archiveName))
+                    {
+                        segments.Add(segment);
+                    }
+                }
+                else if (!string.IsNullOrWhiteSpace(result.Markdown))
+                {
+                    segments.Add(CreateEntryContentSegment(result.Markdown.TrimEnd(), entry, archiveName));
                 }
             }
             else
             {
-                markdown.AppendLine($"*No converter available for file type: {fileExtension}*");
+                AppendMessage($"*No converter available for file type: {fileExtension}*");
             }
         }
         catch (Exception ex)
         {
-            markdown.AppendLine($"*Error processing file: {ex.Message}*");
+            AppendMessage($"*Error processing file: {ex.Message}*");
         }
 
         markdown.AppendLine();
+
+        void AppendMessage(string message)
+        {
+            markdown.AppendLine(message);
+            segments.Add(CreateEntryContentSegment(message, entry, archiveName, SegmentType.Section));
+        }
+    }
+
+    private static string BuildEntryHeader(ZipArchiveEntry entry)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"## File: {entry.FullName}");
+        builder.AppendLine();
+
+        if (entry.Length > 0)
+        {
+            builder.AppendLine($"**Size:** {FileUtilities.FormatFileSize(entry.Length)}");
+        }
+
+        if (entry.LastWriteTime != DateTimeOffset.MinValue)
+        {
+            builder.AppendLine($"**Last Modified:** {entry.LastWriteTime:yyyy-MM-dd HH:mm:ss}");
+        }
+
+        builder.AppendLine();
+        return builder.ToString();
+    }
+
+    private static Dictionary<string, string> CreateEntryMetadata(ZipArchiveEntry entry, string archiveName)
+    {
+        var metadata = new Dictionary<string, string>
+        {
+            ["entry"] = entry.FullName,
+            ["sizeBytes"] = entry.Length.ToString(CultureInfo.InvariantCulture)
+        };
+
+        if (!string.IsNullOrEmpty(archiveName))
+        {
+            metadata["archive"] = archiveName;
+        }
+
+        if (entry.LastWriteTime != DateTimeOffset.MinValue)
+        {
+            metadata["lastModifiedUtc"] = entry.LastWriteTime.UtcDateTime.ToString("o", CultureInfo.InvariantCulture);
+        }
+
+        return metadata;
+    }
+
+    private static DocumentSegment CreateEntryContentSegment(string content, ZipArchiveEntry entry, string archiveName, SegmentType type = SegmentType.Unknown)
+    {
+        var metadata = CreateEntryMetadata(entry, archiveName);
+        metadata["contentRole"] = type.ToString();
+
+        return new DocumentSegment(
+            markdown: content.TrimEnd(),
+            type: type,
+            label: entry.FullName,
+            source: entry.FullName,
+            additionalMetadata: metadata);
+    }
+
+    private static IEnumerable<DocumentSegment> RemapSegments(DocumentConverterResult result, ZipArchiveEntry entry, string archiveName)
+    {
+        foreach (var segment in result.Segments)
+        {
+            var metadata = segment.AdditionalMetadata.Count > 0
+                ? new Dictionary<string, string>(segment.AdditionalMetadata, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            metadata["entry"] = entry.FullName;
+            if (!string.IsNullOrEmpty(archiveName))
+            {
+                metadata["archive"] = archiveName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(segment.Source))
+            {
+                metadata["originalSource"] = segment.Source!;
+            }
+
+            yield return new DocumentSegment(
+                markdown: segment.Markdown,
+                type: segment.Type,
+                number: segment.Number,
+                label: segment.Label,
+                startTime: segment.StartTime,
+                endTime: segment.EndTime,
+                source: entry.FullName,
+                additionalMetadata: metadata);
+        }
     }
 
     private IDocumentConverter? FindConverter(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken)

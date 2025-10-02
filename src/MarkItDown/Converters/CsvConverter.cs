@@ -1,8 +1,11 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
-using Sylvan.Data.Csv;
+using System.Threading;
+using System.Threading.Tasks;
 using ManagedCode.MimeTypes;
+using nietras.SeparatedValues;
 
 namespace MarkItDown.Converters;
 
@@ -50,34 +53,45 @@ public sealed class CsvConverter : IDocumentConverter
                 stream.Position = 0;
 
             using var reader = new StreamReader(stream, streamInfo.Charset ?? Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
-            using var csv = CsvDataReader.Create(reader, new CsvDataReaderOptions
+            using var sepReader = await Sep.Reader(options => options with
             {
-                HasHeaders = false,
-                BufferSize = 64 * 1024,
-            });
-
-            if (!await csv.ReadAsync(cancellationToken).ConfigureAwait(false))
-            {
-                return new DocumentConverterResult(string.Empty);
-            }
+                HasHeader = true,
+                Unescape = true,
+                Trim = SepTrim.All,
+            }).FromAsync(reader, cancellationToken).ConfigureAwait(false);
 
             var rows = new List<string[]>();
             var maxColumns = 0;
 
-            do
+            if (sepReader.HasHeader && !sepReader.Header.IsEmpty)
+            {
+                var headerNames = sepReader.Header.ColNames;
+                if (headerNames.Count > 0)
+                {
+                    var headerRow = new string[headerNames.Count];
+                    for (var i = 0; i < headerNames.Count; i++)
+                    {
+                        headerRow[i] = EscapeMarkdownTableCell(headerNames[i] ?? string.Empty);
+                    }
+
+                    maxColumns = Math.Max(maxColumns, headerRow.Length);
+                    rows.Add(headerRow);
+                }
+            }
+
+            foreach (var row in sepReader)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var values = new string[csv.FieldCount];
-                for (var i = 0; i < csv.FieldCount; i++)
+                var values = new string[row.ColCount];
+                for (var i = 0; i < row.ColCount; i++)
                 {
-                    values[i] = EscapeMarkdownTableCell(csv.IsDBNull(i) ? string.Empty : csv.GetString(i) ?? string.Empty);
+                    values[i] = EscapeMarkdownTableCell(row[i].ToString() ?? string.Empty);
                 }
 
                 maxColumns = Math.Max(maxColumns, values.Length);
                 rows.Add(values);
             }
-            while (await csv.ReadAsync(cancellationToken).ConfigureAwait(false));
 
             if (rows.Count == 0)
             {

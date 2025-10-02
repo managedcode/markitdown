@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="AngleSharp" Version="1.3.0" />
     <PackageReference Include="ManagedCode.MimeTypes" Version="1.0.3" />
+    <PackageReference Include="Sep" Version="0.11.1" />
 
     <PackageReference Include="System.Text.Json" Version="9.0.9" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.9" />
@@ -25,10 +26,9 @@
     
     <!-- Image processing support -->
     <PackageReference Include="SkiaSharp" Version="3.119.1" />
-    <PackageReference Include="Sylvan.Data.Csv" Version="1.4.0" />
     
     <!-- Email support -->
-    <PackageReference Include="MimeKit" Version="4.9.0" />
+    <PackageReference Include="MimeKit" Version="4.14.0" />
   </ItemGroup>
 
   <ItemGroup>

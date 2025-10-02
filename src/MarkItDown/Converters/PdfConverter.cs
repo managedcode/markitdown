@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.Versioning;
@@ -31,16 +32,18 @@ public sealed class PdfConverter : IDocumentConverter
 
     private readonly IPdfTextExtractor textExtractor;
     private readonly IPdfImageRenderer imageRenderer;
+    private readonly SegmentOptions segmentOptions;
 
-    public PdfConverter()
-        : this(new PdfPigTextExtractor(), new PdfToImageRenderer())
+    public PdfConverter(SegmentOptions? segmentOptions = null)
+        : this(new PdfPigTextExtractor(), new PdfToImageRenderer(), segmentOptions)
     {
     }
 
-    internal PdfConverter(IPdfTextExtractor textExtractor, IPdfImageRenderer imageRenderer)
+    internal PdfConverter(IPdfTextExtractor textExtractor, IPdfImageRenderer imageRenderer, SegmentOptions? segmentOptions = null)
     {
         this.textExtractor = textExtractor ?? throw new ArgumentNullException(nameof(textExtractor));
         this.imageRenderer = imageRenderer ?? throw new ArgumentNullException(nameof(imageRenderer));
+        this.segmentOptions = segmentOptions ?? SegmentOptions.Default;
     }
 
     public int Priority => 200; // Between HTML and plain text
@@ -97,16 +100,30 @@ public sealed class PdfConverter : IDocumentConverter
         try
         {
             var pdfBytes = await ReadAllBytesAsync(stream, cancellationToken).ConfigureAwait(false);
-
-            var extractedText = await textExtractor.ExtractTextAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+            var pages = await textExtractor.ExtractTextAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
             var pageImages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
 
-            var markdown = AppendImages(ConvertTextToMarkdown(extractedText), pageImages);
-            var title = ExtractTitle(extractedText);
+            var rawTextBuilder = new StringBuilder();
+            foreach (var page in pages)
+            {
+                if (!string.IsNullOrWhiteSpace(page.Text))
+                {
+                    if (rawTextBuilder.Length > 0)
+                    {
+                        rawTextBuilder.AppendLine();
+                    }
 
-            return new DocumentConverterResult(markdown, title);
+                    rawTextBuilder.AppendLine(page.Text.Trim());
+                }
+            }
+
+            var segments = BuildSegments(pages, pageImages, streamInfo.FileName);
+            var markdown = SegmentMarkdownComposer.Compose(segments, segmentOptions);
+            var title = ExtractTitle(rawTextBuilder.ToString());
+
+            return new DocumentConverterResult(markdown, title, segments);
         }
-        catch (Exception ex) when (!(ex is MarkItDownException))
+        catch (Exception ex) when (ex is not MarkItDownException)
         {
             throw new FileConversionException($"Failed to convert PDF file: {ex.Message}", ex);
         }
@@ -128,6 +145,64 @@ public sealed class PdfConverter : IDocumentConverter
 
         await stream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
         return memory.ToArray();
+    }
+
+    private static IReadOnlyList<DocumentSegment> BuildSegments(
+        IReadOnlyList<PdfPageText> pages,
+        IReadOnlyList<string> pageImages,
+        string? source)
+    {
+        var segments = new List<DocumentSegment>();
+
+        foreach (var page in pages)
+        {
+            var markdown = ConvertTextToMarkdown(page.Text);
+            if (string.IsNullOrWhiteSpace(markdown))
+            {
+                continue;
+            }
+
+            var metadata = new Dictionary<string, string>
+            {
+                ["page"] = page.PageNumber.ToString(CultureInfo.InvariantCulture)
+            };
+
+            segments.Add(new DocumentSegment(
+                markdown: markdown,
+                type: SegmentType.Page,
+                number: page.PageNumber,
+                label: $"Page {page.PageNumber}",
+                source: source,
+                additionalMetadata: metadata));
+        }
+
+        if (pageImages.Count > 0)
+        {
+            segments.Add(new DocumentSegment(
+                markdown: "## Page Images",
+                type: SegmentType.Section,
+                label: "Page Images",
+                source: source));
+
+            for (var i = 0; i < pageImages.Count; i++)
+            {
+                var markdown = $"![PDF page {i + 1}](data:image/png;base64,{pageImages[i]})";
+                var metadata = new Dictionary<string, string>
+                {
+                    ["page"] = (i + 1).ToString(CultureInfo.InvariantCulture)
+                };
+
+                segments.Add(new DocumentSegment(
+                    markdown: markdown,
+                    type: SegmentType.Image,
+                    number: i + 1,
+                    label: $"Page {i + 1} Image",
+                    source: source,
+                    additionalMetadata: metadata));
+            }
+        }
+
+        return segments;
     }
 
     private static string ConvertTextToMarkdown(string text)
@@ -224,42 +299,9 @@ public sealed class PdfConverter : IDocumentConverter
         return null;
     }
 
-    private static string AppendImages(string markdown, IReadOnlyList<string> images)
-    {
-        if (images.Count == 0)
-        {
-            return markdown;
-        }
-
-        var builder = new StringBuilder(markdown.Length + images.Count * 64);
-
-        if (!string.IsNullOrWhiteSpace(markdown))
-        {
-            builder.Append(markdown.TrimEnd());
-            builder.AppendLine();
-            builder.AppendLine();
-        }
-
-        builder.AppendLine("## Page Images");
-        builder.AppendLine();
-
-        for (var i = 0; i < images.Count; i++)
-        {
-            builder.Append("![PDF page ");
-            builder.Append(i + 1);
-            builder.Append("](data:image/png;base64,");
-            builder.Append(images[i]);
-            builder.Append(")");
-            builder.AppendLine();
-            builder.AppendLine();
-        }
-
-        return builder.ToString().TrimEnd();
-    }
-
     internal interface IPdfTextExtractor
     {
-        Task<string> ExtractTextAsync(byte[] pdfBytes, CancellationToken cancellationToken);
+        Task<IReadOnlyList<PdfPageText>> ExtractTextAsync(byte[] pdfBytes, CancellationToken cancellationToken);
     }
 
     internal interface IPdfImageRenderer
@@ -267,11 +309,13 @@ public sealed class PdfConverter : IDocumentConverter
         Task<IReadOnlyList<string>> RenderImagesAsync(byte[] pdfBytes, CancellationToken cancellationToken);
     }
 
+    internal sealed record PdfPageText(int PageNumber, string Text);
+
     private sealed class PdfPigTextExtractor : IPdfTextExtractor
     {
-        public Task<string> ExtractTextAsync(byte[] pdfBytes, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<PdfPageText>> ExtractTextAsync(byte[] pdfBytes, CancellationToken cancellationToken)
         {
-            var builder = new StringBuilder();
+            var pages = new List<PdfPageText>();
 
             using var pdfDocument = PdfDocument.Open(pdfBytes);
 
@@ -286,15 +330,10 @@ public sealed class PdfConverter : IDocumentConverter
                     continue;
                 }
 
-                if (builder.Length > 0)
-                {
-                    builder.AppendLine("\n---\n");
-                }
-
-                builder.AppendLine(pageText.Trim());
+                pages.Add(new PdfPageText(pageNumber, pageText));
             }
 
-            return Task.FromResult(builder.ToString());
+            return Task.FromResult<IReadOnlyList<PdfPageText>>(pages);
         }
     }
 

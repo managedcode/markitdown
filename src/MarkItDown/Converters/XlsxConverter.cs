@@ -1,6 +1,9 @@
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
-using System.Text;
 
 namespace MarkItDown.Converters;
 
@@ -18,6 +21,13 @@ public sealed class XlsxConverter : IDocumentConverter
     {
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     };
+
+    private readonly SegmentOptions segmentOptions;
+
+    public XlsxConverter(SegmentOptions? segmentOptions = null)
+    {
+        this.segmentOptions = segmentOptions ?? SegmentOptions.Default;
+    }
 
     public int Priority => 220; // Between DOCX and plain text
 
@@ -70,7 +80,7 @@ public sealed class XlsxConverter : IDocumentConverter
         return true;
     }
 
-    public async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -78,10 +88,11 @@ public sealed class XlsxConverter : IDocumentConverter
             if (stream.CanSeek)
                 stream.Position = 0;
 
-            var markdown = await ExtractDataFromXlsxAsync(stream, cancellationToken);
+            var segments = ExtractSegmentsFromXlsx(stream, streamInfo.FileName, cancellationToken);
+            var markdown = SegmentMarkdownComposer.Compose(segments, segmentOptions);
             var title = ExtractTitle(streamInfo.FileName ?? "Excel Document");
 
-            return new DocumentConverterResult(markdown, title);
+            return Task.FromResult(new DocumentConverterResult(markdown, title, segments));
         }
         catch (Exception ex) when (!(ex is MarkItDownException))
         {
@@ -89,50 +100,74 @@ public sealed class XlsxConverter : IDocumentConverter
         }
     }
 
-    private static Task<string> ExtractDataFromXlsxAsync(Stream stream, CancellationToken cancellationToken)
+    private static IReadOnlyList<DocumentSegment> ExtractSegmentsFromXlsx(Stream stream, string? fileName, CancellationToken cancellationToken)
     {
-        var result = new StringBuilder();
+        var segments = new List<DocumentSegment>();
 
         using var spreadsheetDocument = SpreadsheetDocument.Open(stream, false);
         var workbookPart = spreadsheetDocument.WorkbookPart;
-        
+
         if (workbookPart?.Workbook?.Sheets != null)
         {
+            var sheetIndex = 0;
+
             foreach (var sheet in workbookPart.Workbook.Sheets.Elements<Sheet>())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                
+
+                sheetIndex++;
                 var worksheetPart = (WorksheetPart)workbookPart.GetPartById(sheet.Id!);
-                ProcessWorksheet(worksheetPart, sheet.Name?.Value ?? "Sheet", result, workbookPart);
+                var sheetName = sheet.Name?.Value ?? $"Sheet {sheetIndex}";
+                var markdown = ConvertWorksheetToMarkdown(worksheetPart, sheetName, workbookPart);
+
+                if (string.IsNullOrWhiteSpace(markdown))
+                {
+                    continue;
+                }
+
+                var metadata = new Dictionary<string, string>
+                {
+                    ["sheet"] = sheetIndex.ToString(CultureInfo.InvariantCulture),
+                    ["sheetName"] = sheetName
+                };
+
+                segments.Add(new DocumentSegment(
+                    markdown: markdown.TrimEnd(),
+                    type: SegmentType.Sheet,
+                    number: sheetIndex,
+                    label: sheetName,
+                    source: fileName,
+                    additionalMetadata: metadata));
             }
         }
 
-        return Task.FromResult(result.ToString().Trim());
+        return segments;
     }
 
-    private static void ProcessWorksheet(WorksheetPart worksheetPart, string sheetName, StringBuilder result, WorkbookPart workbookPart)
+    private static string ConvertWorksheetToMarkdown(WorksheetPart worksheetPart, string sheetName, WorkbookPart workbookPart)
     {
         var worksheet = worksheetPart.Worksheet;
         var sheetData = worksheet.Elements<SheetData>().FirstOrDefault();
-        
-        if (sheetData == null)
-            return;
 
+        var result = new StringBuilder();
         result.AppendLine($"## {sheetName}");
         result.AppendLine();
+
+        if (sheetData == null)
+        {
+            result.AppendLine("*No data found*");
+            return result.ToString().TrimEnd();
+        }
 
         var rows = sheetData.Elements<Row>().ToList();
         if (rows.Count == 0)
         {
             result.AppendLine("*No data found*");
-            result.AppendLine();
-            return;
+            return result.ToString().TrimEnd();
         }
 
-        // Get the shared string table for string cell values
         var stringTable = workbookPart.SharedStringTablePart?.SharedStringTable;
 
-        // Convert to table format
         var tableData = new List<List<string>>();
         var maxColumns = 0;
 
@@ -140,29 +175,27 @@ public sealed class XlsxConverter : IDocumentConverter
         {
             var rowData = new List<string>();
             var cells = row.Elements<Cell>().ToList();
-            
-            // Track the maximum number of columns
+
             if (cells.Count > maxColumns)
+            {
                 maxColumns = cells.Count;
+            }
 
             foreach (var cell in cells)
             {
-                var cellValue = GetCellValue(cell, stringTable);
-                rowData.Add(cellValue);
+                rowData.Add(GetCellValue(cell, stringTable));
             }
-            
+
             tableData.Add(rowData);
         }
 
-        // Only create a table if we have data
         if (tableData.Count > 0 && maxColumns > 0)
         {
-            // Ensure all rows have the same number of columns
             foreach (var rowData in tableData)
             {
                 while (rowData.Count < maxColumns)
                 {
-                    rowData.Add("");
+                    rowData.Add(string.Empty);
                 }
             }
 
@@ -172,8 +205,9 @@ public sealed class XlsxConverter : IDocumentConverter
         {
             result.AppendLine("*No data found*");
         }
-        
+
         result.AppendLine();
+        return result.ToString().TrimEnd();
     }
 
     private static string GetCellValue(Cell cell, SharedStringTable? stringTable)

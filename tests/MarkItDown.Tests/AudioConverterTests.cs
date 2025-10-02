@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -37,6 +38,11 @@ public class AudioConverterTests
         Assert.Contains("### Audio Transcript", result.Markdown);
         Assert.Contains("Hello world transcript.", result.Markdown);
         Assert.Equal("Test Track", result.Title);
+        Assert.Equal(SegmentType.Metadata, result.Segments[0].Type);
+        Assert.Equal(SegmentType.Section, result.Segments[1].Type);
+        Assert.Equal(SegmentType.Audio, result.Segments[2].Type);
+        Assert.Equal(TimeSpan.Zero, result.Segments[2].StartTime);
+        Assert.Equal(TimeSpan.FromMinutes(3), result.Segments[2].EndTime);
     }
 
     [Fact]
