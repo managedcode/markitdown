@@ -61,16 +61,16 @@ internal static class SegmentMarkdownComposer
         {
             var key = segment.Type switch
             {
-                SegmentType.Page => "page",
-                SegmentType.Slide => "slide",
-                SegmentType.Sheet => "sheet",
-                SegmentType.Table => "table",
-                SegmentType.Section => "section",
-                SegmentType.Chapter => "chapter",
-                SegmentType.Image => "image",
-                SegmentType.Metadata => "meta",
-                SegmentType.Audio => "segment",
-                _ => "segment"
+                SegmentType.Page => SegmentAnnotationTokens.Page,
+                SegmentType.Slide => SegmentAnnotationTokens.Slide,
+                SegmentType.Sheet => SegmentAnnotationTokens.Sheet,
+                SegmentType.Table => SegmentAnnotationTokens.Table,
+                SegmentType.Section => SegmentAnnotationTokens.Section,
+                SegmentType.Chapter => SegmentAnnotationTokens.Chapter,
+                SegmentType.Image => SegmentAnnotationTokens.Image,
+                SegmentType.Metadata => SegmentAnnotationTokens.Metadata,
+                SegmentType.Audio => SegmentAnnotationTokens.Segment,
+                _ => SegmentAnnotationTokens.Segment
             };
 
             tags.Add($"{key}:{segment.Number.Value}");
@@ -80,33 +80,33 @@ internal static class SegmentMarkdownComposer
         {
             if (segment.StartTime.HasValue && segment.EndTime.HasValue)
             {
-                tags.Add($"timecode:{FormatTime(segment.StartTime.Value)}-{FormatTime(segment.EndTime.Value)}");
+                tags.Add($"{SegmentAnnotationTokens.Timecode}:{FormatTime(segment.StartTime.Value)}-{FormatTime(segment.EndTime.Value)}");
             }
             else if (segment.StartTime.HasValue)
             {
-                tags.Add($"timecode:{FormatTime(segment.StartTime.Value)}");
+                tags.Add($"{SegmentAnnotationTokens.Timecode}:{FormatTime(segment.StartTime.Value)}");
             }
         }
         else
         {
             if (segment.StartTime.HasValue)
             {
-                tags.Add($"start:{FormatTime(segment.StartTime.Value)}");
+                tags.Add($"{SegmentAnnotationTokens.Start}:{FormatTime(segment.StartTime.Value)}");
             }
             if (segment.EndTime.HasValue)
             {
-                tags.Add($"end:{FormatTime(segment.EndTime.Value)}");
+                tags.Add($"{SegmentAnnotationTokens.End}:{FormatTime(segment.EndTime.Value)}");
             }
         }
 
         if (!string.IsNullOrWhiteSpace(segment.Label))
         {
-            tags.Add($"label:{Sanitize(segment.Label!)}");
+            tags.Add($"{SegmentAnnotationTokens.Label}:{Sanitize(segment.Label!)}");
         }
 
         if (!string.IsNullOrWhiteSpace(segment.Source))
         {
-            tags.Add($"source:{Sanitize(segment.Source!)}");
+            tags.Add($"{SegmentAnnotationTokens.Source}:{Sanitize(segment.Source!)}");
         }
 
         if (segment.AdditionalMetadata.Count > 0)

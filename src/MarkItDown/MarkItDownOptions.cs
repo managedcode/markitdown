@@ -1,3 +1,8 @@
+using MarkItDown.Intelligence;
+using MarkItDown.Intelligence.Providers.Aws;
+using MarkItDown.Intelligence.Providers.Azure;
+using MarkItDown.Intelligence.Providers.Google;
+
 namespace MarkItDown;
 
 /// <summary>
@@ -33,9 +38,44 @@ public sealed record MarkItDownOptions
     public Func<byte[], StreamInfo, CancellationToken, Task<string?>>? AudioTranscriber { get; init; }
 
     /// <summary>
-    /// Optional configuration for Azure Document Intelligence integration.
+    /// Optional configuration for legacy Azure Document Intelligence integration.
     /// </summary>
     public DocumentIntelligenceOptions? DocumentIntelligence { get; init; }
+
+    /// <summary>
+    /// Explicit intelligence providers to use for structured analysis. When <see langword="null"/> the runtime falls back to <see cref="AzureIntelligence"/> configuration.
+    /// </summary>
+    public IDocumentIntelligenceProvider? DocumentIntelligenceProvider { get; init; }
+
+    /// <summary>
+    /// Explicit image understanding provider. When <see langword="null"/> the runtime falls back to <see cref="AzureIntelligence"/> configuration.
+    /// </summary>
+    public IImageUnderstandingProvider? ImageUnderstandingProvider { get; init; }
+
+    /// <summary>
+    /// Explicit media transcription provider. When <see langword="null"/> the runtime falls back to <see cref="AzureIntelligence"/> configuration.
+    /// </summary>
+    public IMediaTranscriptionProvider? MediaTranscriptionProvider { get; init; }
+
+    /// <summary>
+    /// Optional Azure intelligence configuration used when explicit providers are not supplied.
+    /// </summary>
+    public AzureIntelligenceOptions? AzureIntelligence { get; init; }
+
+    /// <summary>
+    /// Optional Google Cloud intelligence configuration used when explicit providers are not supplied.
+    /// </summary>
+    public GoogleIntelligenceOptions? GoogleIntelligence { get; init; }
+
+    /// <summary>
+    /// Optional AWS intelligence configuration used when explicit providers are not supplied.
+    /// </summary>
+    public AwsIntelligenceOptions? AwsIntelligence { get; init; }
+
+    /// <summary>
+    /// Optional access to Microsoft.Extensions.AI clients.
+    /// </summary>
+    public IAiModelProvider? AiModels { get; init; }
 
     /// <summary>
     /// Options that control how converter results are segmented.

@@ -378,16 +378,14 @@ Console.WriteLine(urlResult.Title);
 
 ```csharp
 using System;
-using Azure;
 using MarkItDown;
+using MarkItDown.Intelligence;
+using MarkItDown.Intelligence.Providers.Azure;
+using MarkItDown.Intelligence.Providers.Google;
+using MarkItDown.Intelligence.Providers.Aws;
 
 var options = new MarkItDownOptions
 {
-    // Plug in your own services (Azure AI, OpenAI, etc.)
-    ImageCaptioner = async (bytes, info, token) =>
-        await myCaptionService.DescribeAsync(bytes, info, token),
-    AudioTranscriber = async (bytes, info, token) =>
-        await speechClient.TranscribeAsync(bytes, info, token),
     Segments = new SegmentOptions
     {
         IncludeSegmentMetadataInMarkdown = true,
@@ -396,10 +394,68 @@ var options = new MarkItDownOptions
             SegmentDuration = TimeSpan.FromMinutes(2)
         }
     },
-    DocumentIntelligence = new DocumentIntelligenceOptions
+
+    // Cloud providers can be wired in through the intelligence options.
+    AzureIntelligence = new AzureIntelligenceOptions
     {
-        Endpoint = "https://<your-resource>.cognitiveservices.azure.com/",
-        Credential = new AzureKeyCredential("<document-intelligence-key>")
+        DocumentIntelligence = new AzureDocumentIntelligenceOptions
+        {
+            Endpoint = "https://<your-document-intelligence>.cognitiveservices.azure.com/",
+            ApiKey = "<document-intelligence-key>",
+            ModelId = "prebuilt-layout"
+        },
+        Vision = new AzureVisionOptions
+        {
+            Endpoint = "https://<your-vision>.cognitiveservices.azure.com/",
+            ApiKey = "<vision-key>"
+        },
+        Media = new AzureMediaIntelligenceOptions
+        {
+            AccountId = "<video-indexer-account-id>",
+            Location = "trial",
+            SubscriptionId = "<subscription-id>",
+            ResourceGroup = "<resource-group>"
+        }
+    },
+
+    GoogleIntelligence = new GoogleIntelligenceOptions
+    {
+        DocumentIntelligence = new GoogleDocumentIntelligenceOptions
+        {
+            ProjectId = "my-project",
+            Location = "us",
+            ProcessorId = "<processor-id>",
+            CredentialsPath = "google-sa.json"
+        },
+        Vision = new GoogleVisionOptions
+        {
+            CredentialsPath = "google-sa.json",
+            MaxLabels = 5
+        },
+        Media = new GoogleMediaIntelligenceOptions
+        {
+            CredentialsPath = "google-sa.json",
+            LanguageCode = "en-US"
+        }
+    },
+
+    AwsIntelligence = new AwsIntelligenceOptions
+    {
+        DocumentIntelligence = new AwsDocumentIntelligenceOptions
+        {
+            Region = "us-east-1"
+        },
+        Vision = new AwsVisionOptions
+        {
+            Region = "us-east-1",
+            MinConfidence = 80f
+        },
+        Media = new AwsMediaIntelligenceOptions
+        {
+            Region = "us-east-1",
+            InputBucketName = "my-transcribe-input",
+            OutputBucketName = "my-transcribe-output"
+        }
     }
 };
 
@@ -697,6 +753,8 @@ public class DocumentConversionFunction
 - **`StreamInfo`** - Metadata about the input stream (MIME type, extension, charset, etc.)
 - **`ConverterRegistration`** - Associates converters with priority for selection
 
+> ℹ️ MIME detection and normalization rely on [ManagedCode.MimeTypes](https://github.com/managedcode/MimeTypes).
+
 ### Built-in Converters
 
 MarkItDown includes these converters in priority order:
@@ -740,6 +798,134 @@ foreach (var segment in result.Segments)
 ```
 
 Runtime behaviour is controlled through `SegmentOptions` on `MarkItDownOptions`. Enabling `IncludeSegmentMetadataInMarkdown` emits inline annotations like `[page:1]`, `[sheet:Sales]`, or `[timecode:00:01:00-00:02:00]` directly in the Markdown stream. Audio transcripts honour `Segments.Audio.SegmentDuration`, while still collapsing short transcripts into a single, time-aware slice.
+
+### Cloud Intelligence Providers
+
+MarkItDown exposes optional abstractions for running documents through cloud services:
+
+- `IDocumentIntelligenceProvider` – structured page, table, and layout extraction.
+- `IImageUnderstandingProvider` – OCR, captioning, and object detection for embedded images.
+- `IMediaTranscriptionProvider` – timed transcripts for audio and video inputs.
+
+The `AzureIntelligenceOptions`, `GoogleIntelligenceOptions`, and `AwsIntelligenceOptions` helpers wire the respective cloud Document AI/Vision/Speech stacks without forcing the dependency on consumers. You can still bring your own implementation by assigning the provider interfaces directly on `MarkItDownOptions`.
+
+#### Azure AI setup (keys and managed identity)
+
+- **Docs**: [Document Intelligence](https://learn.microsoft.com/azure/ai-services/document-intelligence/), [Computer Vision Image Analysis](https://learn.microsoft.com/azure/ai-services/computer-vision/overview-image-analysis), [Video Indexer authentication](https://learn.microsoft.com/azure/azure-video-indexer/video-indexer-get-started/connect-to-azure).
+- **API keys / connection strings**: store your Cognitive Services key in configuration (for example `appsettings.json` or an Azure App Configuration connection string) and hydrate the options:
+
+  ```csharp
+  var configuration = host.Services.GetRequiredService<IConfiguration>();
+
+  var azureOptions = new AzureIntelligenceOptions
+  {
+      DocumentIntelligence = new AzureDocumentIntelligenceOptions
+      {
+          Endpoint = configuration["Azure:DocumentIntelligence:Endpoint"],
+          ApiKey = configuration.GetConnectionString("AzureDocumentIntelligenceKey"),
+          ModelId = "prebuilt-layout"
+      },
+      Vision = new AzureVisionOptions
+      {
+          Endpoint = configuration["Azure:Vision:Endpoint"],
+          ApiKey = configuration.GetConnectionString("AzureVisionKey")
+      },
+      Media = new AzureMediaIntelligenceOptions
+      {
+          AccountId = configuration["Azure:VideoIndexer:AccountId"],
+          Location = configuration["Azure:VideoIndexer:Location"],
+          SubscriptionId = configuration["Azure:VideoIndexer:SubscriptionId"],
+          ResourceGroup = configuration["Azure:VideoIndexer:ResourceGroup"],
+          ArmAccessToken = configuration.GetConnectionString("AzureVideoIndexerArmToken")
+      }
+  };
+  ```
+
+- **Managed identity**: omit the `ApiKey`/`ArmAccessToken` properties and the providers automatically fall back to `DefaultAzureCredential`. Assign the managed identity the *Cognitive Services User* role for Document Intelligence and Vision, and follow the [Video Indexer managed identity instructions](https://learn.microsoft.com/azure/azure-video-indexer/video-indexer-use-azure-ad) to authorize uploads.
+
+  ```csharp
+  var azureOptions = new AzureIntelligenceOptions
+  {
+      DocumentIntelligence = new AzureDocumentIntelligenceOptions
+      {
+          Endpoint = "https://contoso.cognitiveservices.azure.com/"
+      },
+      Vision = new AzureVisionOptions
+      {
+          Endpoint = "https://contoso.cognitiveservices.azure.com/"
+      },
+      Media = new AzureMediaIntelligenceOptions
+      {
+          AccountId = "<video-indexer-account-id>",
+          Location = "trial"
+      }
+  };
+  ```
+
+#### Google Cloud setup
+
+- **Docs**: [Document AI](https://cloud.google.com/document-ai/docs), [Vision API](https://cloud.google.com/vision/docs), [Speech-to-Text](https://cloud.google.com/speech-to-text/docs).
+- **Service account JSON / ADC**: place your service account JSON on disk or load it from Secret Manager, then point the options at it (or provide a `GoogleCredential` instance). If `CredentialsPath`/`JsonCredentials`/`Credential` are omitted the providers use [Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc#local-key):
+
+  ```csharp
+  var googleOptions = new GoogleIntelligenceOptions
+  {
+      DocumentIntelligence = new GoogleDocumentIntelligenceOptions
+      {
+          ProjectId = "my-project",
+          Location = "us",
+          ProcessorId = "processor-id",
+          CredentialsPath = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
+      },
+      Vision = new GoogleVisionOptions
+      {
+          JsonCredentials = Environment.GetEnvironmentVariable("GOOGLE_VISION_JSON")
+      },
+      Media = new GoogleMediaIntelligenceOptions
+      {
+          Credential = GoogleCredential.GetApplicationDefault(),
+          LanguageCode = "en-US"
+      }
+  };
+  ```
+
+- **Workload identity / managed identities**: host the app on GKE, Cloud Run, or Cloud Functions with [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation). The Google SDK automatic credential chain will pick up the ambient identity and the providers will work without JSON keys.
+
+#### AWS setup
+
+- **Docs**: [Textract](https://docs.aws.amazon.com/textract/latest/dg/what-is.html), [Rekognition](https://docs.aws.amazon.com/rekognition/latest/dg/what-is.html), [Transcribe](https://docs.aws.amazon.com/transcribe/latest/dg/what-is-transcribe.html), [.NET credential management](https://docs.aws.amazon.com/sdk-for-net/v3/developer-guide/net-dg-config-creds.html).
+- **Access keys / connection strings**: populate the options directly from configuration when you must supply static credentials (for example from AWS Secrets Manager or an encrypted connection string):
+
+  ```csharp
+  var awsOptions = new AwsIntelligenceOptions
+  {
+      DocumentIntelligence = new AwsDocumentIntelligenceOptions
+      {
+          AccessKeyId = configuration["AWS:AccessKeyId"],
+          SecretAccessKey = configuration["AWS:SecretAccessKey"],
+          Region = configuration.GetValue<string>("AWS:Region")
+      },
+      Vision = new AwsVisionOptions
+      {
+          AccessKeyId = configuration["AWS:AccessKeyId"],
+          SecretAccessKey = configuration["AWS:SecretAccessKey"],
+          Region = configuration.GetValue<string>("AWS:Region"),
+          MinConfidence = 80f
+      },
+      Media = new AwsMediaIntelligenceOptions
+      {
+          AccessKeyId = configuration["AWS:AccessKeyId"],
+          SecretAccessKey = configuration["AWS:SecretAccessKey"],
+          Region = configuration.GetValue<string>("AWS:Region"),
+          InputBucketName = configuration["AWS:Transcribe:InputBucket"],
+          OutputBucketName = configuration["AWS:Transcribe:OutputBucket"]
+      }
+  };
+  ```
+
+- **IAM roles / AWS managed identity**: leave the credential fields null to use the default AWS credential chain (environment variables, shared credentials file, EC2/ECS/EKS IAM roles, or AWS SSO). Ensure the execution role has permissions for `textract:AnalyzeDocument`, `rekognition:DetectLabels`, `rekognition:DetectText`, `transcribe:StartTranscriptionJob`, and S3 access for the specified buckets.
+
+For LLM-style post-processing, assign `MarkItDownOptions.AiModels` with an `IAiModelProvider`. The built-in `StaticAiModelProvider` accepts `Microsoft.Extensions.AI` clients (chat models, speech-to-text, etc.), enabling you to share application-wide model builders.
 
 ### Converter Priority & Detection
 
@@ -1007,34 +1193,25 @@ var markItDown = new MarkItDown(options);
 using Azure;
 using OpenAI;
 
+var openAIChatClient = new MyChatClient(); // IChatClient from Microsoft.Extensions.AI
+var whisperSpeechClient = new MySpeechToTextClient(); // ISpeechToTextClient from Microsoft.Extensions.AI
+
 var options = new MarkItDownOptions
 {
-    // Azure AI Vision for image captions
-    ImageCaptioner = async (bytes, info, token) =>
+    AiModels = new StaticAiModelProvider(openAIChatClient, whisperSpeechClient),
+
+    AzureIntelligence = new AzureIntelligenceOptions
     {
-        var client = new VisionServiceClient("your-endpoint", new AzureKeyCredential("your-key"));
-        var result = await client.AnalyzeImageAsync(bytes, token);
-        return $"Image: {result.Description?.Captions?.FirstOrDefault()?.Text ?? "Visual content"}";
-    },
-    
-    // OpenAI Whisper for audio transcription  
-    AudioTranscriber = async (bytes, info, token) =>
-    {
-        var client = new OpenAIClient("your-api-key");
-        using var stream = new MemoryStream(bytes);
-        var result = await client.AudioEndpoint.CreateTranscriptionAsync(
-            stream, 
-            Path.GetFileName(info.FileName) ?? "audio", 
-            cancellationToken: token);
-        return result.Text;
-    },
-    
-    // Azure Document Intelligence for enhanced PDF/form processing
-    DocumentIntelligence = new DocumentIntelligenceOptions
-    {
-        Endpoint = "https://your-resource.cognitiveservices.azure.com/",
-        Credential = new AzureKeyCredential("your-document-intelligence-key"),
-        ApiVersion = "2023-10-31-preview"
+        DocumentIntelligence = new AzureDocumentIntelligenceOptions
+        {
+            Endpoint = "https://your-document-intelligence.cognitiveservices.azure.com/",
+            ApiKey = "<document-intelligence-key>"
+        },
+        Vision = new AzureVisionOptions
+        {
+            Endpoint = "https://your-computervision.cognitiveservices.azure.com/",
+            ApiKey = "<vision-key>"
+        }
     }
 };
 

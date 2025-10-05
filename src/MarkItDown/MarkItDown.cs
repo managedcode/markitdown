@@ -1,6 +1,14 @@
-using Microsoft.Extensions.Logging;
 using System.Text;
+using Azure;
+using Azure.AI.FormRecognizer.DocumentAnalysis;
+using Azure.Core;
+using Azure.Identity;
+using Microsoft.Extensions.Logging;
 using MarkItDown.Converters;
+using MarkItDown.Intelligence;
+using MarkItDown.Intelligence.Providers.Aws;
+using MarkItDown.Intelligence.Providers.Azure;
+using MarkItDown.Intelligence.Providers.Google;
 
 namespace MarkItDown;
 
@@ -15,6 +23,7 @@ public sealed class MarkItDown
     private readonly ILogger? _logger;
     private readonly HttpClient? _httpClient;
     private readonly MarkItDownOptions _options;
+    private readonly IntelligenceProviderHub _intelligenceProviders;
 
     /// <summary>
     /// Initialize a new instance of MarkItDown.
@@ -38,6 +47,7 @@ public sealed class MarkItDown
         _logger = logger;
         _httpClient = httpClient;
         _converters = [];
+        _intelligenceProviders = InitializeIntelligenceProviders();
 
         if (_options.EnableBuiltins)
         {
@@ -239,10 +249,117 @@ public sealed class MarkItDown
         }
     }
 
+    private IntelligenceProviderHub InitializeIntelligenceProviders()
+    {
+        IDocumentIntelligenceProvider? documentProvider = _options.DocumentIntelligenceProvider;
+        if (documentProvider is null)
+        {
+            if (_options.AzureIntelligence?.DocumentIntelligence is { } azureDoc)
+            {
+                documentProvider = new AzureDocumentIntelligenceProvider(azureDoc);
+            }
+            else if (_options.GoogleIntelligence?.DocumentIntelligence is { } googleDoc)
+            {
+                documentProvider = new GoogleDocumentIntelligenceProvider(googleDoc);
+            }
+            else if (_options.AwsIntelligence?.DocumentIntelligence is { } awsDoc)
+            {
+                documentProvider = new AwsDocumentIntelligenceProvider(awsDoc);
+            }
+            else if (_options.DocumentIntelligence is { } legacy)
+            {
+                documentProvider = CreateLegacyDocumentIntelligenceProvider(legacy);
+            }
+        }
+
+        IImageUnderstandingProvider? imageProvider = _options.ImageUnderstandingProvider;
+        if (imageProvider is null)
+        {
+            if (_options.AzureIntelligence?.Vision is { } azureVision)
+            {
+                imageProvider = new AzureImageUnderstandingProvider(azureVision);
+            }
+            else if (_options.GoogleIntelligence?.Vision is { } googleVision)
+            {
+                imageProvider = new GoogleImageUnderstandingProvider(googleVision);
+            }
+            else if (_options.AwsIntelligence?.Vision is { } awsVision)
+            {
+                imageProvider = new AwsImageUnderstandingProvider(awsVision);
+            }
+        }
+
+        IMediaTranscriptionProvider? mediaProvider = _options.MediaTranscriptionProvider;
+        if (mediaProvider is null)
+        {
+            if (_options.AzureIntelligence?.Media is { } azureMedia)
+            {
+                mediaProvider = new AzureMediaTranscriptionProvider(azureMedia);
+            }
+            else if (_options.GoogleIntelligence?.Media is { } googleMedia)
+            {
+                mediaProvider = new GoogleMediaTranscriptionProvider(googleMedia);
+            }
+            else if (_options.AwsIntelligence?.Media is { } awsMedia)
+            {
+                mediaProvider = new AwsMediaTranscriptionProvider(awsMedia);
+            }
+        }
+
+        var aiModels = _options.AiModels ?? NullAiModelProvider.Instance;
+
+        return new IntelligenceProviderHub(documentProvider, imageProvider, mediaProvider, aiModels);
+    }
+
+    private static IDocumentIntelligenceProvider? CreateLegacyDocumentIntelligenceProvider(DocumentIntelligenceOptions legacy)
+    {
+        if (string.IsNullOrWhiteSpace(legacy.Endpoint))
+        {
+            return null;
+        }
+
+        AzureDocumentIntelligenceOptions azureOptions = new()
+        {
+            Endpoint = legacy.Endpoint,
+            ApiKey = legacy.Credential as string
+        };
+
+        DocumentAnalysisClient? client = null;
+
+        if (legacy.Credential is AzureKeyCredential keyCredential)
+        {
+            client = new DocumentAnalysisClient(new Uri(legacy.Endpoint), keyCredential);
+        }
+        else if (legacy.Credential is TokenCredential tokenCredential)
+        {
+            DocumentAnalysisClientOptions? options = null;
+            if (!string.IsNullOrWhiteSpace(legacy.ApiVersion) && Enum.TryParse<DocumentAnalysisClientOptions.ServiceVersion>(legacy.ApiVersion, ignoreCase: true, out var parsedVersion))
+            {
+                options = new DocumentAnalysisClientOptions(parsedVersion);
+            }
+
+            client = options is null
+                ? new DocumentAnalysisClient(new Uri(legacy.Endpoint), tokenCredential)
+                : new DocumentAnalysisClient(new Uri(legacy.Endpoint), tokenCredential, options);
+        }
+        else if (legacy.Credential is string keyString)
+        {
+            client = new DocumentAnalysisClient(new Uri(legacy.Endpoint), new AzureKeyCredential(keyString));
+        }
+        else if (legacy.Credential is null)
+        {
+            client = new DocumentAnalysisClient(new Uri(legacy.Endpoint), new DefaultAzureCredential());
+        }
+
+        return client is not null
+            ? new AzureDocumentIntelligenceProvider(azureOptions, client)
+            : new AzureDocumentIntelligenceProvider(azureOptions);
+    }
+
     private IEnumerable<IDocumentConverter> CreateBuiltInConverters()
     {
         IDocumentConverter CreateImageConverter() => new ImageConverter(_options.ExifToolPath, _options.ImageCaptioner);
-        IDocumentConverter CreateAudioConverter() => new AudioConverter(_options.ExifToolPath, _options.AudioTranscriber, _options.Segments);
+        IDocumentConverter CreateAudioConverter() => new AudioConverter(_options.ExifToolPath, _options.AudioTranscriber, _options.Segments, _intelligenceProviders.Media);
 
         var converters = new List<IDocumentConverter>
         {
@@ -258,7 +375,7 @@ public sealed class MarkItDown
             new EmlConverter(),
             new XmlConverter(),
             new ZipConverter(CreateZipInnerConverters(CreateImageConverter, CreateAudioConverter)),
-            new PdfConverter(_options.Segments),
+            new PdfConverter(_options.Segments, _intelligenceProviders.Document, _intelligenceProviders.Image),
             new DocxConverter(_options.Segments),
             new XlsxConverter(_options.Segments),
             new PptxConverter(_options.Segments),
@@ -284,7 +401,7 @@ public sealed class MarkItDown
             new CsvConverter(),
             new EmlConverter(),
             new XmlConverter(),
-            new PdfConverter(_options.Segments),
+            new PdfConverter(_options.Segments, _intelligenceProviders.Document, _intelligenceProviders.Image),
             new DocxConverter(_options.Segments),
             new XlsxConverter(_options.Segments),
             new PptxConverter(_options.Segments),

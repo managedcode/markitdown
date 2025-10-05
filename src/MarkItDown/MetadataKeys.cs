@@ -1,0 +1,38 @@
+namespace MarkItDown;
+
+/// <summary>
+/// Common metadata key constants used throughout conversion and intelligence providers.
+/// </summary>
+public static class MetadataKeys
+{
+    public const string Width = "width";
+    public const string Height = "height";
+    public const string Unit = "unit";
+    public const string Page = "page";
+    public const string RowCount = "rowCount";
+    public const string ColumnCount = "columnCount";
+    public const string Caption = "caption";
+    public const string TableIndex = "tableIndex";
+    public const string Provider = "provider";
+    public const string ModelVersion = "modelVersion";
+    public const string VideoId = "videoId";
+    public const string Language = "language";
+    public const string Segment = "segment";
+    public const string TotalDuration = "totalDuration";
+    public const string Confidence = "confidence";
+    public const string SafeSearchAdult = "safeSearch.adult";
+    public const string SafeSearchMedical = "safeSearch.medical";
+    public const string SafeSearchRacy = "safeSearch.racy";
+    public const string SafeSearchViolence = "safeSearch.violence";
+}
+
+/// <summary>
+/// Common metadata value constants.
+/// </summary>
+public static class MetadataValues
+{
+    public const string ProviderAzureVideoIndexer = "azure_video_indexer";
+    public const string ProviderAwsRekognition = "aws_rekognition";
+    public const string ProviderAwsTranscribe = "aws_transcribe";
+    public const string ProviderGoogleSpeechToText = "google_speech_to_text";
+}

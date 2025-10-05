@@ -5,6 +5,9 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using MarkItDown;
+using MarkItDown.Intelligence;
+using MarkItDown.Intelligence.Models;
 
 namespace MarkItDown.Converters;
 
@@ -48,23 +51,31 @@ public sealed class AudioConverter : IDocumentConverter
     private readonly IAudioMetadataExtractor metadataExtractor;
     private readonly IAudioTranscriber transcriber;
     private readonly SegmentOptions segmentOptions;
+    private readonly IMediaTranscriptionProvider? mediaProvider;
 
     public AudioConverter(
         string? exifToolPath = null,
         Func<byte[], StreamInfo, CancellationToken, Task<string?>>? transcribeAsync = null,
-        SegmentOptions? segmentOptions = null)
+        SegmentOptions? segmentOptions = null,
+        IMediaTranscriptionProvider? mediaProvider = null)
         : this(
             new ExifToolAudioMetadataExtractor(exifToolPath),
             transcribeAsync is null ? NoOpAudioTranscriber.Instance : new DelegateAudioTranscriber(transcribeAsync),
-            segmentOptions)
+            segmentOptions,
+            mediaProvider)
     {
     }
 
-    internal AudioConverter(IAudioMetadataExtractor metadataExtractor, IAudioTranscriber transcriber, SegmentOptions? segmentOptions = null)
+    internal AudioConverter(
+        IAudioMetadataExtractor metadataExtractor,
+        IAudioTranscriber transcriber,
+        SegmentOptions? segmentOptions = null,
+        IMediaTranscriptionProvider? mediaProvider = null)
     {
         this.metadataExtractor = metadataExtractor ?? throw new ArgumentNullException(nameof(metadataExtractor));
         this.transcriber = transcriber ?? throw new ArgumentNullException(nameof(transcriber));
         this.segmentOptions = segmentOptions ?? SegmentOptions.Default;
+        this.mediaProvider = mediaProvider;
     }
 
     public int Priority => 460;
@@ -97,8 +108,13 @@ public sealed class AudioConverter : IDocumentConverter
 
         var metadata = await metadataExtractor.ExtractAsync(bytes, streamInfo, cancellationToken).ConfigureAwait(false);
         var transcript = await TryTranscribeAsync(bytes, streamInfo, cancellationToken).ConfigureAwait(false);
+        var providerTranscript = await TryTranscribeWithProviderAsync(bytes, streamInfo, cancellationToken).ConfigureAwait(false);
 
-        var segments = BuildSegments(metadata, transcript, streamInfo);
+        var transcriptText = !string.IsNullOrWhiteSpace(transcript)
+            ? transcript
+            : providerTranscript?.GetFullTranscript();
+
+        var segments = BuildSegments(metadata, transcriptText, streamInfo, providerTranscript);
         var markdown = segments.Count > 0
             ? SegmentMarkdownComposer.Compose(segments, segmentOptions)
             : "*No audio metadata available.*";
@@ -122,10 +138,29 @@ public sealed class AudioConverter : IDocumentConverter
         }
     }
 
+    private async Task<MediaTranscriptionResult?> TryTranscribeWithProviderAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
+    {
+        if (mediaProvider is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var providerStream = new MemoryStream(audioBytes, writable: false);
+            return await mediaProvider.TranscribeAsync(providerStream, streamInfo, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private IReadOnlyList<DocumentSegment> BuildSegments(
         IReadOnlyDictionary<string, string> metadata,
         string? transcript,
-        StreamInfo streamInfo)
+        StreamInfo streamInfo,
+        MediaTranscriptionResult? providerResult)
     {
         var segments = new List<DocumentSegment>();
         var source = streamInfo.FileName;
@@ -140,8 +175,16 @@ public sealed class AudioConverter : IDocumentConverter
                 source: source));
         }
 
-        var audioDuration = ParseAudioDuration(metadata);
-        var transcriptSegments = CreateAudioSegments(transcript, audioDuration, streamInfo);
+        IReadOnlyList<DocumentSegment> transcriptSegments;
+        if (providerResult is not null && providerResult.Segments.Count > 0)
+        {
+            transcriptSegments = CreateAudioSegments(providerResult, streamInfo);
+        }
+        else
+        {
+            var audioDuration = ParseAudioDuration(metadata);
+            transcriptSegments = CreateAudioSegments(transcript, audioDuration, streamInfo);
+        }
 
         if (transcriptSegments.Count > 0)
         {
@@ -231,8 +274,8 @@ public sealed class AudioConverter : IDocumentConverter
 
             var metadata = new Dictionary<string, string>
             {
-                ["segment"] = (i + 1).ToString(CultureInfo.InvariantCulture),
-                ["totalDuration"] = FormatDuration(duration)
+                [MetadataKeys.Segment] = (i + 1).ToString(CultureInfo.InvariantCulture),
+                [MetadataKeys.TotalDuration] = FormatDuration(duration)
             };
 
             segments.Add(new DocumentSegment(
@@ -242,6 +285,36 @@ public sealed class AudioConverter : IDocumentConverter
                 label: $"Segment {i + 1}",
                 startTime: start,
                 endTime: end,
+                source: streamInfo.FileName,
+                additionalMetadata: metadata));
+        }
+
+        return segments;
+    }
+
+    private IReadOnlyList<DocumentSegment> CreateAudioSegments(MediaTranscriptionResult mediaResult, StreamInfo streamInfo)
+    {
+        if (mediaResult.Segments.Count == 0)
+        {
+            return Array.Empty<DocumentSegment>();
+        }
+
+        var segments = new List<DocumentSegment>(mediaResult.Segments.Count);
+        for (var i = 0; i < mediaResult.Segments.Count; i++)
+        {
+            var item = mediaResult.Segments[i];
+            var metadata = new Dictionary<string, string>(item.Metadata)
+            {
+                [MetadataKeys.Segment] = (i + 1).ToString(CultureInfo.InvariantCulture)
+            };
+
+            segments.Add(new DocumentSegment(
+                markdown: item.Text,
+                type: SegmentType.Audio,
+                number: i + 1,
+                label: $"Segment {i + 1}",
+                startTime: item.Start,
+                endTime: item.End,
                 source: streamInfo.FileName,
                 additionalMetadata: metadata));
         }
