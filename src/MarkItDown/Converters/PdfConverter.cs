@@ -434,7 +434,23 @@ public sealed class PdfConverter : IDocumentConverter
             return;
         }
 
-        var renderedPages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<string> renderedPages;
+
+        try
+        {
+            renderedPages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // Rendering support is optional for document intelligence; ignore failures
+            // so that conversions can still succeed when the renderer is unavailable.
+            return;
+        }
+
         if (renderedPages.Count == 0)
         {
             return;
