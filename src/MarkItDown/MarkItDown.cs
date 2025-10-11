@@ -4,6 +4,7 @@ using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Azure.Core;
 using Azure.Identity;
 using Microsoft.Extensions.Logging;
+using MarkItDown.Conversion.Middleware;
 using MarkItDown.Converters;
 using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Providers.Aws;
@@ -24,6 +25,7 @@ public sealed class MarkItDown
     private readonly HttpClient? _httpClient;
     private readonly MarkItDownOptions _options;
     private readonly IntelligenceProviderHub _intelligenceProviders;
+    private readonly IConversionPipeline _conversionPipeline;
 
     /// <summary>
     /// Initialize a new instance of MarkItDown.
@@ -48,6 +50,7 @@ public sealed class MarkItDown
         _httpClient = httpClient;
         _converters = [];
         _intelligenceProviders = InitializeIntelligenceProviders();
+        _conversionPipeline = BuildConversionPipeline();
 
         if (_options.EnableBuiltins)
         {
@@ -249,6 +252,28 @@ public sealed class MarkItDown
         }
     }
 
+    private IConversionPipeline BuildConversionPipeline()
+    {
+        var middleware = new List<IConversionMiddleware>();
+
+        if (_options.EnableAiImageEnrichment)
+        {
+            middleware.Add(new AiImageEnrichmentMiddleware());
+        }
+
+        if (_options.ConversionMiddleware is { Count: > 0 })
+        {
+            middleware.AddRange(_options.ConversionMiddleware);
+        }
+
+        if (middleware.Count == 0)
+        {
+            return ConversionPipeline.Empty;
+        }
+
+        return new ConversionPipeline(middleware, _intelligenceProviders.AiModels ?? NullAiModelProvider.Instance, _logger);
+    }
+
     private IntelligenceProviderHub InitializeIntelligenceProviders()
     {
         IDocumentIntelligenceProvider? documentProvider = _options.DocumentIntelligenceProvider;
@@ -375,10 +400,10 @@ public sealed class MarkItDown
             new EmlConverter(),
             new XmlConverter(),
             new ZipConverter(CreateZipInnerConverters(CreateImageConverter, CreateAudioConverter)),
-            new PdfConverter(_options.Segments, _intelligenceProviders.Document, _intelligenceProviders.Image),
-            new DocxConverter(_options.Segments),
+            new PdfConverter(_options.Segments, _intelligenceProviders.Document, _intelligenceProviders.Image, _conversionPipeline),
+            new DocxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
             new XlsxConverter(_options.Segments),
-            new PptxConverter(_options.Segments),
+            new PptxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
             CreateAudioConverter(),
             CreateImageConverter(),
             new PlainTextConverter(),
@@ -401,10 +426,10 @@ public sealed class MarkItDown
             new CsvConverter(),
             new EmlConverter(),
             new XmlConverter(),
-            new PdfConverter(_options.Segments, _intelligenceProviders.Document, _intelligenceProviders.Image),
-            new DocxConverter(_options.Segments),
+            new PdfConverter(_options.Segments, _intelligenceProviders.Document, _intelligenceProviders.Image, _conversionPipeline),
+            new DocxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
             new XlsxConverter(_options.Segments),
-            new PptxConverter(_options.Segments),
+            new PptxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
             audioConverterFactory(),
             imageConverterFactory(),
             new PlainTextConverter(),

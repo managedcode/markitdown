@@ -1,10 +1,15 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
-using DocumentFormat.OpenXml.Drawing;
+using System.Threading;
+using System.Threading.Tasks;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Presentation;
+using ManagedCode.MimeTypes;
+using MarkItDown.Intelligence;
 using A = DocumentFormat.OpenXml.Drawing;
 
 namespace MarkItDown.Converters;
@@ -21,32 +26,38 @@ public sealed class PptxConverter : IDocumentConverter
 
     private static readonly HashSet<string> AcceptedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        MimeHelper.GetMimeType(".pptx"),
     };
 
     private readonly SegmentOptions segmentOptions;
+    private readonly IConversionPipeline conversionPipeline;
+    private readonly IImageUnderstandingProvider? imageUnderstandingProvider;
 
-    public PptxConverter(SegmentOptions? segmentOptions = null)
+    public PptxConverter(SegmentOptions? segmentOptions = null, IConversionPipeline? pipeline = null, IImageUnderstandingProvider? imageProvider = null)
     {
         this.segmentOptions = segmentOptions ?? SegmentOptions.Default;
+        conversionPipeline = pipeline ?? ConversionPipeline.Empty;
+        imageUnderstandingProvider = imageProvider;
     }
 
     public int Priority => 230; // Between XLSX and plain text
 
     public bool AcceptsInput(StreamInfo streamInfo)
     {
-        var mimeType = streamInfo.MimeType?.ToLowerInvariant() ?? string.Empty;
+        var normalizedMime = MimeTypeUtilities.NormalizeMime(streamInfo);
         var extension = streamInfo.Extension?.ToLowerInvariant();
 
-        // Check the extension
         if (extension is not null && AcceptedExtensions.Contains(extension))
+        {
             return true;
+        }
 
-        // Check the mimetype
-        if (AcceptedMimeTypes.Contains(mimeType))
+        if (normalizedMime is not null && AcceptedMimeTypes.Contains(normalizedMime))
+        {
             return true;
+        }
 
-        return false;
+        return streamInfo.MimeType is not null && AcceptedMimeTypes.Contains(streamInfo.MimeType);
     }
 
     public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
@@ -61,15 +72,15 @@ public sealed class PptxConverter : IDocumentConverter
             try
             {
                 stream.Position = 0;
-                var buffer = new byte[4];
-                var bytesRead = stream.Read(buffer, 0, 4);
+                Span<byte> buffer = stackalloc byte[4];
+                var bytesRead = stream.Read(buffer);
                 stream.Position = originalPosition;
 
                 if (bytesRead == 4)
                 {
                     // Check for ZIP file signature (PPTX files are ZIP archives)
-                    return buffer[0] == 0x50 && buffer[1] == 0x4B && 
-                           (buffer[2] == 0x03 || buffer[2] == 0x05 || buffer[2] == 0x07) && 
+                    return buffer[0] == 0x50 && buffer[1] == 0x4B &&
+                           (buffer[2] == 0x03 || buffer[2] == 0x05 || buffer[2] == 0x07) &&
                            (buffer[3] == 0x04 || buffer[3] == 0x06 || buffer[3] == 0x08);
                 }
             }
@@ -82,185 +93,345 @@ public sealed class PptxConverter : IDocumentConverter
         return true;
     }
 
-    public Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
     {
         try
         {
-            // Reset stream position
             if (stream.CanSeek)
+            {
                 stream.Position = 0;
+            }
 
-            var segments = ExtractSegmentsFromPptx(stream, streamInfo.FileName, cancellationToken);
-            var markdown = SegmentMarkdownComposer.Compose(segments, segmentOptions);
-            var title = ExtractTitle(markdown, streamInfo.FileName ?? "PowerPoint Presentation");
+            var extraction = await ExtractSlidesAsync(stream, streamInfo, cancellationToken).ConfigureAwait(false);
+            await conversionPipeline.ExecuteAsync(streamInfo, extraction.Artifacts, extraction.Segments, cancellationToken).ConfigureAwait(false);
 
-            return Task.FromResult(new DocumentConverterResult(markdown, title, segments));
+            var markdown = SegmentMarkdownComposer.Compose(extraction.Segments, segmentOptions);
+            var title = ExtractTitle(extraction.RawText, streamInfo.FileName, markdown);
+
+            return new DocumentConverterResult(markdown, title, extraction.Segments, extraction.Artifacts);
         }
-        catch (Exception ex) when (!(ex is MarkItDownException))
+        catch (Exception ex) when (ex is not MarkItDownException)
         {
             throw new FileConversionException($"Failed to convert PPTX file: {ex.Message}", ex);
         }
     }
 
-    private static IReadOnlyList<DocumentSegment> ExtractSegmentsFromPptx(Stream stream, string? fileName, CancellationToken cancellationToken)
+    private sealed class PptxExtractionResult
     {
-        var segments = new List<DocumentSegment>();
+        public PptxExtractionResult(List<DocumentSegment> segments, ConversionArtifacts artifacts, string rawText)
+        {
+            Segments = segments;
+            Artifacts = artifacts;
+            RawText = rawText;
+        }
 
+        public List<DocumentSegment> Segments { get; }
+
+        public ConversionArtifacts Artifacts { get; }
+
+        public string RawText { get; }
+    }
+
+    private sealed record SlideExtractionResult(string Markdown, string Text, IReadOnlyList<ImageArtifact> Images);
+
+    private async Task<PptxExtractionResult> ExtractSlidesAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken)
+    {
         using var presentationDocument = PresentationDocument.Open(stream, false);
         var presentationPart = presentationDocument.PresentationPart;
-
-        if (presentationPart?.Presentation?.SlideIdList != null)
+        if (presentationPart?.Presentation?.SlideIdList is null)
         {
-            var slideIndex = 0;
+            return new PptxExtractionResult(new List<DocumentSegment>(), new ConversionArtifacts(), string.Empty);
+        }
 
-            foreach (var slideId in presentationPart.Presentation.SlideIdList.Elements<SlideId>())
+        var segments = new List<DocumentSegment>();
+        var artifacts = new ConversionArtifacts();
+        var rawTextBuilder = new StringBuilder();
+        var slideIndex = 0;
+
+        foreach (var slideId in presentationPart.Presentation.SlideIdList.Elements<SlideId>())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            slideIndex++;
+
+            if (presentationPart.GetPartById(slideId.RelationshipId!) is not SlidePart slidePart)
+            {
+                continue;
+            }
+
+            var slideResult = await ConvertSlideToMarkdownAsync(slidePart, slideIndex, streamInfo, cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(slideResult.Markdown) && slideResult.Images.Count == 0)
+            {
+                continue;
+            }
+
+            var metadata = new Dictionary<string, string>
+            {
+                [MetadataKeys.Slide] = slideIndex.ToString(CultureInfo.InvariantCulture)
+            };
+
+            var segment = new DocumentSegment(
+                markdown: slideResult.Markdown,
+                type: SegmentType.Slide,
+                number: slideIndex,
+                label: $"Slide {slideIndex}",
+                source: streamInfo.FileName,
+                additionalMetadata: metadata);
+
+            var segmentIndex = segments.Count;
+            segments.Add(segment);
+
+            var textContent = string.IsNullOrWhiteSpace(slideResult.Text) ? slideResult.Markdown : slideResult.Text;
+            artifacts.TextBlocks.Add(new TextArtifact(textContent, slideIndex, streamInfo.FileName, segment.Label));
+
+            if (!string.IsNullOrWhiteSpace(textContent))
+            {
+                if (rawTextBuilder.Length > 0)
+                {
+                    rawTextBuilder.AppendLine();
+                }
+
+                rawTextBuilder.AppendLine(textContent);
+            }
+
+            foreach (var image in slideResult.Images)
+            {
+                image.SegmentIndex = segmentIndex;
+                artifacts.Images.Add(image);
+            }
+        }
+
+        return new PptxExtractionResult(segments, artifacts, rawTextBuilder.ToString().Trim());
+    }
+
+    private async Task<SlideExtractionResult> ConvertSlideToMarkdownAsync(SlidePart slidePart, int slideNumber, StreamInfo streamInfo, CancellationToken cancellationToken)
+    {
+        var markdown = new StringBuilder();
+        var text = new StringBuilder();
+        var images = new List<ImageArtifact>();
+        var slide = slidePart.Slide;
+        var slideImageIndex = 0;
+
+        markdown.AppendLine($"## Slide {slideNumber}");
+        markdown.AppendLine();
+        text.AppendLine($"Slide {slideNumber}");
+
+        if (slide.CommonSlideData?.ShapeTree is not null)
+        {
+            foreach (var element in slide.CommonSlideData.ShapeTree.Elements())
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                slideIndex++;
-                var slidePart = (SlidePart)presentationPart.GetPartById(slideId.RelationshipId!);
-                var markdown = ConvertSlideToMarkdown(slidePart, slideIndex);
-
-                if (string.IsNullOrWhiteSpace(markdown))
+                switch (element)
                 {
-                    continue;
+                    case DocumentFormat.OpenXml.Presentation.Shape textShape:
+                        AppendTextShape(textShape, markdown, text);
+                        break;
+                    case DocumentFormat.OpenXml.Presentation.Picture picture:
+                    {
+                        var artifact = await ExtractImageAsync(picture, slidePart, slideNumber, streamInfo, cancellationToken).ConfigureAwait(false);
+                        if (artifact is null)
+                        {
+                            break;
+                        }
+
+                        slideImageIndex++;
+                        var label = artifact.Label ?? $"Slide {slideNumber} Image {slideImageIndex}";
+                        artifact.Label = label;
+
+                        var mimeType = string.IsNullOrWhiteSpace(artifact.ContentType)
+                            ? MimeHelper.GetMimeType(".png")
+                            : artifact.ContentType;
+
+                        var base64 = Convert.ToBase64String(artifact.Data);
+                        var placeholder = $"![{label}](data:{mimeType};base64,{base64})";
+                        artifact.PlaceholderMarkdown = placeholder;
+                        markdown.AppendLine(placeholder);
+                        markdown.AppendLine();
+
+                        text.AppendLine(label);
+                        images.Add(artifact);
+                        break;
+                    }
                 }
-
-                var metadata = new Dictionary<string, string>
-                {
-                    ["slide"] = slideIndex.ToString(CultureInfo.InvariantCulture)
-                };
-
-                segments.Add(new DocumentSegment(
-                    markdown: markdown.TrimEnd(),
-                    type: SegmentType.Slide,
-                    number: slideIndex,
-                    label: $"Slide {slideIndex}",
-                    source: fileName,
-                    additionalMetadata: metadata));
             }
         }
 
-        return segments;
+        var markdownResult = markdown.ToString().TrimEnd();
+        var textResult = text.ToString().Trim();
+        return new SlideExtractionResult(markdownResult, textResult, images);
     }
 
-    private static string ConvertSlideToMarkdown(SlidePart slidePart, int slideNumber)
+    private async Task<ImageArtifact?> ExtractImageAsync(DocumentFormat.OpenXml.Presentation.Picture picture, SlidePart slidePart, int slideNumber, StreamInfo streamInfo, CancellationToken cancellationToken)
     {
-        var result = new StringBuilder();
-        result.AppendLine($"## Slide {slideNumber}");
-        result.AppendLine();
-
-        var slide = slidePart.Slide;
-        if (slide.CommonSlideData?.ShapeTree != null)
+        var blip = picture.BlipFill?.Blip;
+        var relationshipId = blip?.Embed?.Value ?? blip?.Link?.Value;
+        if (string.IsNullOrWhiteSpace(relationshipId))
         {
-            foreach (var shape in slide.CommonSlideData.ShapeTree.Elements())
+            return null;
+        }
+
+        if (slidePart.GetPartById(relationshipId) is not ImagePart imagePart)
+        {
+            return null;
+        }
+
+        await using var partStream = imagePart.GetStream();
+        using var memory = new MemoryStream();
+        await partStream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
+        var data = memory.ToArray();
+
+        var label = picture.NonVisualPictureProperties?.NonVisualDrawingProperties?.Name;
+        var artifact = new ImageArtifact(data, imagePart.ContentType, slideNumber, streamInfo.FileName, label);
+        artifact.Metadata[MetadataKeys.Slide] = slideNumber.ToString(CultureInfo.InvariantCulture);
+
+        if (imageUnderstandingProvider is not null)
+        {
+            try
             {
-                if (shape is DocumentFormat.OpenXml.Presentation.Shape textShape)
+                using var analysisStream = new MemoryStream(data, writable: false);
+                var result = await imageUnderstandingProvider.AnalyzeAsync(analysisStream, streamInfo, cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(result?.Caption))
                 {
-                    AppendTextShape(textShape, result);
+                    artifact.Metadata[MetadataKeys.Caption] = result!.Caption!;
+                    artifact.Label ??= result.Caption;
                 }
+
+                if (!string.IsNullOrWhiteSpace(result?.Text))
+                {
+                    artifact.Metadata["ocrText"] = result!.Text!;
+                    artifact.RawText = result.Text;
+                }
+            }
+            catch
+            {
+                // Ignore analysis failures; downstream middleware may handle enrichment.
             }
         }
 
-        return result.ToString().TrimEnd();
+        return artifact;
     }
 
-    private static void AppendTextShape(DocumentFormat.OpenXml.Presentation.Shape shape, StringBuilder result)
+    private static void AppendTextShape(DocumentFormat.OpenXml.Presentation.Shape shape, StringBuilder markdown, StringBuilder text)
     {
         var textBody = shape.TextBody;
-        if (textBody == null)
+        if (textBody is null)
+        {
             return;
+        }
+
+        var placeholderShape = shape.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties?.PlaceholderShape;
+        var placeholderType = placeholderShape?.Type?.Value;
+        var isTitle = placeholderType == PlaceholderValues.Title ||
+                      placeholderType == PlaceholderValues.CenteredTitle ||
+                      placeholderType == PlaceholderValues.SubTitle;
 
         foreach (var paragraph in textBody.Elements<A.Paragraph>())
         {
             var paragraphText = new StringBuilder();
-            var isTitle = false;
-            
-            // Check if this is a title based on placeholder type
-            var placeholderShape = shape.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties?.PlaceholderShape;
-            if (placeholderShape?.Type?.Value == PlaceholderValues.Title || 
-                placeholderShape?.Type?.Value == PlaceholderValues.CenteredTitle ||
-                placeholderShape?.Type?.Value == PlaceholderValues.SubTitle)
-            {
-                isTitle = true;
-            }
 
-            // Process runs in the paragraph
             foreach (var run in paragraph.Elements<A.Run>())
             {
                 var runProperties = run.RunProperties;
-                var text = run.Text?.Text ?? "";
-                
-                if (!string.IsNullOrEmpty(text))
+                var runText = run.Text?.Text ?? string.Empty;
+                if (string.IsNullOrEmpty(runText))
                 {
-                    // Apply formatting based on run properties
-                    if (runProperties?.Bold?.Value == true)
-                        text = $"**{text}**";
-                    if (runProperties?.Italic?.Value == true)
-                        text = $"*{text}*";
-                        
-                    paragraphText.Append(text);
+                    continue;
                 }
+
+                if (runProperties?.Bold?.Value == true)
+                {
+                    runText = $"**{runText}**";
+                }
+
+                if (runProperties?.Italic?.Value == true)
+                {
+                    runText = $"*{runText}*";
+                }
+
+                paragraphText.Append(runText);
             }
 
-            // Process text without runs (direct text)
-            foreach (var text in paragraph.Elements<A.Text>())
+            foreach (var textElement in paragraph.Elements<A.Text>())
             {
-                paragraphText.Append(text.Text);
+                if (!string.IsNullOrWhiteSpace(textElement.Text))
+                {
+                    paragraphText.Append(textElement.Text);
+                }
             }
 
             var finalText = paragraphText.ToString().Trim();
-            if (!string.IsNullOrWhiteSpace(finalText))
+            if (string.IsNullOrWhiteSpace(finalText))
             {
-                if (isTitle)
-                {
-                    result.AppendLine($"### {finalText}");
-                }
-                else
-                {
-                    // For now, just output as regular text
-                    // Bullet point detection in PowerPoint is complex and varies by version
-                    result.AppendLine(finalText);
-                }
-                result.AppendLine();
+                continue;
             }
+
+            if (isTitle)
+            {
+                markdown.AppendLine($"### {finalText}");
+            }
+            else
+            {
+                markdown.AppendLine(finalText);
+            }
+
+            markdown.AppendLine();
+            text.AppendLine(finalText);
         }
     }
 
-    private static string ExtractTitle(string markdown, string fileName)
+    private static string ExtractTitle(string? rawText, string? fileName, string markdown)
     {
-        if (!string.IsNullOrWhiteSpace(markdown))
+        var fromRaw = ExtractTitleCore(rawText);
+        if (!string.IsNullOrWhiteSpace(fromRaw))
         {
-            var lines = markdown.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-            
-            // Look for the first heading (### from slide title)
-            foreach (var line in lines.Take(10))
-            {
-                var trimmedLine = line.Trim();
-                if (trimmedLine.StartsWith("###"))
-                {
-                    return trimmedLine.TrimStart('#').Trim();
-                }
-            }
-
-            // If no heading found, use the first substantial line
-            foreach (var line in lines.Take(5))
-            {
-                var trimmedLine = line.Trim();
-                if (!trimmedLine.StartsWith("##") && trimmedLine.Length > 5 && trimmedLine.Length < 100)
-                {
-                    return trimmedLine;
-                }
-            }
+            return fromRaw!;
         }
 
-        // Fallback to filename
+        var fromMarkdown = ExtractTitleCore(markdown);
+        if (!string.IsNullOrWhiteSpace(fromMarkdown))
+        {
+            return fromMarkdown!;
+        }
+
         if (!string.IsNullOrWhiteSpace(fileName))
         {
-            var nameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(fileName);
-            return string.IsNullOrWhiteSpace(nameWithoutExtension) ? "PowerPoint Presentation" : nameWithoutExtension;
+            var nameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
+            if (!string.IsNullOrWhiteSpace(nameWithoutExtension))
+            {
+                return nameWithoutExtension;
+            }
         }
 
         return "PowerPoint Presentation";
+    }
+
+    private static string? ExtractTitleCore(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var line in lines.Take(10))
+        {
+            var trimmedLine = line.Trim();
+            if (trimmedLine.StartsWith("###", StringComparison.Ordinal))
+            {
+                return trimmedLine.TrimStart('#').Trim();
+            }
+        }
+
+        foreach (var line in lines.Take(5))
+        {
+            var trimmedLine = line.Trim();
+            if (!trimmedLine.StartsWith("##", StringComparison.Ordinal) && trimmedLine.Length > 5 && trimmedLine.Length < 100)
+            {
+                return trimmedLine;
+            }
+        }
+
+        return null;
     }
 }

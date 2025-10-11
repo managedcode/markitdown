@@ -19,13 +19,15 @@ public sealed class DocumentConverterResult
     /// <param name="markdown">The converted Markdown text.</param>
     /// <param name="title">Optional title of the document.</param>
     /// <param name="segments">Optional collection of segments that represent structured slices of the output.</param>
-    public DocumentConverterResult(string markdown, string? title = null, IReadOnlyList<DocumentSegment>? segments = null)
+    /// <param name="artifacts">Optional raw extraction artifacts available prior to Markdown composition.</param>
+    public DocumentConverterResult(string markdown, string? title = null, IReadOnlyList<DocumentSegment>? segments = null, ConversionArtifacts? artifacts = null)
     {
         Markdown = markdown ?? throw new ArgumentNullException(nameof(markdown));
         Title = title;
         Segments = segments is null
             ? EmptySegments
             : new ReadOnlyCollection<DocumentSegment>(segments.ToArray());
+        Artifacts = artifacts ?? ConversionArtifacts.Empty;
     }
 
     /// <summary>
@@ -42,6 +44,11 @@ public sealed class DocumentConverterResult
     /// Segmented view of the converted output.
     /// </summary>
     public IReadOnlyList<DocumentSegment> Segments { get; }
+
+    /// <summary>
+    /// Raw extraction artifacts captured during conversion.
+    /// </summary>
+    public ConversionArtifacts Artifacts { get; }
 
     /// <summary>
     /// Soft-deprecated alias for Markdown. New code should migrate to using Markdown property.

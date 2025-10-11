@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Providers.Aws;
 using MarkItDown.Intelligence.Providers.Azure;
@@ -81,4 +83,14 @@ public sealed record MarkItDownOptions
     /// Options that control how converter results are segmented.
     /// </summary>
     public SegmentOptions Segments { get; init; } = SegmentOptions.Default;
+
+    /// <summary>
+    /// Custom middleware invoked after extraction but before Markdown composition.
+    /// </summary>
+    public IReadOnlyList<IConversionMiddleware> ConversionMiddleware { get; init; } = Array.Empty<IConversionMiddleware>();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether AI-based image enrichment should be enabled when a chat client is present.
+    /// </summary>
+    public bool EnableAiImageEnrichment { get; init; } = true;
 }
