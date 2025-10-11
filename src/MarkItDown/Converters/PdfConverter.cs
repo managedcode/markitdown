@@ -405,7 +405,22 @@ public sealed class PdfConverter : IDocumentConverter
     private async Task<PdfExtractionResult> BuildExtractionFromPdfPigAsync(byte[] pdfBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
     {
         var pages = await textExtractor.ExtractTextAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
-        var pageImages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+
+        IReadOnlyList<string> pageImages;
+
+        try
+        {
+            pageImages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            pageImages = Array.Empty<string>();
+        }
+
         return BuildExtractionFromExtractedText(pages, pageImages, streamInfo);
     }
 
