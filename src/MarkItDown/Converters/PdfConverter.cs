@@ -405,7 +405,22 @@ public sealed class PdfConverter : IDocumentConverter
     private async Task<PdfExtractionResult> BuildExtractionFromPdfPigAsync(byte[] pdfBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
     {
         var pages = await textExtractor.ExtractTextAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
-        var pageImages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+
+        IReadOnlyList<string> pageImages;
+
+        try
+        {
+            pageImages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            pageImages = Array.Empty<string>();
+        }
+
         return BuildExtractionFromExtractedText(pages, pageImages, streamInfo);
     }
 
@@ -434,7 +449,23 @@ public sealed class PdfConverter : IDocumentConverter
             return;
         }
 
-        var renderedPages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<string> renderedPages;
+
+        try
+        {
+            renderedPages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // Rendering support is optional for document intelligence; ignore failures
+            // so that conversions can still succeed when the renderer is unavailable.
+            return;
+        }
+
         if (renderedPages.Count == 0)
         {
             return;
