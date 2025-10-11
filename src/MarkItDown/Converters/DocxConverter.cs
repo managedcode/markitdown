@@ -1,9 +1,14 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using MarkItDown.Intelligence;
 
 namespace MarkItDown.Converters;
 
@@ -23,10 +28,14 @@ public sealed class DocxConverter : IDocumentConverter
     };
 
     private readonly SegmentOptions segmentOptions;
+    private readonly IConversionPipeline conversionPipeline;
+    private readonly IImageUnderstandingProvider? imageUnderstandingProvider;
 
-    public DocxConverter(SegmentOptions? segmentOptions = null)
+    public DocxConverter(SegmentOptions? segmentOptions = null, IConversionPipeline? pipeline = null, IImageUnderstandingProvider? imageProvider = null)
     {
         this.segmentOptions = segmentOptions ?? SegmentOptions.Default;
+        conversionPipeline = pipeline ?? ConversionPipeline.Empty;
+        imageUnderstandingProvider = imageProvider;
     }
 
     public int Priority => 210; // Between PDF and plain text
@@ -76,18 +85,24 @@ public sealed class DocxConverter : IDocumentConverter
         return true;
     }
 
-    public Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
     {
         try
         {
             if (stream.CanSeek)
                 stream.Position = 0;
 
-            var segments = ExtractDocumentSegments(stream, streamInfo.FileName, cancellationToken);
-            var markdown = SegmentMarkdownComposer.Compose(segments, segmentOptions);
-            var title = ExtractTitle(markdown);
+            var extraction = await ExtractDocumentAsync(stream, streamInfo, cancellationToken).ConfigureAwait(false);
+            await conversionPipeline.ExecuteAsync(streamInfo, extraction.Artifacts, extraction.Segments, cancellationToken).ConfigureAwait(false);
 
-            return Task.FromResult(new DocumentConverterResult(markdown, title, segments));
+            var markdown = SegmentMarkdownComposer.Compose(extraction.Segments, segmentOptions);
+            var title = ExtractTitle(extraction.RawText);
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                title = ExtractTitle(markdown);
+            }
+
+            return new DocumentConverterResult(markdown, title, extraction.Segments, extraction.Artifacts);
         }
         catch (Exception ex) when (ex is not MarkItDownException)
         {
@@ -95,20 +110,42 @@ public sealed class DocxConverter : IDocumentConverter
         }
     }
 
-    private IReadOnlyList<DocumentSegment> ExtractDocumentSegments(Stream stream, string? fileName, CancellationToken cancellationToken)
+    private sealed class DocxExtractionResult
+    {
+        public DocxExtractionResult(List<DocumentSegment> segments, ConversionArtifacts artifacts, string rawText)
+        {
+            Segments = segments;
+            Artifacts = artifacts;
+            RawText = rawText;
+        }
+
+        public List<DocumentSegment> Segments { get; }
+
+        public ConversionArtifacts Artifacts { get; }
+
+        public string RawText { get; }
+    }
+
+    private sealed record PageContent(int PageNumber, string Markdown);
+
+    private async Task<DocxExtractionResult> ExtractDocumentAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken)
     {
         using var wordDocument = WordprocessingDocument.Open(stream, false);
         var body = wordDocument.MainDocumentPart?.Document?.Body;
 
         if (body is null)
         {
-            return Array.Empty<DocumentSegment>();
+            return new DocxExtractionResult(new List<DocumentSegment>(), new ConversionArtifacts(), string.Empty);
         }
 
-        var segments = new List<DocumentSegment>();
+        var artifacts = new ConversionArtifacts();
+        var pages = new List<PageContent>();
         var pageBuilder = new StringBuilder();
+        var rawTextBuilder = new StringBuilder();
+        var imagesByPage = new Dictionary<int, List<ImageArtifact>>();
         var pageNumber = 1;
-        var source = fileName;
+        var tableCount = 0;
+        var imageCount = 0;
 
         foreach (var element in body.Elements())
         {
@@ -120,7 +157,7 @@ public sealed class DocxConverter : IDocumentConverter
                 {
                     if (ContainsPageBreak(paragraph))
                     {
-                        FinalizePageSegment(segments, pageBuilder, ref pageNumber, source);
+                        FinalizePage(pages, pageBuilder, ref pageNumber, rawTextBuilder);
                     }
 
                     var paragraphMarkdown = ConvertParagraph(paragraph);
@@ -130,16 +167,35 @@ public sealed class DocxConverter : IDocumentConverter
                         pageBuilder.AppendLine();
                     }
 
+                    if (wordDocument.MainDocumentPart is not null)
+                    {
+                        foreach (var drawing in paragraph.Descendants<DocumentFormat.OpenXml.Wordprocessing.Drawing>())
+                        {
+                            var artifact = await ExtractImageAsync(drawing, wordDocument.MainDocumentPart, pageNumber, streamInfo, cancellationToken).ConfigureAwait(false);
+                            if (artifact is null)
+                            {
+                                continue;
+                            }
+
+                            imageCount++;
+                            artifact.Label ??= $"Image {imageCount}";
+                            AppendImagePlaceholder(pageBuilder, artifact);
+                            AddImageToPage(imagesByPage, pageNumber, artifact);
+                        }
+                    }
+
                     break;
                 }
 
                 case Table table:
                 {
-                    var tableMarkdown = ConvertTableToMarkdown(table);
+                    var (tableMarkdown, rawTable) = ConvertTable(table);
                     if (!string.IsNullOrWhiteSpace(tableMarkdown))
                     {
                         pageBuilder.AppendLine(tableMarkdown.TrimEnd());
                         pageBuilder.AppendLine();
+                        tableCount++;
+                        artifacts.Tables.Add(new TableArtifact(rawTable, pageNumber, streamInfo.FileName, $"Table {tableCount}"));
                     }
 
                     break;
@@ -159,35 +215,223 @@ public sealed class DocxConverter : IDocumentConverter
             }
         }
 
-        if (pageBuilder.Length > 0)
+        FinalizePage(pages, pageBuilder, ref pageNumber, rawTextBuilder);
+
+        var segments = new List<DocumentSegment>();
+
+        foreach (var page in pages)
         {
-            var markdown = pageBuilder.ToString().TrimEnd();
-            if (!string.IsNullOrEmpty(markdown))
+            var segment = CreatePageSegment(page.Markdown, page.PageNumber, streamInfo.FileName);
+            var index = segments.Count;
+            segments.Add(segment);
+            artifacts.TextBlocks.Add(new TextArtifact(page.Markdown, page.PageNumber, streamInfo.FileName, segment.Label));
+
+            if (imagesByPage.TryGetValue(page.PageNumber, out var pageImages))
             {
-                segments.Add(CreatePageSegment(markdown, pageNumber, source));
+                foreach (var artifact in pageImages)
+                {
+                    artifact.SegmentIndex = index;
+                    artifacts.Images.Add(artifact);
+                }
             }
         }
 
-        return segments;
+        return new DocxExtractionResult(segments, artifacts, rawTextBuilder.ToString().Trim());
     }
 
-    private static void FinalizePageSegment(List<DocumentSegment> segments, StringBuilder builder, ref int pageNumber, string? source)
+    private static void FinalizePage(ICollection<PageContent> pages, StringBuilder builder, ref int pageNumber, StringBuilder rawTextBuilder)
     {
+        if (builder.Length == 0)
+        {
+            pageNumber++;
+            return;
+        }
+
         var markdown = builder.ToString().TrimEnd();
         if (!string.IsNullOrEmpty(markdown))
         {
-            segments.Add(CreatePageSegment(markdown, pageNumber, source));
+            pages.Add(new PageContent(pageNumber, markdown));
+
+            if (rawTextBuilder.Length > 0)
+            {
+                rawTextBuilder.AppendLine();
+            }
+
+            rawTextBuilder.AppendLine(markdown);
         }
 
         pageNumber++;
         builder.Clear();
     }
 
+    private static void AppendImagePlaceholder(StringBuilder builder, ImageArtifact artifact)
+    {
+        var mimeType = string.IsNullOrWhiteSpace(artifact.ContentType) ? "image/png" : artifact.ContentType;
+        var base64 = Convert.ToBase64String(artifact.Data);
+        var label = artifact.Label ?? "Document image";
+        var placeholder = $"![{label}](data:{mimeType};base64,{base64})";
+
+        artifact.PlaceholderMarkdown = placeholder;
+        builder.AppendLine(placeholder);
+        builder.AppendLine();
+    }
+
+    private static void AddImageToPage(IDictionary<int, List<ImageArtifact>> imagesByPage, int pageNumber, ImageArtifact artifact)
+    {
+        if (!imagesByPage.TryGetValue(pageNumber, out var list))
+        {
+            list = new List<ImageArtifact>();
+            imagesByPage[pageNumber] = list;
+        }
+
+        list.Add(artifact);
+    }
+
+    private async Task<ImageArtifact?> ExtractImageAsync(DocumentFormat.OpenXml.Wordprocessing.Drawing drawing, MainDocumentPart mainDocumentPart, int pageNumber, StreamInfo streamInfo, CancellationToken cancellationToken)
+    {
+        var blip = drawing.Descendants<DocumentFormat.OpenXml.Drawing.Blip>().FirstOrDefault();
+        if (blip?.Embed?.Value is not string relationshipId)
+        {
+            return null;
+        }
+
+        if (mainDocumentPart.GetPartById(relationshipId) is not ImagePart imagePart)
+        {
+            return null;
+        }
+
+        using var partStream = imagePart.GetStream();
+        using var memory = new MemoryStream();
+        await partStream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
+        var data = memory.ToArray();
+
+        var artifact = new ImageArtifact(data, imagePart.ContentType, pageNumber, streamInfo.FileName);
+        artifact.Metadata[MetadataKeys.Page] = pageNumber.ToString(CultureInfo.InvariantCulture);
+
+        if (imageUnderstandingProvider is not null)
+        {
+            try
+            {
+                using var analysisStream = new MemoryStream(data, writable: false);
+                var result = await imageUnderstandingProvider.AnalyzeAsync(analysisStream, streamInfo, cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(result?.Caption))
+                {
+                    artifact.Metadata[MetadataKeys.Caption] = result!.Caption!;
+                }
+
+                if (!string.IsNullOrWhiteSpace(result?.Text))
+                {
+                    artifact.Metadata["ocrText"] = result!.Text!;
+                    artifact.RawText = result.Text;
+                }
+            }
+            catch
+            {
+                // Ignore provider failures to keep extraction resilient.
+            }
+        }
+
+        return artifact;
+    }
+
+    private static (string Markdown, IList<IList<string>> RawTable) ConvertTable(Table table)
+    {
+        var tableData = new List<IList<string>>();
+        var rows = table.Elements<TableRow>().ToList();
+
+        if (rows.Count == 0)
+        {
+            return (string.Empty, tableData);
+        }
+
+        var gridColCount = table.GetFirstChild<TableGrid>()?.Elements<GridColumn>()?.Count() ?? 0;
+        if (gridColCount == 0)
+        {
+            gridColCount = rows
+                .Select(r => r.Elements<TableCell>().Sum(GetGridSpan))
+                .DefaultIfEmpty(0)
+                .Max();
+        }
+
+        var mergeTrack = new Dictionary<int, string>();
+
+        foreach (var row in rows)
+        {
+            var expandedRow = Enumerable.Repeat(string.Empty, gridColCount).ToList();
+            var colIndex = 0;
+
+            foreach (var cell in row.Elements<TableCell>())
+            {
+                var cellText = CleanText(cell.InnerText);
+                var span = GetGridSpan(cell);
+
+                var verticalMerge = cell.TableCellProperties?.VerticalMerge;
+                var isMergeContinue = verticalMerge != null &&
+                                      (verticalMerge.Val is null || verticalMerge.Val.Value == MergedCellValues.Continue);
+
+                if (isMergeContinue && mergeTrack.TryGetValue(colIndex, out var mergeValue))
+                {
+                    cellText = mergeValue;
+                }
+                else if (!string.IsNullOrWhiteSpace(cellText))
+                {
+                    mergeTrack[colIndex] = cellText;
+                }
+                else
+                {
+                    mergeTrack.Remove(colIndex);
+                }
+
+                for (var s = 0; s < span && colIndex < gridColCount; s++)
+                {
+                    expandedRow[colIndex++] = cellText;
+                }
+            }
+
+            tableData.Add(expandedRow);
+        }
+
+        if (!tableData.Any())
+        {
+            return (string.Empty, tableData);
+        }
+
+        var markdown = new StringBuilder();
+        var headerRow = tableData[0];
+
+        markdown.Append('|');
+        foreach (var cell in headerRow)
+        {
+            markdown.Append(' ').Append(EscapeMarkdownTableCell(cell)).Append(" |");
+        }
+        markdown.AppendLine();
+
+        markdown.Append('|');
+        foreach (var _ in headerRow)
+        {
+            markdown.Append(" --- |");
+        }
+        markdown.AppendLine();
+
+        for (var i = 1; i < tableData.Count; i++)
+        {
+            var row = tableData[i];
+            markdown.Append('|');
+            foreach (var cell in row)
+            {
+                markdown.Append(' ').Append(EscapeMarkdownTableCell(cell)).Append(" |");
+            }
+            markdown.AppendLine();
+        }
+
+        return (markdown.ToString(), tableData);
+    }
+
     private static DocumentSegment CreatePageSegment(string markdown, int pageNumber, string? source)
     {
         var metadata = new Dictionary<string, string>
         {
-            ["page"] = pageNumber.ToString(CultureInfo.InvariantCulture)
+            [MetadataKeys.Page] = pageNumber.ToString(CultureInfo.InvariantCulture)
         };
 
         return new DocumentSegment(
@@ -276,99 +520,6 @@ public sealed class DocxConverter : IDocumentConverter
         }
 
         return finalText;
-    }
-
-    private static string ConvertTableToMarkdown(Table table)
-    {
-        var tableData = new List<List<string>>();
-        var rows = table.Elements<TableRow>().ToList();
-
-        if (rows.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        var gridColCount = table.GetFirstChild<TableGrid>()?.Elements<GridColumn>()?.Count() ?? 0;
-        if (gridColCount == 0)
-        {
-            gridColCount = rows
-                .Select(r => r.Elements<TableCell>().Sum(GetGridSpan))
-                .DefaultIfEmpty(0)
-                .Max();
-        }
-
-        var mergeTrack = new Dictionary<int, string>();
-
-        foreach (var row in rows)
-        {
-            var expandedRow = Enumerable.Repeat(string.Empty, gridColCount).ToList();
-            var colIndex = 0;
-
-            foreach (var cell in row.Elements<TableCell>())
-            {
-                var cellText = CleanText(cell.InnerText);
-                var span = GetGridSpan(cell);
-
-                var verticalMerge = cell.TableCellProperties?.VerticalMerge;
-                var isMergeContinue = verticalMerge != null &&
-                                      (verticalMerge.Val is null || verticalMerge.Val.Value == MergedCellValues.Continue);
-
-                if (isMergeContinue && mergeTrack.TryGetValue(colIndex, out var mergeValue))
-                {
-                    cellText = mergeValue;
-                }
-                else if (!string.IsNullOrWhiteSpace(cellText))
-                {
-                    mergeTrack[colIndex] = cellText;
-                }
-                else
-                {
-                    mergeTrack.Remove(colIndex);
-                }
-
-                for (var s = 0; s < span && colIndex < gridColCount; s++)
-                {
-                    expandedRow[colIndex++] = cellText;
-                }
-            }
-
-            tableData.Add(expandedRow);
-        }
-
-        if (!tableData.Any())
-        {
-            return string.Empty;
-        }
-
-        var markdown = new StringBuilder();
-        var headerRow = tableData[0];
-
-        markdown.Append('|');
-        foreach (var cell in headerRow)
-        {
-            markdown.Append(' ').Append(EscapeMarkdownTableCell(cell)).Append(" |");
-        }
-        markdown.AppendLine();
-
-        markdown.Append('|');
-        foreach (var _ in headerRow)
-        {
-            markdown.Append(" --- |");
-        }
-        markdown.AppendLine();
-
-        for (var i = 1; i < tableData.Count; i++)
-        {
-            var row = tableData[i];
-            markdown.Append('|');
-            foreach (var cell in row)
-            {
-                markdown.Append(' ').Append(EscapeMarkdownTableCell(cell)).Append(" |");
-            }
-            markdown.AppendLine();
-        }
-
-        return markdown.ToString();
     }
 
     private static int GetGridSpan(TableCell cell)

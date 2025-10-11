@@ -1,5 +1,9 @@
+using System.IO;
+using System.Threading.Tasks;
+using ManagedCode.MimeTypes;
 using MarkItDown;
 using MarkItDown.Converters;
+using MarkItDown.Tests.Fixtures;
 using Shouldly;
 
 namespace MarkItDown.Tests;
@@ -220,5 +224,50 @@ public class NewConvertersTests
         // Lower number = higher priority, so EML (240) should be between PPTX (230) and EPUB (250)
         emlConverter.Priority.ShouldBeGreaterThan(pptxConverter.Priority);
         emlConverter.Priority.ShouldBeLessThan(epubConverter.Priority);
+    }
+
+    [Fact]
+    public async Task DocxConverter_PipelineReceivesArtifacts()
+    {
+        var pipeline = new RecordingPipeline("ENRICHED");
+        var converter = new DocxConverter(pipeline: pipeline);
+
+        await using var stream = DocxInlineImageFactory.Create();
+        var streamInfo = new StreamInfo(
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            extension: ".docx",
+            fileName: "doc-inline-image.docx");
+
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        pipeline.Executed.ShouldBeTrue();
+        result.Artifacts.Images.Count.ShouldBeGreaterThan(0);
+        var image = result.Artifacts.Images[0];
+        image.SegmentIndex.ShouldNotBeNull();
+        image.DetailedDescription.ShouldBe("ENRICHED");
+        result.Segments[image.SegmentIndex!.Value].Markdown.ShouldContain("ENRICHED");
+    }
+
+    [Fact]
+    public async Task PptxConverter_PipelineReceivesArtifacts()
+    {
+        var pipeline = new RecordingPipeline("SLIDE");
+        var converter = new PptxConverter(pipeline: pipeline);
+
+        await using var stream = TestAssetLoader.OpenAsset("test.pptx");
+        var streamInfo = new StreamInfo(
+            mimeType: MimeHelper.GetMimeType(".pptx"),
+            extension: ".pptx",
+            fileName: "test.pptx",
+            localPath: TestAssetLoader.GetAssetPath("test.pptx"));
+
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        pipeline.Executed.ShouldBeTrue();
+        result.Artifacts.Images.Count.ShouldBeGreaterThan(0);
+        var image = result.Artifacts.Images[0];
+        image.SegmentIndex.ShouldNotBeNull();
+        image.DetailedDescription.ShouldBe("SLIDE");
+        result.Segments[image.SegmentIndex!.Value].Markdown.ShouldContain("SLIDE");
     }
 }
