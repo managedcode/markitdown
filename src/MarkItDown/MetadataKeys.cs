@@ -15,6 +15,7 @@ public static class MetadataKeys
     public const string TableIndex = "tableIndex";
     public const string Provider = "provider";
     public const string ModelVersion = "modelVersion";
+    public const string Slide = "slide";
     public const string VideoId = "videoId";
     public const string Language = "language";
     public const string Segment = "segment";

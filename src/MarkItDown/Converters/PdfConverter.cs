@@ -12,6 +12,7 @@ using MarkItDown;
 using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Models;
 using PDFtoImage;
+using static PDFtoImage.Conversion;
 using SkiaSharp;
 using UglyToad.PdfPig;
 
@@ -37,12 +38,14 @@ public sealed class PdfConverter : IDocumentConverter
     private readonly SegmentOptions segmentOptions;
     private readonly IDocumentIntelligenceProvider? documentIntelligenceProvider;
     private readonly IImageUnderstandingProvider? imageUnderstandingProvider;
+    private readonly IConversionPipeline conversionPipeline;
 
     public PdfConverter(
         SegmentOptions? segmentOptions = null,
         IDocumentIntelligenceProvider? documentProvider = null,
-        IImageUnderstandingProvider? imageProvider = null)
-        : this(new PdfPigTextExtractor(), new PdfToImageRenderer(), segmentOptions, documentProvider, imageProvider)
+        IImageUnderstandingProvider? imageProvider = null,
+        IConversionPipeline? pipeline = null)
+        : this(new PdfPigTextExtractor(), new PdfToImageRenderer(), segmentOptions, documentProvider, imageProvider, pipeline)
     {
     }
 
@@ -51,13 +54,15 @@ public sealed class PdfConverter : IDocumentConverter
         IPdfImageRenderer imageRenderer,
         SegmentOptions? segmentOptions = null,
         IDocumentIntelligenceProvider? documentProvider = null,
-        IImageUnderstandingProvider? imageProvider = null)
+        IImageUnderstandingProvider? imageProvider = null,
+        IConversionPipeline? pipeline = null)
     {
         this.textExtractor = textExtractor ?? throw new ArgumentNullException(nameof(textExtractor));
         this.imageRenderer = imageRenderer ?? throw new ArgumentNullException(nameof(imageRenderer));
         this.segmentOptions = segmentOptions ?? SegmentOptions.Default;
         documentIntelligenceProvider = documentProvider;
         imageUnderstandingProvider = imageProvider;
+        conversionPipeline = pipeline ?? ConversionPipeline.Empty;
     }
 
     public int Priority => 200; // Between HTML and plain text
@@ -109,43 +114,41 @@ public sealed class PdfConverter : IDocumentConverter
         return true;
     }
 
+    private sealed class PdfExtractionResult
+    {
+        public PdfExtractionResult(List<DocumentSegment> segments, ConversionArtifacts artifacts, string rawText)
+        {
+            Segments = segments;
+            Artifacts = artifacts;
+            RawText = rawText;
+        }
+
+        public List<DocumentSegment> Segments { get; }
+
+        public ConversionArtifacts Artifacts { get; }
+
+        public string RawText { get; }
+    }
+
     public async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
     {
         try
         {
             var pdfBytes = await ReadAllBytesAsync(stream, cancellationToken).ConfigureAwait(false);
 
-            var analysisSegments = await TryBuildSegmentsFromDocumentIntelligenceAsync(pdfBytes, streamInfo, cancellationToken).ConfigureAwait(false);
-            if (analysisSegments is not null && analysisSegments.Count > 0)
+            var extraction = await TryBuildExtractionFromDocumentIntelligenceAsync(pdfBytes, streamInfo, cancellationToken).ConfigureAwait(false)
+                            ?? await BuildExtractionFromPdfPigAsync(pdfBytes, streamInfo, cancellationToken).ConfigureAwait(false);
+
+            await conversionPipeline.ExecuteAsync(streamInfo, extraction.Artifacts, extraction.Segments, cancellationToken).ConfigureAwait(false);
+
+            var markdown = SegmentMarkdownComposer.Compose(extraction.Segments, segmentOptions);
+            var title = ExtractTitle(extraction.RawText);
+            if (string.IsNullOrWhiteSpace(title))
             {
-                var markdownFromAnalysis = SegmentMarkdownComposer.Compose(analysisSegments, segmentOptions);
-                var titleFromAnalysis = ExtractTitle(string.Join(Environment.NewLine, analysisSegments.Select(s => s.Markdown)));
-                return new DocumentConverterResult(markdownFromAnalysis, titleFromAnalysis, analysisSegments);
+                title = ExtractTitle(markdown);
             }
 
-            var pages = await textExtractor.ExtractTextAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
-            var pageImages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
-
-            var segments = BuildSegmentsFromExtractedText(pages, pageImages, streamInfo.FileName);
-            var markdown = SegmentMarkdownComposer.Compose(segments, segmentOptions);
-
-            var rawTextBuilder = new StringBuilder();
-            foreach (var page in pages)
-            {
-                if (!string.IsNullOrWhiteSpace(page.Text))
-                {
-                    if (rawTextBuilder.Length > 0)
-                    {
-                        rawTextBuilder.AppendLine();
-                    }
-
-                    rawTextBuilder.AppendLine(page.Text.Trim());
-                }
-            }
-
-            var title = ExtractTitle(rawTextBuilder.ToString());
-
-            return new DocumentConverterResult(markdown, title, segments);
+            return new DocumentConverterResult(markdown, title, extraction.Segments, extraction.Artifacts);
         }
         catch (Exception ex) when (ex is not MarkItDownException)
         {
@@ -171,7 +174,7 @@ public sealed class PdfConverter : IDocumentConverter
         return memory.ToArray();
     }
 
-    private async Task<IReadOnlyList<DocumentSegment>?> TryBuildSegmentsFromDocumentIntelligenceAsync(byte[] pdfBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
+    private async Task<PdfExtractionResult?> TryBuildExtractionFromDocumentIntelligenceAsync(byte[] pdfBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
     {
         if (documentIntelligenceProvider is null)
         {
@@ -187,7 +190,7 @@ public sealed class PdfConverter : IDocumentConverter
                 return null;
             }
 
-            return await BuildSegmentsFromDocumentIntelligenceAsync(analysis, streamInfo, cancellationToken).ConfigureAwait(false);
+            return await BuildExtractionFromDocumentIntelligenceAsync(analysis, pdfBytes, streamInfo, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -195,71 +198,95 @@ public sealed class PdfConverter : IDocumentConverter
         }
     }
 
-    private async Task<IReadOnlyList<DocumentSegment>> BuildSegmentsFromDocumentIntelligenceAsync(DocumentIntelligenceResult analysis, StreamInfo streamInfo, CancellationToken cancellationToken)
+    private async Task<PdfExtractionResult> BuildExtractionFromDocumentIntelligenceAsync(DocumentIntelligenceResult analysis, byte[] pdfBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
     {
         var segments = new List<DocumentSegment>();
-        var tableMarkdown = new string[analysis.Tables.Count];
+        var artifacts = new ConversionArtifacts();
+        var rawTextBuilder = new StringBuilder();
+        var processedTables = new HashSet<int>();
+        var pagesWithInlineImages = new HashSet<int>();
 
-        for (var i = 0; i < analysis.Tables.Count; i++)
-        {
-            tableMarkdown[i] = ConvertTableToMarkdown(analysis.Tables[i]);
-        }
+        var orderedPages = analysis.Pages
+            .OrderBy(p => p.PageNumber)
+            .ToList();
+        var distinctPageNumbers = orderedPages
+            .Select(p => p.PageNumber)
+            .Distinct()
+            .ToList();
 
-        foreach (var page in analysis.Pages.OrderBy(p => p.PageNumber))
+        foreach (var page in orderedPages)
         {
             if (!string.IsNullOrWhiteSpace(page.Text))
             {
+                var text = page.Text.Trim();
                 var metadata = new Dictionary<string, string>(page.Metadata)
                 {
                     [MetadataKeys.Page] = page.PageNumber.ToString(CultureInfo.InvariantCulture)
                 };
 
-                segments.Add(new DocumentSegment(
-                    markdown: page.Text.Trim(),
+                var segment = new DocumentSegment(
+                    markdown: text,
                     type: SegmentType.Page,
                     number: page.PageNumber,
                     label: $"Page {page.PageNumber}",
                     source: streamInfo.FileName,
-                    additionalMetadata: metadata));
+                    additionalMetadata: metadata);
+
+                segments.Add(segment);
+                artifacts.TextBlocks.Add(new TextArtifact(text, page.PageNumber, streamInfo.FileName, segment.Label));
+
+                if (rawTextBuilder.Length > 0)
+                {
+                    rawTextBuilder.AppendLine();
+                }
+
+                rawTextBuilder.AppendLine(text);
             }
 
             foreach (var tableIndex in page.TableIndices.Distinct())
             {
-                if (tableIndex >= 0 && tableIndex < tableMarkdown.Length && !string.IsNullOrWhiteSpace(tableMarkdown[tableIndex]))
+                if (tableIndex < 0 || tableIndex >= analysis.Tables.Count)
                 {
-                    var metadata = new Dictionary<string, string>(analysis.Tables[tableIndex].Metadata)
-                    {
-                        [MetadataKeys.TableIndex] = (tableIndex + 1).ToString(CultureInfo.InvariantCulture),
-                        [MetadataKeys.Page] = page.PageNumber.ToString(CultureInfo.InvariantCulture)
-                    };
+                    continue;
+                }
 
-                    segments.Add(new DocumentSegment(
-                        markdown: tableMarkdown[tableIndex],
-                        type: SegmentType.Table,
-                        number: tableIndex + 1,
-                        label: $"Table {tableIndex + 1} (Page {page.PageNumber})",
-                        source: streamInfo.FileName,
-                        additionalMetadata: metadata));
+                var table = analysis.Tables[tableIndex];
+                var tableMarkdown = ConvertTableToMarkdown(table);
+                if (string.IsNullOrWhiteSpace(tableMarkdown))
+                {
+                    continue;
+                }
+
+                var tableMetadata = new Dictionary<string, string>(table.Metadata)
+                {
+                    [MetadataKeys.TableIndex] = (tableIndex + 1).ToString(CultureInfo.InvariantCulture),
+                    [MetadataKeys.Page] = page.PageNumber.ToString(CultureInfo.InvariantCulture)
+                };
+
+                segments.Add(new DocumentSegment(
+                    markdown: tableMarkdown,
+                    type: SegmentType.Table,
+                    number: tableIndex + 1,
+                    label: $"Table {tableIndex + 1} (Page {page.PageNumber})",
+                    source: streamInfo.FileName,
+                    additionalMetadata: tableMetadata));
+
+                if (processedTables.Add(tableIndex))
+                {
+                    var rows = table.Rows.Select(static row => (IList<string>)row.ToList()).ToList();
+                    artifacts.Tables.Add(new TableArtifact(rows, page.PageNumber, streamInfo.FileName, $"Table {tableIndex + 1}"));
                 }
             }
-        }
 
-        if (analysis.Images.Count > 0)
-        {
-            foreach (var image in analysis.Images)
+            foreach (var image in analysis.Images.Where(img => img.PageNumber == page.PageNumber))
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var caption = image.Caption;
-                if (caption is null && imageUnderstandingProvider is not null)
-                {
-                    using var imageStream = new MemoryStream(image.Content, writable: false);
-                    var result = await imageUnderstandingProvider.AnalyzeAsync(imageStream, streamInfo, cancellationToken).ConfigureAwait(false);
-                    caption = result?.Caption ?? result?.Text;
-                }
-
+                var artifact = await CreateImageArtifactAsync(image, streamInfo, cancellationToken).ConfigureAwait(false);
                 var base64 = Convert.ToBase64String(image.Content);
-                var md = $"![{caption ?? "Document image"}](data:{image.ContentType};base64,{base64})";
+                var caption = artifact.Metadata.TryGetValue(MetadataKeys.Caption, out var storedCaption) ? storedCaption : artifact.Label;
+                var markdown = $"![{caption ?? "Document image"}](data:{image.ContentType};base64,{base64})";
+                artifact.PlaceholderMarkdown = markdown;
 
                 var metadata = new Dictionary<string, string>(image.Metadata)
                 {
@@ -268,28 +295,41 @@ public sealed class PdfConverter : IDocumentConverter
 
                 if (!string.IsNullOrWhiteSpace(caption))
                 {
-                    metadata[MetadataKeys.Caption] = caption;
+                    metadata[MetadataKeys.Caption] = caption!;
                 }
 
-                segments.Add(new DocumentSegment(
-                    markdown: md,
+                var imageSegment = new DocumentSegment(
+                    markdown: markdown,
                     type: SegmentType.Image,
                     number: image.PageNumber,
                     label: caption ?? $"Image on page {image.PageNumber}",
                     source: streamInfo.FileName,
-                    additionalMetadata: metadata));
+                    additionalMetadata: metadata);
+
+                artifact.SegmentIndex = segments.Count;
+                segments.Add(imageSegment);
+                artifacts.Images.Add(artifact);
+                pagesWithInlineImages.Add(page.PageNumber);
             }
         }
 
-        return segments;
+        await AppendMissingPageSnapshotsAsync(
+            distinctPageNumbers,
+            pagesWithInlineImages,
+            pdfBytes,
+            streamInfo,
+            segments,
+            artifacts,
+            cancellationToken).ConfigureAwait(false);
+
+        return new PdfExtractionResult(segments, artifacts, rawTextBuilder.ToString().Trim());
     }
 
-    private static IReadOnlyList<DocumentSegment> BuildSegmentsFromExtractedText(
-        IReadOnlyList<PdfPageText> pages,
-        IReadOnlyList<string> pageImages,
-        string? source)
+    private PdfExtractionResult BuildExtractionFromExtractedText(IReadOnlyList<PdfPageText> pages, IReadOnlyList<string> pageImages, StreamInfo streamInfo)
     {
         var segments = new List<DocumentSegment>();
+        var artifacts = new ConversionArtifacts();
+        var rawTextBuilder = new StringBuilder();
 
         foreach (var page in pages)
         {
@@ -301,16 +341,26 @@ public sealed class PdfConverter : IDocumentConverter
 
             var metadata = new Dictionary<string, string>
             {
-                ["page"] = page.PageNumber.ToString(CultureInfo.InvariantCulture)
+                [MetadataKeys.Page] = page.PageNumber.ToString(CultureInfo.InvariantCulture)
             };
 
-            segments.Add(new DocumentSegment(
+            var segment = new DocumentSegment(
                 markdown: markdown,
                 type: SegmentType.Page,
                 number: page.PageNumber,
                 label: $"Page {page.PageNumber}",
-                source: source,
-                additionalMetadata: metadata));
+                source: streamInfo.FileName,
+                additionalMetadata: metadata);
+
+            segments.Add(segment);
+            artifacts.TextBlocks.Add(new TextArtifact(markdown, page.PageNumber, streamInfo.FileName, segment.Label));
+
+            if (rawTextBuilder.Length > 0)
+            {
+                rawTextBuilder.AppendLine();
+            }
+
+            rawTextBuilder.AppendLine(markdown);
         }
 
         if (pageImages.Count > 0)
@@ -319,27 +369,188 @@ public sealed class PdfConverter : IDocumentConverter
                 markdown: "## Page Images",
                 type: SegmentType.Section,
                 label: "Page Images",
-                source: source));
+                source: streamInfo.FileName));
 
             for (var i = 0; i < pageImages.Count; i++)
             {
                 var markdown = $"![PDF page {i + 1}](data:image/png;base64,{pageImages[i]})";
                 var metadata = new Dictionary<string, string>
                 {
-                    ["page"] = (i + 1).ToString(CultureInfo.InvariantCulture)
+                    [MetadataKeys.Page] = (i + 1).ToString(CultureInfo.InvariantCulture)
                 };
 
+                var segmentIndex = segments.Count;
                 segments.Add(new DocumentSegment(
                     markdown: markdown,
                     type: SegmentType.Image,
                     number: i + 1,
                     label: $"Page {i + 1} Image",
-                    source: source,
+                    source: streamInfo.FileName,
                     additionalMetadata: metadata));
+
+                var imageBytes = Convert.FromBase64String(pageImages[i]);
+                var artifact = new ImageArtifact(imageBytes, "image/png", i + 1, streamInfo.FileName, $"Page {i + 1} Image")
+                {
+                    SegmentIndex = segmentIndex,
+                    PlaceholderMarkdown = markdown
+                };
+                artifact.Metadata[MetadataKeys.Page] = (i + 1).ToString(CultureInfo.InvariantCulture);
+                artifacts.Images.Add(artifact);
             }
         }
 
-        return segments;
+        return new PdfExtractionResult(segments, artifacts, rawTextBuilder.ToString().Trim());
+    }
+
+    private async Task<PdfExtractionResult> BuildExtractionFromPdfPigAsync(byte[] pdfBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
+    {
+        var pages = await textExtractor.ExtractTextAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+        var pageImages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+        return BuildExtractionFromExtractedText(pages, pageImages, streamInfo);
+    }
+
+    private async Task AppendMissingPageSnapshotsAsync(
+        IReadOnlyList<int> pageNumbers,
+        HashSet<int> pagesWithInlineImages,
+        byte[] pdfBytes,
+        StreamInfo streamInfo,
+        List<DocumentSegment> segments,
+        ConversionArtifacts artifacts,
+        CancellationToken cancellationToken)
+    {
+        if (pageNumbers.Count == 0)
+        {
+            return;
+        }
+
+        var missingPages = pageNumbers
+            .Where(page => !pagesWithInlineImages.Contains(page))
+            .Distinct()
+            .OrderBy(page => page)
+            .ToList();
+
+        if (missingPages.Count == 0)
+        {
+            return;
+        }
+
+        var renderedPages = await imageRenderer.RenderImagesAsync(pdfBytes, cancellationToken).ConfigureAwait(false);
+        if (renderedPages.Count == 0)
+        {
+            return;
+        }
+
+        var sectionAdded = false;
+
+        foreach (var page in missingPages)
+        {
+            if (page <= 0 || page > renderedPages.Count)
+            {
+                continue;
+            }
+
+            var base64 = renderedPages[page - 1];
+            if (string.IsNullOrWhiteSpace(base64))
+            {
+                continue;
+            }
+
+            byte[] imageBytes;
+            try
+            {
+                imageBytes = Convert.FromBase64String(base64);
+            }
+            catch (FormatException)
+            {
+                continue;
+            }
+
+            if (!sectionAdded)
+            {
+                segments.Add(new DocumentSegment(
+                    markdown: "## Page Snapshots",
+                    type: SegmentType.Section,
+                    label: "Page Snapshots",
+                    source: streamInfo.FileName));
+                sectionAdded = true;
+            }
+
+            var metadata = new Dictionary<string, string>
+            {
+                [MetadataKeys.Page] = page.ToString(CultureInfo.InvariantCulture),
+                ["snapshot"] = "true",
+            };
+
+            var segmentIndex = segments.Count;
+            var placeholder = $"![PDF page {page}](data:image/png;base64,{base64})";
+            segments.Add(new DocumentSegment(
+                markdown: placeholder,
+                type: SegmentType.Image,
+                number: page,
+                label: $"Page {page} Snapshot",
+                source: streamInfo.FileName,
+                additionalMetadata: metadata));
+
+            var artifact = new ImageArtifact(imageBytes, "image/png", page, streamInfo.FileName, $"Page {page} Snapshot")
+            {
+                SegmentIndex = segmentIndex,
+                PlaceholderMarkdown = placeholder
+            };
+            artifact.Metadata[MetadataKeys.Page] = page.ToString(CultureInfo.InvariantCulture);
+            artifact.Metadata["snapshot"] = "true";
+            artifacts.Images.Add(artifact);
+        }
+    }
+
+    private async Task<ImageArtifact> CreateImageArtifactAsync(DocumentImageResult image, StreamInfo streamInfo, CancellationToken cancellationToken)
+    {
+        var artifact = new ImageArtifact(image.Content, image.ContentType, image.PageNumber, streamInfo.FileName)
+        {
+            Label = image.Caption ?? $"Image on page {image.PageNumber}"
+        };
+
+        artifact.Metadata[MetadataKeys.Page] = image.PageNumber.ToString(CultureInfo.InvariantCulture);
+
+        if (!string.IsNullOrWhiteSpace(image.Caption))
+        {
+            artifact.Metadata[MetadataKeys.Caption] = image.Caption!;
+        }
+
+        foreach (var pair in image.Metadata)
+        {
+            artifact.Metadata[pair.Key] = pair.Value;
+        }
+
+        if (image.Metadata.TryGetValue("ocrText", out var ocr) && !string.IsNullOrWhiteSpace(ocr))
+        {
+            artifact.RawText = ocr;
+        }
+
+        if (imageUnderstandingProvider is not null)
+        {
+            try
+            {
+                using var analysisStream = new MemoryStream(image.Content, writable: false);
+                var result = await imageUnderstandingProvider.AnalyzeAsync(analysisStream, streamInfo, cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(result?.Caption))
+                {
+                    artifact.Metadata[MetadataKeys.Caption] = result!.Caption!;
+                    artifact.Label = result.Caption;
+                }
+
+                if (!string.IsNullOrWhiteSpace(result?.Text))
+                {
+                    artifact.Metadata["ocrText"] = result!.Text!;
+                    artifact.RawText = result.Text;
+                }
+            }
+            catch
+            {
+                // Ignore analysis failures; downstream middleware may handle enrichment.
+            }
+        }
+
+        return artifact;
     }
 
     private static string ConvertTableToMarkdown(DocumentTableResult table)
@@ -551,7 +762,7 @@ public sealed class PdfConverter : IDocumentConverter
             };
 
 #pragma warning disable CA1416
-            foreach (var bitmap in Conversion.ToImages(pdfBytes, password: null, options))
+            foreach (var bitmap in ToImages(pdfBytes, password: null, options))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 using var bmp = bitmap;

@@ -56,10 +56,12 @@ This is a high-fidelity C# port of Microsoft's original [MarkItDown Python libra
 
 ✨ **Modern .NET** - Targets .NET 9.0 with up-to-date language features  
 📦 **NuGet Package** - Drop-in dependency for libraries and automation pipelines  
-🔄 **Async/Await** - Fully asynchronous pipeline for responsive apps  
-🧠 **LLM-Optimized** - Markdown tailored for AI ingestion and summarisation  
-🔧 **Extensible** - Register custom converters or plug additional caption/transcription services  
-🧭 **Smart Detection** - Automatic MIME, charset, and file-type guessing (including data/file URIs)  
+🔄 **Async/Await** - Fully asynchronous pipeline for responsive apps
+🧠 **LLM-Optimized** - Markdown tailored for AI ingestion and summarisation
+🔧 **Extensible** - Register custom converters or plug additional caption/transcription services
+🧩 **Conversion middleware** - Compose post-processing steps with `IConversionMiddleware` (AI enrichment ready)
+📂 **Raw artifacts API** - Inspect text blocks, tables, and images via `DocumentConverterResult.Artifacts`
+🧭 **Smart Detection** - Automatic MIME, charset, and file-type guessing (including data/file URIs)
 ⚡ **High Performance** - Stream-friendly, minimal allocations, zero temp files
 
 ## 📋 Format Support
@@ -102,11 +104,12 @@ This is a high-fidelity C# port of Microsoft's original [MarkItDown Python libra
 - Header detection based on formatting
 - List item recognition
 - Title extraction from document content
+- Page snapshot artifacts ensure every page can be sent through AI enrichment (OCR, diagram-to-Mermaid, chart narration) even when the PDF exposes selectable text
 
 ### Office Documents (DOCX/XLSX/PPTX)
-- **Word (.docx)**: Headers, paragraphs, tables, bold/italic formatting
+- **Word (.docx)**: Headers, paragraphs, tables, bold/italic formatting, and embedded images captured for AI enrichment (OCR, Mermaid-ready diagrams)
 - **Excel (.xlsx)**: Spreadsheet data as Markdown tables with sheet organization
-- **PowerPoint (.pptx)**: Slide-by-slide content with title recognition
+- **PowerPoint (.pptx)**: Slide-by-slide content with title recognition plus image artifacts primed for detailed AI captions and diagrams
 
 ### CSV Conversion Features
 - Automatic table formatting with headers
@@ -1056,6 +1059,17 @@ var result = await markItDown.ConvertAsync("document.pdf");
 Console.WriteLine(result.Markdown);
 ```
 
+### .NET SDK Setup
+
+MarkItDown targets .NET 9.0. If your environment does not have the required SDK, run the helper script once:
+
+```bash
+./eng/install-dotnet.sh
+```
+
+The script installs the SDK into `~/.dotnet` using the official `dotnet-install` bootstrapper and prints the environment
+variables to add to your shell profile so the `dotnet` CLI is available on subsequent sessions.
+
 ### Building from Source
 
 ```bash
@@ -1083,6 +1097,10 @@ The command emits standard test results plus a Cobertura coverage report at
 `tests/MarkItDown.Tests/TestResults/<guid>/coverage.cobertura.xml`. Tools such as
 [ReportGenerator](https://github.com/danielpalme/ReportGenerator) can turn this into
 HTML or Markdown dashboards.
+
+> ✅ The regression suite now exercises DOCX and PPTX conversions with embedded imagery, ensuring conversion middleware runs and enriched descriptions remain attached to the composed Markdown.
+>
+> ✅ Additional image-placement regressions verify that AI-generated captions are injected immediately after each source placeholder for DOCX, PPTX, and PDF outputs.
 
 ### Project Structure
 
@@ -1217,6 +1235,31 @@ var options = new MarkItDownOptions
 
 var markItDown = new MarkItDown(options);
 ```
+
+### Conversion Middleware & Raw Artifacts
+
+Every conversion now exposes the raw extraction artifacts that feed the Markdown composer. Use `DocumentConverterResult.Artifacts` to inspect page text, tables, or embedded images before they are flattened into Markdown. You can plug additional processing by registering `IConversionMiddleware` instances through `MarkItDownOptions.ConversionMiddleware`. Middleware executes after extraction and can mutate segments, enrich metadata, or call external AI services. When an `IChatClient` is supplied and `EnableAiImageEnrichment` remains `true` (default), MarkItDown automatically adds the built-in `AiImageEnrichmentMiddleware` to describe charts, diagrams, and other visuals. The middleware keeps enriched prose anchored to the exact Markdown placeholder emitted during extraction, ensuring captions, Mermaid diagrams, and OCR text land beside the original image instead of drifting to the end of the section.
+
+```csharp
+var options = new MarkItDownOptions
+{
+    AiModels = new StaticAiModelProvider(chatClient: myChatClient, speechToTextClient: null),
+    ConversionMiddleware = new IConversionMiddleware[]
+    {
+        new MyDomainSpecificMiddleware()
+    }
+};
+
+var markItDown = new MarkItDown(options);
+var result = await markItDown.ConvertAsync("docs/diagram.docx");
+
+foreach (var image in result.Artifacts.Images)
+{
+    Console.WriteLine($"Image {image.Label}: {image.DetailedDescription}");
+}
+```
+
+Set `EnableAiImageEnrichment` to `false` when you need a completely custom pipeline with no default AI step.
 
 ### Production Configuration with Error Handling
 

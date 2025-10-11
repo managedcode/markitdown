@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -38,6 +39,35 @@ public class PdfConverterTests
         Assert.Equal(2, result.Segments[1].Number);
         Assert.Equal(SegmentType.Image, result.Segments[^1].Type);
         Assert.Equal(1, result.Segments[^1].Number);
+        Assert.Single(result.Artifacts.Images);
+        Assert.NotNull(result.Artifacts.Images[0].SegmentIndex);
+    }
+
+    [Fact]
+    public async Task PdfConverter_PipelineEnrichesImages()
+    {
+        var pipeline = new RecordingPipeline("PIPELINE");
+        var textExtractor = new StubPdfTextExtractor("Page body");
+        var imageRenderer = new StubPdfImageRenderer(new[] { Convert.ToBase64String(new byte[] { 1, 2, 3 }) });
+        var converter = new PdfConverter(textExtractor, imageRenderer, pipeline: pipeline);
+
+        using var stream = new MemoryStream(new byte[] { 1, 2, 3, 4 });
+        var streamInfo = new StreamInfo(mimeType: "application/pdf", extension: ".pdf", fileName: "pipeline.pdf");
+
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        Assert.True(pipeline.Executed);
+        Assert.Single(result.Artifacts.Images);
+        var image = result.Artifacts.Images[0];
+        Assert.NotNull(image.SegmentIndex);
+        Assert.Equal("PIPELINE", image.DetailedDescription);
+        Assert.NotNull(image.PlaceholderMarkdown);
+        Assert.Contains("PIPELINE", result.Segments[image.SegmentIndex!.Value].Markdown);
+        var imageSegment = result.Segments[image.SegmentIndex!.Value];
+        var placeholderIndex = imageSegment.Markdown.IndexOf(image.PlaceholderMarkdown!, StringComparison.Ordinal);
+        Assert.True(placeholderIndex >= 0);
+        var trailing = imageSegment.Markdown[(placeholderIndex + image.PlaceholderMarkdown!.Length)..];
+        Assert.StartsWith("PIPELINE", trailing.TrimStart('\r', '\n'));
     }
 
     [Fact]
