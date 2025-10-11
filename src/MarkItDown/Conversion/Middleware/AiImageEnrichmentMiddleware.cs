@@ -1,7 +1,8 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -35,13 +36,13 @@ public sealed class AiImageEnrichmentMiddleware : IConversionMiddleware
             return;
         }
 
-        foreach (var image in context.Artifacts.Images)
+        async Task ProcessImageAsync(ImageArtifact image)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             if (image.DetailedDescription is not null)
             {
-                continue;
+                return;
             }
 
             var prompt = BuildPrompt(context.StreamInfo, image);
@@ -61,12 +62,12 @@ public sealed class AiImageEnrichmentMiddleware : IConversionMiddleware
             catch (Exception ex)
             {
                 context.Logger?.LogWarning(ex, "Image enrichment failed for {Label}", image.Label ?? image.PageNumber?.ToString(CultureInfo.InvariantCulture));
-                continue;
+                return;
             }
 
             if (response is null)
             {
-                continue;
+                return;
             }
 
             ImageInsight? insight = null;
@@ -90,7 +91,7 @@ public sealed class AiImageEnrichmentMiddleware : IConversionMiddleware
 
             if (string.IsNullOrWhiteSpace(markdown))
             {
-                continue;
+                return;
             }
 
             image.DetailedDescription = markdown.Trim();
@@ -101,6 +102,21 @@ public sealed class AiImageEnrichmentMiddleware : IConversionMiddleware
             UpdateSegments(context, image, markdown!, insight?.MermaidDiagram);
 
             image.Metadata["detailedDescription"] = image.DetailedDescription;
+        }
+
+        if (context.Artifacts.Images is List<ImageArtifact> list)
+        {
+            for (var i = 0; i < list.Count; i++)
+            {
+                await ProcessImageAsync(list[i]).ConfigureAwait(false);
+            }
+        }
+        else
+        {
+            foreach (var image in context.Artifacts.Images)
+            {
+                await ProcessImageAsync(image).ConfigureAwait(false);
+            }
         }
     }
 
@@ -127,11 +143,34 @@ public sealed class AiImageEnrichmentMiddleware : IConversionMiddleware
         builder.AppendLine($"- MimeType: {image.ContentType ?? "unknown"}");
         builder.AppendLine();
 
-        var base64 = Convert.ToBase64String(image.Data);
         builder.Append("ImagePayload: data:");
         builder.Append(image.ContentType ?? "application/octet-stream");
         builder.Append(";base64,");
-        builder.Append(base64);
+
+        var base64Length = checked(((image.Data.Length + 2) / 3) * 4);
+        char[]? rented = null;
+        Span<char> buffer = base64Length <= 4096
+            ? stackalloc char[base64Length]
+            : (rented = ArrayPool<char>.Shared.Rent(base64Length));
+
+        try
+        {
+            if (Convert.TryToBase64Chars(image.Data, buffer, out var charsWritten))
+            {
+                builder.Append(buffer[..charsWritten]);
+            }
+            else
+            {
+                builder.Append(Convert.ToBase64String(image.Data));
+            }
+        }
+        finally
+        {
+            if (rented is not null)
+            {
+                ArrayPool<char>.Shared.Return(rented);
+            }
+        }
 
         return builder.ToString();
     }
@@ -300,10 +339,39 @@ public sealed class AiImageEnrichmentMiddleware : IConversionMiddleware
 
             if (KeyFindings.Count > 0)
             {
+                var originalLength = builder.Length;
+                var anyFinding = false;
                 builder.AppendLine().AppendLine("Key findings:");
-                foreach (var finding in KeyFindings.Where(static f => !string.IsNullOrWhiteSpace(f)))
+
+                void AppendFinding(string? finding)
                 {
+                    if (string.IsNullOrWhiteSpace(finding))
+                    {
+                        return;
+                    }
+
                     builder.Append("- ").AppendLine(finding.Trim());
+                    anyFinding = true;
+                }
+
+                if (KeyFindings is List<string> list)
+                {
+                    foreach (var finding in CollectionsMarshal.AsSpan(list))
+                    {
+                        AppendFinding(finding);
+                    }
+                }
+                else
+                {
+                    foreach (var finding in KeyFindings)
+                    {
+                        AppendFinding(finding);
+                    }
+                }
+
+                if (!anyFinding)
+                {
+                    builder.Length = originalLength;
                 }
             }
 
