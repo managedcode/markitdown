@@ -416,7 +416,7 @@ public sealed class PdfConverter : IDocumentConverter
         {
             throw;
         }
-        catch
+        catch (Exception)
         {
             pageImages = Array.Empty<string>();
         }
