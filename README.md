@@ -495,6 +495,41 @@ var markItDown = new MarkItDown();
 markItDown.RegisterConverter(new MyCustomConverter());
 ```
 
+### Interactive CLI
+
+Prefer a guided experience? Launch the Spectre.Console powered CLI and drive conversions from a rich terminal UI:
+
+```bash
+dotnet run --project src/MarkItDown.Cli
+```
+
+The CLI lets you:
+
+- Queue single files, whole directories, or URLs with animated progress reporting and ambient status updates.
+- Inspect inputs beforehand with metadata panels, markdown previews, and an extension distribution radar for large batches.
+- Configure Azure, Google Cloud, and AWS credentials (API keys, connection strings, or managed identity scenarios) without editing JSON manually.
+- Tweak segmentation preferences (inline annotations, audio slice duration) on the fly.
+- Review per-file success/failure summaries and launch the output folder directly from the shell.
+
+Settings entered during the session are kept in memory only—ideal for experimenting locally without persisting secrets to disk.
+
+Need a portable binary that runs without the .NET runtime? Publish the CLI as a self-contained single file (artifacts land in `artifacts/cli`):
+
+```bash
+dotnet publish src/MarkItDown.Cli/MarkItDown.Cli.csproj \
+  -c Release \
+  -r linux-x64 \
+  --self-contained true \
+  /p:PublishSingleFile=true \
+  /p:IncludeNativeLibrariesForSelfExtract=true \
+  /p:IncludeAllContentForSelfExtract=true \
+  /p:EnableCompressionInSingleFile=true \
+  /p:DebugType=none \
+  -o artifacts/cli/linux-x64
+```
+
+Swap `linux-x64` for `win-x64` or `osx-arm64` to target other platforms. The GitHub Actions workflow (`.github/workflows/ci.yml`) already runs these publishes and uploads zipped artifacts on every build.
+
 ## 🎯 Advanced Usage Patterns
 
 ### Custom Format Converters
@@ -833,15 +868,18 @@ The `AzureIntelligenceOptions`, `GoogleIntelligenceOptions`, and `AwsIntelligenc
       Media = new AzureMediaIntelligenceOptions
       {
           AccountId = configuration["Azure:VideoIndexer:AccountId"],
+          AccountName = configuration["Azure:VideoIndexer:AccountName"],
           Location = configuration["Azure:VideoIndexer:Location"],
           SubscriptionId = configuration["Azure:VideoIndexer:SubscriptionId"],
           ResourceGroup = configuration["Azure:VideoIndexer:ResourceGroup"],
+          ResourceId = configuration["Azure:VideoIndexer:ResourceId"],
           ArmAccessToken = configuration.GetConnectionString("AzureVideoIndexerArmToken")
       }
   };
   ```
 
 - **Managed identity**: omit the `ApiKey`/`ArmAccessToken` properties and the providers automatically fall back to `DefaultAzureCredential`. Assign the managed identity the *Cognitive Services User* role for Document Intelligence and Vision, and follow the [Video Indexer managed identity instructions](https://learn.microsoft.com/azure/azure-video-indexer/video-indexer-use-azure-ad) to authorize uploads.
+- **Video Indexer tips**: Video uploads require both the Video Indexer account (ID + region) and either the full resource ID or the trio of subscription id/resource group/account name, plus an ARM token or Azure AD identity with `Contributor` access on the Video Indexer resource. The interactive CLI exposes dedicated prompts for these values under “Configure cloud providers”.
 
   ```csharp
   var azureOptions = new AzureIntelligenceOptions
@@ -857,6 +895,7 @@ The `AzureIntelligenceOptions`, `GoogleIntelligenceOptions`, and `AwsIntelligenc
       Media = new AzureMediaIntelligenceOptions
       {
           AccountId = "<video-indexer-account-id>",
+          AccountName = "<video-indexer-account-name>",
           Location = "trial"
       }
   };
@@ -924,6 +963,23 @@ The `AzureIntelligenceOptions`, `GoogleIntelligenceOptions`, and `AwsIntelligenc
   ```
 
 - **IAM roles / AWS managed identity**: leave the credential fields null to use the default AWS credential chain (environment variables, shared credentials file, EC2/ECS/EKS IAM roles, or AWS SSO). Ensure the execution role has permissions for `textract:AnalyzeDocument`, `rekognition:DetectLabels`, `rekognition:DetectText`, `transcribe:StartTranscriptionJob`, and S3 access for the specified buckets.
+
+#### YouTube metadata & captions
+
+- **Docs**: [YoutubeExplode](https://github.com/Tyrrrz/YoutubeExplode) (used under the hood).
+- **Out of the box**: `YouTubeUrlConverter` now enriches Markdown with title, channel, stats, thumbnails, and (when available) auto-generated captions laid out as timecoded segments.
+- **Custom provider**: supply `MarkItDownOptions.YouTubeMetadataProvider` to disable network access, inject caching, or swap to an alternative implementation.
+
+  ```csharp
+  var options = new MarkItDownOptions
+  {
+      YouTubeMetadataProvider = new YoutubeExplodeMetadataProvider(), // default
+      // You can plug in a stub or caching decorator instead:
+      // YouTubeMetadataProvider = new MyCachedYouTubeProvider(inner: new YoutubeExplodeMetadataProvider())
+  };
+  ```
+
+  When a provider returns `null` the converter falls back to URL-derived metadata, so YouTube support remains fully optional.
 
 For LLM-style post-processing, assign `MarkItDownOptions.AiModels` with an `IAiModelProvider`. The built-in `StaticAiModelProvider` accepts `Microsoft.Extensions.AI` clients (chat models, speech-to-text, etc.), enabling you to share application-wide model builders.
 

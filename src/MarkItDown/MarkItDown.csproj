@@ -40,6 +40,7 @@
     
     <!-- Email support -->
     <PackageReference Include="MimeKit" Version="4.14.0" />
+    <PackageReference Include="YoutubeExplode" Version="6.5.5" />
   </ItemGroup>
 
   <ItemGroup>

@@ -3,12 +3,13 @@ using Azure;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Azure.Core;
 using Azure.Identity;
-using Microsoft.Extensions.Logging;
 using MarkItDown.Converters;
 using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Providers.Aws;
 using MarkItDown.Intelligence.Providers.Azure;
 using MarkItDown.Intelligence.Providers.Google;
+using MarkItDown.YouTube;
+using Microsoft.Extensions.Logging;
 
 namespace MarkItDown;
 
@@ -24,6 +25,7 @@ public sealed class MarkItDown
     private readonly HttpClient? _httpClient;
     private readonly MarkItDownOptions _options;
     private readonly IntelligenceProviderHub _intelligenceProviders;
+    private readonly IYouTubeMetadataProvider _youTubeMetadataProvider;
 
     /// <summary>
     /// Initialize a new instance of MarkItDown.
@@ -48,6 +50,7 @@ public sealed class MarkItDown
         _httpClient = httpClient;
         _converters = [];
         _intelligenceProviders = InitializeIntelligenceProviders();
+        _youTubeMetadataProvider = _options.YouTubeMetadataProvider ?? new YoutubeExplodeMetadataProvider();
 
         if (_options.EnableBuiltins)
         {
@@ -363,7 +366,7 @@ public sealed class MarkItDown
 
         var converters = new List<IDocumentConverter>
         {
-            new YouTubeUrlConverter(),
+            new YouTubeUrlConverter(_youTubeMetadataProvider),
             new HtmlConverter(),
             new WikipediaConverter(),
             new BingSerpConverter(),
@@ -391,7 +394,7 @@ public sealed class MarkItDown
     {
         return new IDocumentConverter[]
         {
-            new YouTubeUrlConverter(),
+            new YouTubeUrlConverter(_youTubeMetadataProvider),
             new HtmlConverter(),
             new WikipediaConverter(),
             new BingSerpConverter(),

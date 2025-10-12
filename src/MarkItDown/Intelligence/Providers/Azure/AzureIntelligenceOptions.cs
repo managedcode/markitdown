@@ -48,6 +48,11 @@ public sealed class AzureMediaIntelligenceOptions
     public string? AccountId { get; init; }
 
     /// <summary>
+    /// Azure Video Indexer account name (used when composing resource IDs).
+    /// </summary>
+    public string? AccountName { get; init; }
+
+    /// <summary>
     /// Azure Video Indexer account location (e.g. <c>trial</c>, <c>eastus2</c>).
     /// </summary>
     public string? Location { get; init; }
@@ -61,6 +66,11 @@ public sealed class AzureMediaIntelligenceOptions
     /// Azure resource group of the Video Indexer account.
     /// </summary>
     public string? ResourceGroup { get; init; }
+
+    /// <summary>
+    /// Full ARM resource id for the Video Indexer account (overrides subscription/resource group/account name when provided).
+    /// </summary>
+    public string? ResourceId { get; init; }
 
     /// <summary>
     /// Optional static ARM token. If not provided the SDK will attempt to use <see cref="Azure.Identity.DefaultAzureCredential"/>.

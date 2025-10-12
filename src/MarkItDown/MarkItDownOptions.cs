@@ -2,6 +2,7 @@ using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Providers.Aws;
 using MarkItDown.Intelligence.Providers.Azure;
 using MarkItDown.Intelligence.Providers.Google;
+using MarkItDown.YouTube;
 
 namespace MarkItDown;
 
@@ -76,6 +77,11 @@ public sealed record MarkItDownOptions
     /// Optional access to Microsoft.Extensions.AI clients.
     /// </summary>
     public IAiModelProvider? AiModels { get; init; }
+
+    /// <summary>
+    /// Optional provider used to resolve YouTube metadata and captions for <see cref="Converters.YouTubeUrlConverter"/>.
+    /// </summary>
+    public IYouTubeMetadataProvider? YouTubeMetadataProvider { get; init; }
 
     /// <summary>
     /// Options that control how converter results are segmented.

@@ -1,41 +1,103 @@
-name: CI
+name: build
 
 on:
-  pull_request:
-    branches: [ main ]
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - 'release/*'
+  pull_request:
+  workflow_dispatch:
 
 env:
-  DOTNET_VERSION: '9.0.x'
+  DOTNET_VERSION: 9.0.x
+  SOLUTION_PATH: MarkItDown.slnx
+  CLI_PROJECT: src/MarkItDown.Cli/MarkItDown.Cli.csproj
+  LIB_PROJECT: src/MarkItDown/MarkItDown.csproj
 
 jobs:
-  build:
-    name: Build and Test
+  build_and_test:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Restore dependencies
-        run: dotnet restore
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION_PATH }}
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+        run: dotnet test ${{ env.SOLUTION_PATH }} --configuration Release --no-build --logger trx --results-directory TestResults
 
-      - name: Upload coverage reports to Codecov
-        if: success() && (github.event_name == 'push' || github.event_name == 'pull_request')
-        uses: codecov/codecov-action@v5
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./**/coverage.cobertura.xml
-          fail_ci_if_error: false
+          name: test-results
+          path: TestResults
+
+  package:
+    needs: build_and_test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+      - name: Pack library
+        run: dotnet pack ${{ env.LIB_PROJECT }} --configuration Release --no-build -o artifacts/nuget
+
+      - name: Publish CLI bundles
+        run: |
+          set -euo pipefail
+          ARTIFACT_ROOT=artifacts/cli
+          mkdir -p "$ARTIFACT_ROOT"
+          rids=("win-x64" "linux-x64" "osx-arm64")
+          for rid in "${rids[@]}"; do
+            outDir="$ARTIFACT_ROOT/$rid"
+            dotnet publish ${{ env.CLI_PROJECT }} \
+              -c Release \
+              -r "$rid" \
+              --self-contained true \
+              /p:PublishSingleFile=true \
+              /p:IncludeNativeLibrariesForSelfExtract=true \
+              /p:IncludeAllContentForSelfExtract=true \
+              /p:EnableCompressionInSingleFile=true \
+              /p:DebugType=none \
+              -o "$outDir"
+
+            if [[ "$rid" == win-* ]]; then
+              (cd "$outDir" && zip -qr "../markitdown-cli-$rid.zip" .)
+            else
+              (cd "$outDir" && tar -czf "../markitdown-cli-$rid.tar.gz" .)
+            fi
+
+            rm -rf "$outDir"
+          done
+
+      - name: Upload NuGet package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts/nuget
+
+      - name: Upload CLI bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-bundles
+          path: artifacts/cli

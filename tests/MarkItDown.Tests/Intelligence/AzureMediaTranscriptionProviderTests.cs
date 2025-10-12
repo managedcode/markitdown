@@ -54,10 +54,11 @@ public class AzureMediaTranscriptionProviderTests
 
         handler.Enqueue(request =>
         {
-            request.RequestUri!.ToString().ShouldContain("Auth");
+            request.Method.ShouldBe(HttpMethod.Post);
+            request.RequestUri!.Host.ShouldBe("management.azure.com");
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("token123")
+                Content = new StringContent("{ \"accessToken\": \"token123\", \"expirationTime\": \"2025-01-01T00:00:00Z\" }", Encoding.UTF8, "application/json")
             };
         });
 
@@ -103,7 +104,8 @@ public class AzureMediaTranscriptionProviderTests
             AccountId = "account",
             Location = "trial",
             SubscriptionId = "sub",
-            ResourceGroup = "rg"
+            ResourceGroup = "rg",
+            AccountName = "account"
         };
 
         var provider = new AzureMediaTranscriptionProvider(options, httpClient, new StubArmTokenService("arm-token"));
@@ -127,7 +129,10 @@ public class AzureMediaTranscriptionProviderTests
         var options = new AzureMediaIntelligenceOptions
         {
             AccountId = "account",
-            Location = "trial"
+            Location = "trial",
+            AccountName = "account",
+            SubscriptionId = "sub",
+            ResourceGroup = "rg"
         };
 
         var provider = new AzureMediaTranscriptionProvider(options, new HttpClient(new SequenceHandler())

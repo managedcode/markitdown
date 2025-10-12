@@ -1,11 +1,13 @@
+using System.Collections.Generic;
 using System.Text;
 using MarkItDown;
 using MarkItDown.Converters;
+using MarkItDown.YouTube;
 using Xunit;
 
 namespace MarkItDown.Tests;
 
-public class NewConverterTests
+public class ConverterAcceptanceTests
 {
     [Fact]
     public void CsvConverter_AcceptsInput_ValidCsvExtension_ReturnsTrue()
@@ -341,6 +343,23 @@ public class NewConverterTests
     }
 
     [Fact]
+    public async Task YouTubeUrlConverter_ConvertAsync_UsesMetadataProvider()
+    {
+        // Arrange
+        var provider = new StubYouTubeMetadataProvider();
+        var converter = new YouTubeUrlConverter(provider);
+        var streamInfo = new StreamInfo(url: "https://youtu.be/abcdefghijk");
+
+        // Act
+        var result = await converter.ConvertAsync(Stream.Null, streamInfo);
+
+        // Assert
+        Assert.Contains("Sample Video Title", result.Markdown);
+        Assert.Contains(result.Segments, segment => segment.Type == SegmentType.Audio && segment.Markdown.Contains("Hello captions"));
+        Assert.Contains(result.Segments, segment => segment.Type == SegmentType.Metadata && segment.AdditionalMetadata.TryGetValue(MetadataKeys.Provider, out var providerValue) && providerValue == MetadataValues.ProviderYouTube);
+    }
+
+    [Fact]
     public async Task JupyterNotebookConverter_ConvertAsync_ValidNotebook_ReturnsMarkdown()
     {
         // Arrange
@@ -424,5 +443,37 @@ public class NewConverterTests
         Assert.Contains("## Items", result.Markdown);
         Assert.Contains("### [First Post](https://example.com/post1)", result.Markdown);
         Assert.Contains("This is the first post", result.Markdown);
+    }
+}
+
+internal sealed class StubYouTubeMetadataProvider : IYouTubeMetadataProvider
+{
+    public Task<YouTubeMetadata?> GetVideoAsync(string videoId, CancellationToken cancellationToken = default)
+    {
+        var metadata = new YouTubeMetadata(
+            VideoId: videoId,
+            Title: "Sample Video Title",
+            ChannelTitle: "Sample Channel",
+            WatchUrl: new Uri($"https://youtu.be/{videoId}"),
+            ChannelUrl: new Uri("https://youtube.com/channel/sample"),
+            Duration: TimeSpan.FromMinutes(3),
+            UploadDate: new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            ViewCount: 12345,
+            LikeCount: 678,
+            Tags: new[] { "test", "video" },
+            Description: "Sample description",
+            Thumbnails: new[] { new Uri($"https://img.youtube.com/vi/{videoId}/0.jpg") },
+            Captions: new[]
+            {
+                new YouTubeCaptionSegment("Hello captions", TimeSpan.Zero, TimeSpan.FromSeconds(5), new Dictionary<string, string>
+                {
+                    [MetadataKeys.Language] = "en",
+                    [MetadataKeys.Provider] = MetadataValues.ProviderYouTube
+                })
+            },
+            AdditionalMetadata: new Dictionary<string, string>()
+        );
+
+        return Task.FromResult<YouTubeMetadata?>(metadata);
     }
 }
