@@ -141,7 +141,7 @@ Content-Type: text/html; charset=UTF-8
     public async Task MarkItDown_ConvertAsync_EmlFile_WorksEndToEnd()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var bytes = Encoding.UTF8.GetBytes(SampleEmail);
         using var stream = new MemoryStream(bytes);
         var streamInfo = new StreamInfo(mimeType: "message/rfc822", extension: ".eml");

@@ -1,8 +1,19 @@
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Azure;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Azure.Core;
 using Azure.Identity;
+using ManagedCode.MimeTypes;
+using Microsoft.Extensions.Logging;
+using MarkItDown.Conversion.Middleware;
 using MarkItDown.Converters;
 using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Providers.Aws;
@@ -18,38 +29,49 @@ namespace MarkItDown;
 /// An extremely simple text-based document reader, suitable for LLM use.
 /// This reader will convert common file-types or webpages to Markdown.
 /// </summary>
-public sealed class MarkItDown
+public sealed class MarkItDownClient
 {
     private readonly List<ConverterRegistration> _converters;
     private readonly ILogger? _logger;
     private readonly HttpClient? _httpClient;
     private readonly MarkItDownOptions _options;
     private readonly IntelligenceProviderHub _intelligenceProviders;
+    private readonly IConversionPipeline _conversionPipeline;
+    private readonly ActivitySource _activitySource;
+    private readonly Counter<long>? _conversionCounter;
+    private readonly Counter<long>? _conversionFailureCounter;
     private readonly IYouTubeMetadataProvider _youTubeMetadataProvider;
 
     /// <summary>
-    /// Initialize a new instance of MarkItDown.
+    /// Initialize a new instance of <see cref="MarkItDownClient"/>.
     /// </summary>
     /// <param name="logger">Optional logger for diagnostic information.</param>
     /// <param name="httpClient">Optional HTTP client for downloading web content.</param>
-    public MarkItDown(ILogger? logger = null, HttpClient? httpClient = null)
+    public MarkItDownClient(ILogger? logger = null, HttpClient? httpClient = null)
         : this(null, logger, httpClient)
     {
     }
 
     /// <summary>
-    /// Initialize a new instance of MarkItDown with advanced configuration options.
+    /// Initialize a new instance of <see cref="MarkItDownClient"/> with advanced configuration options.
     /// </summary>
     /// <param name="options">Configuration overrides for the converter. When <see langword="null"/> defaults are used.</param>
     /// <param name="logger">Optional logger for diagnostic information.</param>
     /// <param name="httpClient">Optional HTTP client for downloading web content.</param>
-    public MarkItDown(MarkItDownOptions? options, ILogger? logger = null, HttpClient? httpClient = null)
+    public MarkItDownClient(MarkItDownOptions? options, ILogger? logger = null, HttpClient? httpClient = null)
     {
         _options = options ?? new MarkItDownOptions();
-        _logger = logger;
+        _logger = logger ?? _options.LoggerFactory?.CreateLogger<MarkItDownClient>();
         _httpClient = httpClient;
         _converters = [];
         _intelligenceProviders = InitializeIntelligenceProviders();
+        _conversionPipeline = BuildConversionPipeline();
+        _activitySource = _options.ActivitySource ?? MarkItDownDiagnostics.DefaultActivitySource;
+
+        if (_options.EnableTelemetry)
+        {
+            (_conversionCounter, _conversionFailureCounter) = MarkItDownDiagnostics.ResolveCounters(_options.Meter);
+        }
         _youTubeMetadataProvider = _options.YouTubeMetadataProvider ?? new YoutubeExplodeMetadataProvider();
 
         if (_options.EnableBuiltins)
@@ -122,8 +144,13 @@ public sealed class MarkItDown
         if (!stream.CanSeek)
             throw new ArgumentException("Stream must support seeking.", nameof(stream));
 
+        using var activity = StartActivity(MarkItDownDiagnostics.ActivityNameConvertStream, streamInfo);
+        var source = DescribeSource(streamInfo);
+
         var exceptions = new List<Exception>();
         var guesses = StreamInfoGuesser.Guess(stream, streamInfo);
+        activity?.SetTag("markitdown.guess.count", guesses.Count);
+        _logger?.LogInformation("Converting {Source} with {GuessCount} candidate formats", source, guesses.Count);
 
         foreach (var guess in guesses)
         {
@@ -143,27 +170,40 @@ public sealed class MarkItDown
                         continue;
                     }
 
+                    var converterName = registration.Converter.GetType().Name;
                     _logger?.LogDebug("Using converter {ConverterType} for {MimeType} {Extension}",
-                        registration.Converter.GetType().Name,
+                        converterName,
                         guess.MimeType,
                         guess.Extension);
+
+                    activity?.SetTag("markitdown.converter", converterName);
+                    activity?.SetTag("markitdown.detected.mime", guess.MimeType);
+                    activity?.SetTag("markitdown.detected.extension", guess.Extension);
 
                     if (stream.CanSeek)
                     {
                         stream.Position = 0;
                     }
 
-                    return await registration.Converter.ConvertAsync(stream, guess, cancellationToken).ConfigureAwait(false);
+                    var result = await registration.Converter.ConvertAsync(stream, guess, cancellationToken).ConfigureAwait(false);
+                    RecordSuccess(guess);
+                    activity?.SetStatus(ActivityStatusCode.Ok);
+                    _logger?.LogInformation("Converted {Source} using {ConverterType}", source, converterName);
+                    return result;
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogWarning(ex, "Converter {ConverterType} failed", registration.Converter.GetType().Name);
+                    var converterName = registration.Converter.GetType().Name;
+                    RecordFailure(converterName, guess);
+                    _logger?.LogWarning(ex, "Converter {ConverterType} failed for {Source}", converterName, source);
                     exceptions.Add(ex);
                 }
             }
         }
 
         var message = $"No converter available for file type. MimeType: {streamInfo.MimeType}, Extension: {streamInfo.Extension}";
+        activity?.SetStatus(ActivityStatusCode.Error, message);
+        _logger?.LogWarning("No converter could handle {Source} (MimeType: {MimeType}, Extension: {Extension})", source, streamInfo.MimeType, streamInfo.Extension);
 
         if (exceptions.Count > 0)
         {
@@ -184,22 +224,64 @@ public sealed class MarkItDown
         if (_httpClient is null)
             throw new InvalidOperationException("HTTP client is required for URL conversion. Provide one in the constructor.");
 
-        using var response = await _httpClient.GetAsync(url, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        using var activity = StartActivity(MarkItDownDiagnostics.ActivityNameConvertUrl);
+        activity?.SetTag("markitdown.url", url);
 
-        using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var streamInfo = CreateStreamInfoFromUrl(url, response);
-        if (streamInfoOverride is not null)
+        Activity? downloadActivity = null;
+        try
         {
-            streamInfo = streamInfo.CopyWith(streamInfoOverride);
+            _logger?.LogInformation("Downloading {Url}", url);
+            downloadActivity = StartActivity(MarkItDownDiagnostics.ActivityNameDownload);
+            downloadActivity?.SetTag("http.url", url);
+
+            using var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+            downloadActivity?.SetTag("http.status_code", (int)response.StatusCode);
+            activity?.SetTag("http.status_code", (int)response.StatusCode);
+            response.EnsureSuccessStatusCode();
+
+            using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            var streamInfo = CreateStreamInfoFromUrl(url, response);
+            if (streamInfoOverride is not null)
+            {
+                streamInfo = streamInfo.CopyWith(streamInfoOverride);
+            }
+
+            if (!string.IsNullOrWhiteSpace(streamInfo.FileName))
+            {
+                activity?.SetTag("markitdown.filename", streamInfo.FileName);
+            }
+
+            if (!string.IsNullOrWhiteSpace(streamInfo.MimeType))
+            {
+                activity?.SetTag("markitdown.mime", streamInfo.MimeType);
+            }
+
+            if (!string.IsNullOrWhiteSpace(streamInfo.Extension))
+            {
+                activity?.SetTag("markitdown.extension", streamInfo.Extension);
+            }
+
+            activity?.SetTag("content.length", response.Content.Headers.ContentLength ?? 0);
+
+            using var memoryStream = new MemoryStream();
+            await contentStream.CopyToAsync(memoryStream, cancellationToken).ConfigureAwait(false);
+            memoryStream.Position = 0;
+
+            downloadActivity?.SetStatus(ActivityStatusCode.Ok);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            return await ConvertAsync(memoryStream, streamInfo, cancellationToken).ConfigureAwait(false);
         }
-
-        // Copy to memory stream to ensure we can seek
-        using var memoryStream = new MemoryStream();
-        await contentStream.CopyToAsync(memoryStream, cancellationToken);
-        memoryStream.Position = 0;
-
-        return await ConvertAsync(memoryStream, streamInfo, cancellationToken);
+        catch (Exception ex)
+        {
+            downloadActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            _logger?.LogError(ex, "Failed to download or convert {Url}", url);
+            throw;
+        }
+        finally
+        {
+            downloadActivity?.Dispose();
+        }
     }
 
     /// <summary>
@@ -250,6 +332,28 @@ public sealed class MarkItDown
         {
             RegisterConverter(converter);
         }
+    }
+
+    private IConversionPipeline BuildConversionPipeline()
+    {
+        var middleware = new List<IConversionMiddleware>();
+
+        if (_options.EnableAiImageEnrichment)
+        {
+            middleware.Add(new AiImageEnrichmentMiddleware());
+        }
+
+        if (_options.ConversionMiddleware is { Count: > 0 })
+        {
+            middleware.AddRange(_options.ConversionMiddleware);
+        }
+
+        if (middleware.Count == 0)
+        {
+            return ConversionPipeline.Empty;
+        }
+
+        return new ConversionPipeline(middleware, _intelligenceProviders.AiModels ?? NullAiModelProvider.Instance, _logger);
     }
 
     private IntelligenceProviderHub InitializeIntelligenceProviders()
@@ -372,16 +476,39 @@ public sealed class MarkItDown
             new BingSerpConverter(),
             new RssFeedConverter(),
             new JsonConverter(),
+            new MetaMdConverter(),
+            new DocBookConverter(),
+            new JatsConverter(),
+            new OpmlConverter(),
+            new Fb2Converter(),
+            new EndNoteXmlConverter(),
+            new BibTexConverter(),
+            new RisConverter(),
+            new CslJsonConverter(),
+            new OdtConverter(),
+            new RtfConverter(),
+            new LatexConverter(),
+            new RstConverter(),
+            new AsciiDocConverter(),
+            new OrgConverter(),
+            new DjotConverter(),
+            new TypstConverter(),
+            new TextileConverter(),
+            new WikiMarkupConverter(),
+            new MermaidConverter(),
+            new GraphvizConverter(),
+            new PlantUmlConverter(),
+            new TikzConverter(),
             new JupyterNotebookConverter(),
             new CsvConverter(),
             new EpubConverter(),
             new EmlConverter(),
             new XmlConverter(),
             new ZipConverter(CreateZipInnerConverters(CreateImageConverter, CreateAudioConverter)),
-            new PdfConverter(_options.Segments, _intelligenceProviders.Document, _intelligenceProviders.Image),
-            new DocxConverter(_options.Segments),
+            new PdfConverter(_options.Segments, _intelligenceProviders.Document, _intelligenceProviders.Image, _conversionPipeline),
+            new DocxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
             new XlsxConverter(_options.Segments),
-            new PptxConverter(_options.Segments),
+            new PptxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
             CreateAudioConverter(),
             CreateImageConverter(),
             new PlainTextConverter(),
@@ -400,18 +527,120 @@ public sealed class MarkItDown
             new BingSerpConverter(),
             new RssFeedConverter(),
             new JsonConverter(),
+            new MetaMdConverter(),
+            new DocBookConverter(),
+            new JatsConverter(),
+            new OpmlConverter(),
+            new Fb2Converter(),
+            new EndNoteXmlConverter(),
+            new BibTexConverter(),
+            new RisConverter(),
+            new CslJsonConverter(),
+            new OdtConverter(),
+            new RtfConverter(),
+            new LatexConverter(),
+            new RstConverter(),
+            new AsciiDocConverter(),
+            new OrgConverter(),
+            new DjotConverter(),
+            new TypstConverter(),
+            new TextileConverter(),
+            new WikiMarkupConverter(),
+            new MermaidConverter(),
+            new GraphvizConverter(),
+            new PlantUmlConverter(),
+            new TikzConverter(),
             new JupyterNotebookConverter(),
             new CsvConverter(),
             new EmlConverter(),
             new XmlConverter(),
-            new PdfConverter(_options.Segments, _intelligenceProviders.Document, _intelligenceProviders.Image),
-            new DocxConverter(_options.Segments),
+            new PdfConverter(_options.Segments, _intelligenceProviders.Document, _intelligenceProviders.Image, _conversionPipeline),
+            new DocxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
             new XlsxConverter(_options.Segments),
-            new PptxConverter(_options.Segments),
+            new PptxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
             audioConverterFactory(),
             imageConverterFactory(),
             new PlainTextConverter(),
         };
+    }
+
+    private Activity? StartActivity(string name, StreamInfo? streamInfo = null)
+    {
+        if (!_options.EnableTelemetry)
+        {
+            return null;
+        }
+
+        var activity = _activitySource.StartActivity(name, ActivityKind.Internal);
+        if (activity is not null && streamInfo is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(streamInfo.MimeType))
+            {
+                activity.SetTag("markitdown.mime", streamInfo.MimeType);
+            }
+
+            if (!string.IsNullOrWhiteSpace(streamInfo.Extension))
+            {
+                activity.SetTag("markitdown.extension", streamInfo.Extension);
+            }
+
+            if (!string.IsNullOrWhiteSpace(streamInfo.FileName))
+            {
+                activity.SetTag("markitdown.filename", streamInfo.FileName);
+            }
+
+            if (!string.IsNullOrWhiteSpace(streamInfo.Url))
+            {
+                activity.SetTag("markitdown.url", streamInfo.Url);
+            }
+        }
+
+        return activity;
+    }
+
+    private void RecordSuccess(StreamInfo guess)
+    {
+        if (_conversionCounter is null)
+        {
+            return;
+        }
+
+        _conversionCounter.Add(1,
+            new KeyValuePair<string, object?>("markitdown.mime", guess.MimeType ?? string.Empty),
+            new KeyValuePair<string, object?>("markitdown.extension", guess.Extension ?? string.Empty));
+    }
+
+    private void RecordFailure(string converterName, StreamInfo guess)
+    {
+        if (_conversionFailureCounter is null)
+        {
+            return;
+        }
+
+        _conversionFailureCounter.Add(1,
+            new KeyValuePair<string, object?>("markitdown.converter", converterName),
+            new KeyValuePair<string, object?>("markitdown.mime", guess.MimeType ?? string.Empty),
+            new KeyValuePair<string, object?>("markitdown.extension", guess.Extension ?? string.Empty));
+    }
+
+    private static string DescribeSource(StreamInfo streamInfo)
+    {
+        if (!string.IsNullOrWhiteSpace(streamInfo.FileName))
+        {
+            return streamInfo.FileName!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(streamInfo.LocalPath))
+        {
+            return streamInfo.LocalPath!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(streamInfo.Url))
+        {
+            return streamInfo.Url!;
+        }
+
+        return "stream";
     }
 
     private async Task<DocumentConverterResult> ConvertFileInternalAsync(string filePath, StreamInfo? overrides, CancellationToken cancellationToken)
@@ -421,6 +650,10 @@ public sealed class MarkItDown
             throw new FileNotFoundException($"File not found: {filePath}");
         }
 
+        using var activity = StartActivity(MarkItDownDiagnostics.ActivityNameConvertFile);
+        activity?.SetTag("markitdown.path", filePath);
+        _logger?.LogInformation("Converting file {FilePath}", filePath);
+
         using var fileStream = File.OpenRead(filePath);
         var streamInfo = CreateStreamInfoFromFile(filePath);
         if (overrides is not null)
@@ -428,7 +661,17 @@ public sealed class MarkItDown
             streamInfo = streamInfo.CopyWith(overrides);
         }
 
-        return await ConvertAsync(fileStream, streamInfo, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var result = await ConvertAsync(fileStream, streamInfo, cancellationToken).ConfigureAwait(false);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
     }
 
     private static StreamInfo CreateStreamInfoFromFile(string filePath)
@@ -470,41 +713,19 @@ public sealed class MarkItDown
     }
 
     private static string? GetMimeTypeFromExtension(string? extension)
+    {
+        if (string.IsNullOrWhiteSpace(extension))
         {
-            return extension?.ToLowerInvariant() switch
-            {
-                ".txt" => "text/plain",
-                ".md" => "text/markdown",
-            ".markdown" => "text/markdown",
-            ".html" => "text/html",
-            ".htm" => "text/html",
-            ".json" => "application/json",
-            ".jsonl" => "application/json",
-            ".ndjson" => "application/json",
-            ".ipynb" => "application/x-ipynb+json",
-            ".xml" => "application/xml",
-            ".xsd" => "application/xml",
-            ".xsl" => "application/xml",
-            ".xslt" => "application/xml",
-            ".rss" => "application/rss+xml",
-            ".atom" => "application/atom+xml",
-            ".csv" => "text/csv",
-            ".zip" => "application/zip",
-            ".epub" => "application/epub+zip",
-            ".pdf" => "application/pdf",
-            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            ".jpg" => "image/jpeg",
-            ".jpeg" => "image/jpeg",
-            ".png" => "image/png",
-            ".gif" => "image/gif",
-            ".bmp" => "image/bmp",
-            ".tiff" => "image/tiff",
-            ".tif" => "image/tiff",
-            ".webp" => "image/webp",
-                _ => MimeMapping.GetMimeType(extension)
-            };
+            return null;
+        }
+
+        var mime = MimeMapping.GetMimeType(extension);
+        if (!string.IsNullOrWhiteSpace(mime))
+        {
+            return mime;
+        }
+
+        return MimeHelper.GetMimeType(extension);
     }
 
     private static Encoding? TryGetEncoding(string? charset)

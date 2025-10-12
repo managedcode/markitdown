@@ -247,7 +247,7 @@ public class ConverterAcceptanceTests
     public void MarkItDown_RegistersNewConverters_CanHandleNewFormats(string extension, string mimeType)
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var converters = markItDown.GetRegisteredConverters();
 
         // Act

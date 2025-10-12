@@ -56,10 +56,12 @@ This is a high-fidelity C# port of Microsoft's original [MarkItDown Python libra
 
 ✨ **Modern .NET** - Targets .NET 9.0 with up-to-date language features  
 📦 **NuGet Package** - Drop-in dependency for libraries and automation pipelines  
-🔄 **Async/Await** - Fully asynchronous pipeline for responsive apps  
-🧠 **LLM-Optimized** - Markdown tailored for AI ingestion and summarisation  
-🔧 **Extensible** - Register custom converters or plug additional caption/transcription services  
-🧭 **Smart Detection** - Automatic MIME, charset, and file-type guessing (including data/file URIs)  
+🔄 **Async/Await** - Fully asynchronous pipeline for responsive apps
+🧠 **LLM-Optimized** - Markdown tailored for AI ingestion and summarisation
+🔧 **Extensible** - Register custom converters or plug additional caption/transcription services
+🧩 **Conversion middleware** - Compose post-processing steps with `IConversionMiddleware` (AI enrichment ready)
+📂 **Raw artifacts API** - Inspect text blocks, tables, and images via `DocumentConverterResult.Artifacts`
+🧭 **Smart Detection** - Automatic MIME, charset, and file-type guessing (including data/file URIs)
 ⚡ **High Performance** - Stream-friendly, minimal allocations, zero temp files
 
 ## 📋 Format Support
@@ -102,11 +104,12 @@ This is a high-fidelity C# port of Microsoft's original [MarkItDown Python libra
 - Header detection based on formatting
 - List item recognition
 - Title extraction from document content
+- Page snapshot artifacts ensure every page can be sent through AI enrichment (OCR, diagram-to-Mermaid, chart narration) even when the PDF exposes selectable text
 
 ### Office Documents (DOCX/XLSX/PPTX)
-- **Word (.docx)**: Headers, paragraphs, tables, bold/italic formatting
+- **Word (.docx)**: Headers, paragraphs, tables, bold/italic formatting, and embedded images captured for AI enrichment (OCR, Mermaid-ready diagrams)
 - **Excel (.xlsx)**: Spreadsheet data as Markdown tables with sheet organization
-- **PowerPoint (.pptx)**: Slide-by-slide content with title recognition
+- **PowerPoint (.pptx)**: Slide-by-slide content with title recognition plus image artifacts primed for detailed AI captions and diagrams
 
 ### CSV Conversion Features
 - Automatic table formatting with headers
@@ -196,7 +199,7 @@ dotnet add package ManagedCode.MarkItDown
 using MarkItDown;
 
 // Create converter instance
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 
 // Convert any file to Markdown
 var result = await markItDown.ConvertAsync("document.pdf");
@@ -215,7 +218,7 @@ using Microsoft.Extensions.Logging;
 // Set up logging to track conversion progress
 using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
 var logger = loggerFactory.CreateLogger<MarkItDown>();
-var markItDown = new MarkItDown(logger: logger);
+var markItDown = new MarkItDownClient(logger: logger);
 
 // Convert documents for vector database ingestion
 string[] documents = { "report.pdf", "data.xlsx", "webpage.html" };
@@ -242,7 +245,7 @@ foreach (var doc in documents)
 ```csharp
 using MarkItDown;
 
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 var emailFolder = @"C:\Emails\Exports";
 var outputFolder = @"C:\ProcessedEmails";
 
@@ -268,7 +271,7 @@ using Microsoft.Extensions.Logging;
 using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
 using var httpClient = new HttpClient();
 
-var markItDown = new MarkItDown(
+var markItDown = new MarkItDownClient(
     logger: loggerFactory.CreateLogger<MarkItDown>(),
     httpClient: httpClient);
 
@@ -307,7 +310,7 @@ foreach (var url in urls)
 using MarkItDown;
 
 // Convert a DOCX file and print the Markdown
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 DocumentConverterResult result = await markItDown.ConvertAsync("report.docx");
 Console.WriteLine(result.Markdown);
 ```
@@ -326,7 +329,7 @@ var streamInfo = new StreamInfo(
     charset: Encoding.UTF8,
     fileName: "invoice.html");
 
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 var result = await markItDown.ConvertAsync(stream, streamInfo);
 Console.WriteLine(result.Title);
 ```
@@ -337,7 +340,7 @@ Console.WriteLine(result.Title);
 using MarkItDown;
 
 // Convert an EML file to Markdown
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 DocumentConverterResult result = await markItDown.ConvertAsync("message.eml");
 
 // The result includes email headers and content
@@ -366,7 +369,7 @@ using Microsoft.Extensions.Logging;
 using var loggerFactory = LoggerFactory.Create(static builder => builder.AddConsole());
 using var httpClient = new HttpClient();
 
-var markItDown = new MarkItDown(
+var markItDown = new MarkItDownClient(
     logger: loggerFactory.CreateLogger<MarkItDown>(),
     httpClient: httpClient);
 
@@ -459,7 +462,7 @@ var options = new MarkItDownOptions
     }
 };
 
-var markItDown = new MarkItDown(options);
+var markItDown = new MarkItDownClient(options);
 
 // Segments are still available programmatically even when annotations are disabled.
 ```
@@ -491,7 +494,7 @@ public sealed class MyCustomConverter : IDocumentConverter
     }
 }
 
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 markItDown.RegisterConverter(new MyCustomConverter());
 ```
 
@@ -578,7 +581,7 @@ public class DocumentProcessor
     public DocumentProcessor(ILogger<DocumentProcessor> logger)
     {
         _logger = logger;
-        _markItDown = new MarkItDown(logger: logger);
+        _markItDown = new MarkItDownClient(logger: logger);
     }
 
     public async Task<List<ProcessedDocument>> ProcessDirectoryAsync(
@@ -643,7 +646,7 @@ public class DocumentIndexer
     public DocumentIndexer(IVectorStore vectorStore)
     {
         _vectorStore = vectorStore;
-        _markItDown = new MarkItDown();
+        _markItDown = new MarkItDownClient();
     }
 
     public async Task IndexDocumentAsync<T>(string filePath) where T : class
@@ -722,7 +725,7 @@ public class DocumentConversionFunction
     public DocumentConversionFunction(ILogger<DocumentConversionFunction> logger)
     {
         _logger = logger;
-        _markItDown = new MarkItDown(logger: logger);
+        _markItDown = new MarkItDownClient(logger: logger);
     }
 
     [Function("ConvertDocument")]
@@ -843,6 +846,8 @@ MarkItDown exposes optional abstractions for running documents through cloud ser
 - `IMediaTranscriptionProvider` – timed transcripts for audio and video inputs.
 
 The `AzureIntelligenceOptions`, `GoogleIntelligenceOptions`, and `AwsIntelligenceOptions` helpers wire the respective cloud Document AI/Vision/Speech stacks without forcing the dependency on consumers. You can still bring your own implementation by assigning the provider interfaces directly on `MarkItDownOptions`.
+
+`MarkItDownClient` emits structured `ILogger` events and OpenTelemetry spans by default. Toggle instrumentation with `MarkItDownOptions.EnableTelemetry`, supply a custom `ActivitySource`/`Meter`, or provide a `LoggerFactory` to integrate with your application's logging pipeline.
 
 #### Azure AI setup (keys and managed identity)
 
@@ -996,7 +1001,7 @@ For LLM-style post-processing, assign `MarkItDownOptions.AiModels` with an `IAiM
 ```csharp
 using MarkItDown;
 
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 
 try
 {
@@ -1063,7 +1068,7 @@ using var httpClient = new HttpClient();
 httpClient.Timeout = TimeSpan.FromSeconds(30);
 httpClient.DefaultRequestHeaders.Add("User-Agent", "MarkItDown/1.0");
 
-var markItDown = new MarkItDown(httpClient: httpClient);
+var markItDown = new MarkItDownClient(httpClient: httpClient);
 ```
 
 **Logging for Diagnostics:**
@@ -1074,7 +1079,7 @@ using var loggerFactory = LoggerFactory.Create(builder =>
     builder.AddConsole().SetMinimumLevel(LogLevel.Debug));
 
 var logger = loggerFactory.CreateLogger<MarkItDown>();
-var markItDown = new MarkItDown(logger: logger);
+var markItDown = new MarkItDownClient(logger: logger);
 
 // Now you'll see detailed conversion progress in console output
 ```
@@ -1087,7 +1092,7 @@ If you're familiar with the original Python library, here are the key difference
 
 | Python | C#/.NET | Notes |
 |---------|---------|--------|
-| `MarkItDown()` | `new MarkItDown()` | Similar constructor |
+| `MarkItDownClient()` | `new MarkItDownClient()` | Similar constructor |
 | `markitdown.convert("file.pdf")` | `await markItDown.ConvertAsync("file.pdf")` | Async pattern |
 | `markitdown.convert(stream, file_extension=".pdf")` | `await markItDown.ConvertAsync(stream, streamInfo)` | StreamInfo object |
 | `markitdown.convert_url("https://...")` | `await markItDown.ConvertFromUrlAsync("https://...")` | Async URL conversion |
@@ -1099,7 +1104,7 @@ If you're familiar with the original Python library, here are the key difference
 ```python
 # Python version
 import markitdown
-md = markitdown.MarkItDown()
+md = markitdown.MarkItDownClient()
 result = md.convert("document.pdf")
 print(result.text_content)
 ```
@@ -1107,10 +1112,21 @@ print(result.text_content)
 ```csharp
 // C# version  
 using MarkItDown;
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 var result = await markItDown.ConvertAsync("document.pdf");
 Console.WriteLine(result.Markdown);
 ```
+
+### .NET SDK Setup
+
+MarkItDown targets .NET 9.0. If your environment does not have the required SDK, run the helper script once:
+
+```bash
+./eng/install-dotnet.sh
+```
+
+The script installs the SDK into `~/.dotnet` using the official `dotnet-install` bootstrapper and prints the environment
+variables to add to your shell profile so the `dotnet` CLI is available on subsequent sessions.
 
 ### Building from Source
 
@@ -1139,6 +1155,10 @@ The command emits standard test results plus a Cobertura coverage report at
 `tests/MarkItDown.Tests/TestResults/<guid>/coverage.cobertura.xml`. Tools such as
 [ReportGenerator](https://github.com/danielpalme/ReportGenerator) can turn this into
 HTML or Markdown dashboards.
+
+> ✅ The regression suite now exercises DOCX and PPTX conversions with embedded imagery, ensuring conversion middleware runs and enriched descriptions remain attached to the composed Markdown.
+>
+> ✅ Additional image-placement regressions verify that AI-generated captions are injected immediately after each source placeholder for DOCX, PPTX, and PDF outputs.
 
 ### Project Structure
 
@@ -1208,7 +1228,7 @@ Performance will vary based on your specific documents and environment. For prod
 
 ```csharp
 // 1. Reuse MarkItDown instances (they're thread-safe)
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 await Task.WhenAll(
     markItDown.ConvertAsync("file1.pdf"),
     markItDown.ConvertAsync("file2.docx"),
@@ -1221,7 +1241,7 @@ var result = await markItDown.ConvertAsync("large-file.pdf", cancellationToken: 
 
 // 3. Configure HttpClient for web content (reuse connections)
 using var httpClient = new HttpClient();
-var markItDown = new MarkItDown(httpClient: httpClient);
+var markItDown = new MarkItDownClient(httpClient: httpClient);
 
 // 4. Pre-specify StreamInfo to skip format detection
 var streamInfo = new StreamInfo(mimeType: "application/pdf", extension: ".pdf");
@@ -1240,7 +1260,7 @@ var options = new MarkItDownOptions
     ExifToolPath = "/usr/local/bin/exiftool"  // Path to exiftool binary (optional)
 };
 
-var markItDown = new MarkItDown(options);
+var markItDown = new MarkItDownClient(options);
 ```
 
 ### Advanced AI Integration
@@ -1271,8 +1291,33 @@ var options = new MarkItDownOptions
     }
 };
 
-var markItDown = new MarkItDown(options);
+var markItDown = new MarkItDownClient(options);
 ```
+
+### Conversion Middleware & Raw Artifacts
+
+Every conversion now exposes the raw extraction artifacts that feed the Markdown composer. Use `DocumentConverterResult.Artifacts` to inspect page text, tables, or embedded images before they are flattened into Markdown. You can plug additional processing by registering `IConversionMiddleware` instances through `MarkItDownOptions.ConversionMiddleware`. Middleware executes after extraction and can mutate segments, enrich metadata, or call external AI services. When an `IChatClient` is supplied and `EnableAiImageEnrichment` remains `true` (default), MarkItDown automatically adds the built-in `AiImageEnrichmentMiddleware` to describe charts, diagrams, and other visuals. The middleware keeps enriched prose anchored to the exact Markdown placeholder emitted during extraction, ensuring captions, Mermaid diagrams, and OCR text land beside the original image instead of drifting to the end of the section.
+
+```csharp
+var options = new MarkItDownOptions
+{
+    AiModels = new StaticAiModelProvider(chatClient: myChatClient, speechToTextClient: null),
+    ConversionMiddleware = new IConversionMiddleware[]
+    {
+        new MyDomainSpecificMiddleware()
+    }
+};
+
+var markItDown = new MarkItDownClient(options);
+var result = await markItDown.ConvertAsync("docs/diagram.docx");
+
+foreach (var image in result.Artifacts.Images)
+{
+    Console.WriteLine($"Image {image.Label}: {image.DetailedDescription}");
+}
+```
+
+Set `EnableAiImageEnrichment` to `false` when you need a completely custom pipeline with no default AI step.
 
 ### Production Configuration with Error Handling
 
@@ -1307,7 +1352,7 @@ var options = new MarkItDownOptions
     }
 };
 
-var markItDown = new MarkItDown(options, logger, httpClientFactory.CreateClient());
+var markItDown = new MarkItDownClient(options, logger, httpClientFactory.CreateClient());
 ```
 
 ## 📄 License

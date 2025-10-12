@@ -1,0 +1,13 @@
+[
+  {
+    "id": "sample",
+    "title": "CSL JSON Entry",
+    "container-title": "CSL Journal",
+    "issued": { "date-parts": [[2021]] },
+    "URL": "https://example.com/csl",
+    "author": [
+      { "given": "Ada", "family": "Lovelace" },
+      { "given": "Grace", "family": "Hopper" }
+    ]
+  }
+]
