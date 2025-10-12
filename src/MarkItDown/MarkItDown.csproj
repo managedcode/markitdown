@@ -17,6 +17,11 @@
     <PackageReference Include="Google.Cloud.Speech.V1" />
     <PackageReference Include="Google.Cloud.Vision.V1" />
     <PackageReference Include="ManagedCode.MimeTypes" />
+    <PackageReference Include="ManagedCode.Storage.Aws" />
+    <PackageReference Include="ManagedCode.Storage.Core" />
+    <PackageReference Include="ManagedCode.Storage.FileSystem" />
+    <PackageReference Include="ManagedCode.Storage.Gcp" />
+    <PackageReference Include="ManagedCode.Storage.Azure" />
     <PackageReference Include="Sep" />
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Azure.AI.FormRecognizer" />
@@ -25,6 +30,7 @@
     <PackageReference Include="System.Text.Json" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="System.Text.Encoding.CodePages" />
 
       <!-- PDF Support -->

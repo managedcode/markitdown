@@ -216,7 +216,7 @@ public class ConverterAcceptanceTests
     public void AllNewConverters_HaveValidPriorities()
     {
         // Arrange
-        var converters = new IDocumentConverter[]
+        var converters = new DocumentConverterBase[]
         {
             new CsvConverter(),
             new JsonConverter(),

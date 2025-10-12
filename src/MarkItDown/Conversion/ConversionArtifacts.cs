@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
 namespace MarkItDown;
@@ -90,6 +91,7 @@ public sealed class TableArtifact
         PageNumber = pageNumber;
         Source = source;
         Label = label;
+        Metadata = new Dictionary<string, string>();
     }
 
     public IList<IList<string>> Rows { get; }
@@ -99,6 +101,8 @@ public sealed class TableArtifact
     public string? Source { get; set; }
 
     public string? Label { get; set; }
+
+    public IDictionary<string, string> Metadata { get; }
 }
 
 /// <summary>
@@ -170,4 +174,9 @@ public sealed class ImageArtifact
     /// Gets or sets the Markdown placeholder that was emitted during extraction for this image.
     /// </summary>
     public string? PlaceholderMarkdown { get; set; }
+
+    /// <summary>
+    /// Gets or sets the absolute file system path persisted for this artifact (when available).
+    /// </summary>
+    public string? FilePath { get; set; }
 }

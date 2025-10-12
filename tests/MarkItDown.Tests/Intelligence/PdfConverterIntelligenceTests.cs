@@ -1,3 +1,4 @@
+using System.Linq;
 using MarkItDown;
 using MarkItDown.Converters;
 using MarkItDown.Intelligence;
@@ -17,7 +18,7 @@ public class PdfConverterIntelligenceTests
             this.result = result;
         }
 
-        public Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+        public Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, DocumentIntelligenceRequest? request = null, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(result);
         }
@@ -25,7 +26,7 @@ public class PdfConverterIntelligenceTests
 
     private sealed class StubPdfTextExtractor : PdfConverter.IPdfTextExtractor
     {
-        public Task<IReadOnlyList<PdfConverter.PdfPageText>> ExtractTextAsync(byte[] pdfBytes, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<PdfConverter.PdfPageText>> ExtractTextAsync(string pdfPath, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<PdfConverter.PdfPageText>>(Array.Empty<PdfConverter.PdfPageText>());
     }
 
@@ -38,7 +39,7 @@ public class PdfConverterIntelligenceTests
             this.images = images;
         }
 
-        public Task<IReadOnlyList<string>> RenderImagesAsync(byte[] pdfBytes, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<string>> RenderImagesAsync(string pdfPath, CancellationToken cancellationToken)
             => Task.FromResult(images);
     }
 
@@ -70,19 +71,30 @@ public class PdfConverterIntelligenceTests
             images: new[] { image });
 
         var provider = new StubDocumentIntelligenceProvider(providerResult);
-        var converter = new PdfConverter(documentProvider: provider);
+        var segmentOptions = new SegmentOptions
+        {
+            Pdf = new PdfSegmentOptions
+            {
+                TreatPagesAsImages = false
+            }
+        };
+
+        var converter = new PdfConverter(segmentOptions: segmentOptions, documentProvider: provider);
 
         await using var stream = new MemoryStream(new byte[] { 0x25, 0x50, 0x44, 0x46 }); // %PDF
         var streamInfo = new StreamInfo(mimeType: "application/pdf", extension: ".pdf", fileName: "sample.pdf");
 
         var result = await converter.ConvertAsync(stream, streamInfo);
 
-        result.Segments.Count.ShouldBeGreaterThanOrEqualTo(2);
-        result.Segments[0].Type.ShouldBe(SegmentType.Page);
-        result.Segments[0].Markdown.ShouldContain("This is page one");
-        result.Segments.ShouldContain(s => s.Type == SegmentType.Table && s.Markdown.Contains("Alpha"));
-        result.Segments.ShouldContain(s => s.Type == SegmentType.Image && s.Markdown.Contains("Chart overview"));
+        result.Segments.Count.ShouldBe(1);
+        var pageSegment = result.Segments[0];
+        pageSegment.Type.ShouldBe(SegmentType.Page);
+        pageSegment.Markdown.ShouldContain("This is page one");
+        pageSegment.Markdown.ShouldContain("Alpha");
+        pageSegment.Markdown.ShouldContain("Chart overview");
         result.Markdown.ShouldContain("Summary");
+        result.Artifacts.Tables.ShouldHaveSingleItem().Rows.ShouldContain(row => row.Contains("Alpha"));
+        result.Artifacts.Images.ShouldHaveSingleItem().Label.ShouldBe("Chart overview");
     }
 
     [Fact]
@@ -103,7 +115,15 @@ public class PdfConverterIntelligenceTests
         var textExtractor = new StubPdfTextExtractor();
         var pageImage = Convert.ToBase64String(new byte[] { 5, 4, 3, 2 });
         var imageRenderer = new StubPdfImageRenderer(new[] { pageImage });
-        var converter = new PdfConverter(textExtractor, imageRenderer, pipeline: pipeline, documentProvider: provider);
+        var segmentOptions = new SegmentOptions
+        {
+            Pdf = new PdfSegmentOptions
+            {
+                TreatPagesAsImages = true
+            }
+        };
+
+        var converter = new PdfConverter(textExtractor, imageRenderer, segmentOptions, provider, pipeline: pipeline);
 
         await using var stream = new MemoryStream(new byte[] { 0x25, 0x50, 0x44, 0x46 });
         var streamInfo = new StreamInfo(mimeType: "application/pdf", extension: ".pdf", fileName: "snapshot.pdf");
@@ -116,12 +136,12 @@ public class PdfConverterIntelligenceTests
         var snapshot = result.Artifacts.Images[0];
         snapshot.SegmentIndex.ShouldNotBeNull();
         snapshot.DetailedDescription.ShouldBe("SNAPSHOT ENRICHED");
-        snapshot.Metadata.ShouldContainKey("snapshot");
+        snapshot.Metadata.ShouldContainKey(MetadataKeys.Snapshot);
 
         var segment = result.Segments[snapshot.SegmentIndex!.Value];
-        segment.Type.ShouldBe(SegmentType.Image);
-        segment.AdditionalMetadata.ShouldContainKey("snapshot");
+        segment.Type.ShouldBe(SegmentType.Page);
         segment.Markdown.ShouldContain("SNAPSHOT ENRICHED");
-        result.Segments.ShouldContain(s => s.Type == SegmentType.Section && s.Label == "Page Snapshots");
+        snapshot.PlaceholderMarkdown.ShouldNotBeNull();
+        segment.Markdown.ShouldContain(snapshot.PlaceholderMarkdown!);
     }
 }

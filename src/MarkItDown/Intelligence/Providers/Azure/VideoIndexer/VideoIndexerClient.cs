@@ -131,13 +131,15 @@ internal sealed class VideoIndexerClient : IDisposable
         }
     }
 
-    public async Task<JsonDocument?> GetVideoIndexAsync(string videoId, string accountToken, CancellationToken cancellationToken)
+    public async Task<JsonDocument?> GetVideoIndexAsync(string videoId, string accountToken, string? language, CancellationToken cancellationToken)
     {
-        var requestUri = new Uri($"{location}/Accounts/{accountId}/Videos/{videoId}/Index?{BuildQueryString(new Dictionary<string, string>
+        var query = new Dictionary<string, string>
         {
             ["accessToken"] = accountToken,
-            ["language"] = "English"
-        })}", UriKind.Relative);
+            ["language"] = string.IsNullOrWhiteSpace(language) ? "English" : language
+        };
+
+        var requestUri = new Uri($"{location}/Accounts/{accountId}/Videos/{videoId}/Index?{BuildQueryString(query)}", UriKind.Relative);
 
         using var response = await httpClient.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();

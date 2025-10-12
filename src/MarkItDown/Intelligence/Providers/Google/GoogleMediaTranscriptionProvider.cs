@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Diagnostics.CodeAnalysis;
 using Google.Api.Gax.Grpc;
 using Google.Cloud.Speech.V1;
 using Google.Protobuf.WellKnownTypes;
 using MarkItDown;
+using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Models;
 
 namespace MarkItDown.Intelligence.Providers.Google;
@@ -14,6 +16,7 @@ namespace MarkItDown.Intelligence.Providers.Google;
 /// <summary>
 /// Google Speech-to-Text implementation of <see cref="IMediaTranscriptionProvider"/>.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public sealed class GoogleMediaTranscriptionProvider : IMediaTranscriptionProvider
 {
     private readonly SpeechClient _client;
@@ -48,20 +51,21 @@ public sealed class GoogleMediaTranscriptionProvider : IMediaTranscriptionProvid
         }
     }
 
-    public async Task<MediaTranscriptionResult?> TranscribeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<MediaTranscriptionResult?> TranscribeAsync(Stream stream, StreamInfo streamInfo, MediaTranscriptionRequest? request = null, CancellationToken cancellationToken = default)
     {
         if (stream is null)
         {
             throw new ArgumentNullException(nameof(stream));
         }
 
-        using var memory = new MemoryStream();
-        await stream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
-        var audioBytes = memory.ToArray();
+        await using var handle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension, bufferSize: 256 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
+        var audioBytes = await File.ReadAllBytesAsync(handle.FilePath, cancellationToken).ConfigureAwait(false);
+
+        var language = string.IsNullOrWhiteSpace(request?.Language) ? _options.LanguageCode : request.Language;
 
         var config = new RecognitionConfig
         {
-            LanguageCode = _options.LanguageCode,
+            LanguageCode = language,
             EnableAutomaticPunctuation = _options.EnableAutomaticPunctuation,
             Encoding = RecognitionConfig.Types.AudioEncoding.EncodingUnspecified
         };
@@ -69,6 +73,14 @@ public sealed class GoogleMediaTranscriptionProvider : IMediaTranscriptionProvid
         if (_options.SampleRateHertz.HasValue)
         {
             config.SampleRateHertz = _options.SampleRateHertz.Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request?.VocabularyName))
+        {
+            config.Adaptation = new SpeechAdaptation
+            {
+                PhraseSetReferences = { request.VocabularyName }
+            };
         }
 
         var audio = RecognitionAudio.FromBytes(audioBytes);
@@ -121,10 +133,10 @@ public sealed class GoogleMediaTranscriptionProvider : IMediaTranscriptionProvid
         var resultMetadata = new Dictionary<string, string>
         {
             [MetadataKeys.Provider] = MetadataValues.ProviderGoogleSpeechToText,
-            [MetadataKeys.Language] = _options.LanguageCode
+            [MetadataKeys.Language] = language
         };
 
-        return new MediaTranscriptionResult(segments, _options.LanguageCode, resultMetadata);
+        return new MediaTranscriptionResult(segments, language, resultMetadata);
     }
 
     private static TimeSpan? ToTimeSpan(Duration? duration)

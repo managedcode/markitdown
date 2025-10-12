@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
-using MarkItDown;
 using System.Text;
+using System.Threading.Tasks;
+using MarkItDown;
+using MarkItDown.Converters;
 
 namespace MarkItDown.Tests;
 
@@ -136,20 +139,6 @@ public class DocumentConverterResultTests
     }
 
     [Fact]
-    public void TextContent_ReturnsMarkdown()
-    {
-        // Arrange
-        var markdown = "# Test\n\nThis is a test.";
-        var result = new DocumentConverterResult(markdown);
-
-        // Act
-        var textContent = result.TextContent;
-
-        // Assert
-        Assert.Equal(markdown, textContent);
-    }
-
-    [Fact]
     public void ToString_ReturnsMarkdown()
     {
         // Arrange
@@ -192,6 +181,71 @@ public class DocumentConverterResultTests
         Assert.NotNull(result.Segments);
         Assert.Empty(result.Segments);
     }
+
+    [Fact]
+    public void Markdown_IsEvaluatedPerAccess()
+    {
+        var callCount = 0;
+        Func<string> factory = () =>
+        {
+            callCount++;
+            return $"#{callCount}";
+        };
+        var result = DocumentConverterResult.FromFactory(
+            markdownFactory: factory,
+            title: null,
+            segments: null,
+            artifacts: null,
+            metadata: null,
+            artifactDirectory: null,
+            cleanup: null,
+            asyncCleanup: null,
+            generatedAtUtc: null);
+
+        Assert.Equal("#1", result.Markdown);
+        Assert.Equal("#2", result.Markdown);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_InvokesCleanupHandle()
+    {
+        var cleanup = new TrackingCleanup();
+        Func<string> factory = () => "ok";
+        var result = DocumentConverterResult.FromFactory(
+            markdownFactory: factory,
+            title: null,
+            segments: null,
+            artifacts: null,
+            metadata: null,
+            artifactDirectory: null,
+            cleanup: cleanup,
+            asyncCleanup: cleanup,
+            generatedAtUtc: null);
+
+        await result.DisposeAsync();
+
+        Assert.True(cleanup.AsyncDisposed);
+        Assert.Equal(1, cleanup.DisposeCount);
+    }
+
+    private sealed class TrackingCleanup : IDisposable, IAsyncDisposable
+    {
+        public int DisposeCount { get; private set; }
+
+        public bool AsyncDisposed { get; private set; }
+
+        public void Dispose()
+        {
+            DisposeCount++;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            AsyncDisposed = true;
+            DisposeCount++;
+            return ValueTask.CompletedTask;
+        }
+    }
 }
 
 public class ConverterRegistrationTests
@@ -218,21 +272,24 @@ public class ConverterRegistrationTests
         Assert.Throws<ArgumentNullException>(() => new ConverterRegistration(null!, 1.0));
     }
 
-    private class TestConverter : IDocumentConverter
+    private class TestConverter : DocumentConverterBase
     {
-        public int Priority => 100;
+        public TestConverter()
+            : base(priority: 100)
+        {
+        }
 
-        public bool AcceptsInput(StreamInfo streamInfo)
+        public override bool AcceptsInput(StreamInfo streamInfo)
         {
             return true;
         }
 
-        public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+        public override bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
         {
             return true;
         }
 
-        public Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+        public override Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new DocumentConverterResult("Test"));
         }

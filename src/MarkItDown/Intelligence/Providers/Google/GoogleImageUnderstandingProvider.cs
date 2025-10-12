@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Diagnostics.CodeAnalysis;
 using Google.Api.Gax.Grpc;
 using Google.Cloud.Vision.V1;
 using MarkItDown;
+using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Models;
 
 namespace MarkItDown.Intelligence.Providers.Google;
@@ -12,6 +14,7 @@ namespace MarkItDown.Intelligence.Providers.Google;
 /// <summary>
 /// Google Vision implementation of <see cref="IImageUnderstandingProvider"/>.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public sealed class GoogleImageUnderstandingProvider : IImageUnderstandingProvider
 {
     private readonly ImageAnnotatorClient _client;
@@ -46,31 +49,32 @@ public sealed class GoogleImageUnderstandingProvider : IImageUnderstandingProvid
         }
     }
 
-    public async Task<ImageUnderstandingResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<ImageUnderstandingResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, ImageUnderstandingRequest? request = null, CancellationToken cancellationToken = default)
     {
         if (stream is null)
         {
             throw new ArgumentNullException(nameof(stream));
         }
 
-        using var memory = new MemoryStream();
-        await stream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
-        memory.Position = 0;
+        await using var handle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension, bufferSize: 128 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
+        var bytes = await File.ReadAllBytesAsync(handle.FilePath, cancellationToken).ConfigureAwait(false);
 
-        var image = Image.FromBytes(memory.ToArray());
+        var image = Image.FromBytes(bytes);
 
-        var request = new AnnotateImageRequest
+        var annotateRequest = new AnnotateImageRequest
         {
             Image = image
         };
 
-        request.Features.Add(new Feature { Type = Feature.Types.Type.LabelDetection, MaxResults = _options.MaxLabels });
-        request.Features.Add(new Feature { Type = Feature.Types.Type.TextDetection });
-        request.Features.Add(new Feature { Type = Feature.Types.Type.ObjectLocalization, MaxResults = _options.MaxLabels });
-        request.Features.Add(new Feature { Type = Feature.Types.Type.SafeSearchDetection });
+        var overrides = request?.Google;
+        var features = ResolveFeatures(overrides?.FeatureHints, _options.MaxLabels);
+        foreach (var feature in features)
+        {
+            annotateRequest.Features.Add(feature);
+        }
 
         var batchRequest = new BatchAnnotateImagesRequest();
-        batchRequest.Requests.Add(request);
+        batchRequest.Requests.Add(annotateRequest);
 
         var callSettings = CallSettings.FromCancellationToken(cancellationToken);
         var response = await _client.BatchAnnotateImagesAsync(batchRequest, callSettings).ConfigureAwait(false);
@@ -86,8 +90,10 @@ public sealed class GoogleImageUnderstandingProvider : IImageUnderstandingProvid
             throw new InvalidOperationException($"Google Vision returned an error: {annotation.Error.Message} (code {annotation.Error.Code}).");
         }
 
+        var minConfidence = overrides?.MinConfidence ?? _options.MinConfidence;
+
         var labels = annotation.LabelAnnotations
-            .Where(l => l.Score * 100f >= _options.MinConfidence)
+            .Where(l => l.Score * 100f >= minConfidence)
             .OrderByDescending(l => l.Score)
             .Select(l => l.Description)
             .Where(static l => !string.IsNullOrWhiteSpace(l))
@@ -117,5 +123,30 @@ public sealed class GoogleImageUnderstandingProvider : IImageUnderstandingProvid
         }
 
         return new ImageUnderstandingResult(caption, text, labels, objects, metadata);
+    }
+
+    private static IEnumerable<Feature> ResolveFeatures(IReadOnlyList<string>? featureHints, int maxLabels)
+    {
+        if (featureHints is null || featureHints.Count == 0)
+        {
+            yield return new Feature { Type = Feature.Types.Type.LabelDetection, MaxResults = maxLabels };
+            yield return new Feature { Type = Feature.Types.Type.TextDetection };
+            yield return new Feature { Type = Feature.Types.Type.ObjectLocalization, MaxResults = maxLabels };
+            yield return new Feature { Type = Feature.Types.Type.SafeSearchDetection };
+            yield break;
+        }
+
+        foreach (var hint in featureHints)
+        {
+            if (string.IsNullOrWhiteSpace(hint))
+            {
+                continue;
+            }
+
+            if (Enum.TryParse<Feature.Types.Type>(hint, ignoreCase: true, out var parsed))
+            {
+                yield return new Feature { Type = parsed, MaxResults = maxLabels };
+            }
+        }
     }
 }

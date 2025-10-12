@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Diagnostics.CodeAnalysis;
 using Google.Api.Gax.Grpc;
 using Google.Cloud.DocumentAI.V1;
 using Google.Protobuf;
 using MarkItDown;
+using MarkItDown.Intelligence;
 using ManagedCode.MimeTypes;
 using MarkItDown.Intelligence.Models;
 
@@ -13,6 +15,7 @@ namespace MarkItDown.Intelligence.Providers.Google;
 /// <summary>
 /// Google Document AI implementation of <see cref="IDocumentIntelligenceProvider"/>.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public sealed class GoogleDocumentIntelligenceProvider : IDocumentIntelligenceProvider
 {
     private readonly DocumentProcessorServiceClient _client;
@@ -68,33 +71,46 @@ public sealed class GoogleDocumentIntelligenceProvider : IDocumentIntelligencePr
         }
     }
 
-    public async Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, DocumentIntelligenceRequest? request = null, CancellationToken cancellationToken = default)
     {
         if (stream is null)
         {
             throw new ArgumentNullException(nameof(stream));
         }
 
-        using var memory = new MemoryStream();
-        await stream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
-        memory.Position = 0;
+        await using var handle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension, bufferSize: 256 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
+        var payload = await File.ReadAllBytesAsync(handle.FilePath, cancellationToken).ConfigureAwait(false);
+
+        var overrides = request?.Google;
+
+        var projectId = overrides?.ProjectId ?? _options.ProjectId;
+        var location = overrides?.Location ?? _options.Location;
+        var processorId = overrides?.ProcessorId ?? _options.ProcessorId;
+
+        if (string.IsNullOrWhiteSpace(projectId) || string.IsNullOrWhiteSpace(location) || string.IsNullOrWhiteSpace(processorId))
+        {
+            throw new InvalidOperationException("Google Document AI requires project id, location, and processor id.");
+        }
+
+        var processorName = ProcessorName.FromProjectLocationProcessor(projectId, location, processorId).ToString();
+        var client = ResolveClient(overrides);
 
         var mimeType = !string.IsNullOrWhiteSpace(streamInfo.MimeType)
             ? streamInfo.MimeType!
             : MimeHelper.GetMimeType(streamInfo.Extension ?? string.Empty);
 
-        var request = new ProcessRequest
+        var processRequest = new ProcessRequest
         {
-            Name = _processorName,
+            Name = processorName,
             RawDocument = new RawDocument
             {
-                Content = ByteString.CopyFrom(memory.ToArray()),
+                Content = ByteString.CopyFrom(payload),
                 MimeType = string.IsNullOrWhiteSpace(mimeType) ? "application/pdf" : mimeType
             }
         };
 
         var callSettings = CallSettings.FromCancellationToken(cancellationToken);
-        var response = await _client.ProcessDocumentAsync(request, callSettings).ConfigureAwait(false);
+        var response = await client.ProcessDocumentAsync(processRequest, callSettings).ConfigureAwait(false);
         var document = response.Document;
         if (document is null)
         {
@@ -133,6 +149,34 @@ public sealed class GoogleDocumentIntelligenceProvider : IDocumentIntelligencePr
         }
 
         return new DocumentIntelligenceResult(pages, tables, images: Array.Empty<DocumentImageResult>());
+    }
+
+    private DocumentProcessorServiceClient ResolveClient(GoogleDocumentIntelligenceOverrides? overrides)
+    {
+        if (overrides is null || string.IsNullOrWhiteSpace(overrides.Endpoint))
+        {
+            return _client;
+        }
+
+        var builder = new DocumentProcessorServiceClientBuilder
+        {
+            Endpoint = overrides.Endpoint
+        };
+
+        if (_options.Credential is not null)
+        {
+            builder.Credential = _options.Credential;
+        }
+        else if (!string.IsNullOrWhiteSpace(_options.JsonCredentials))
+        {
+            builder.JsonCredentials = _options.JsonCredentials;
+        }
+        else if (!string.IsNullOrWhiteSpace(_options.CredentialsPath))
+        {
+            builder.CredentialsPath = _options.CredentialsPath;
+        }
+
+        return builder.Build();
     }
 
     private static string ExtractText(Document document, Document.Types.TextAnchor? anchor)

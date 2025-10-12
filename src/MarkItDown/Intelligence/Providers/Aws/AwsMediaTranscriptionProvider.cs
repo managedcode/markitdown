@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics.CodeAnalysis;
 using Amazon;
 using Amazon.Runtime;
 using Amazon.S3;
@@ -14,6 +15,7 @@ using Amazon.S3.Model;
 using Amazon.TranscribeService;
 using Amazon.TranscribeService.Model;
 using MarkItDown;
+using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Models;
 
 namespace MarkItDown.Intelligence.Providers.Aws;
@@ -22,6 +24,7 @@ namespace MarkItDown.Intelligence.Providers.Aws;
 /// AWS Transcribe implementation of <see cref="IMediaTranscriptionProvider"/>.
 /// Uploads media to S3, runs a transcription job, and parses the transcript JSON.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public sealed class AwsMediaTranscriptionProvider : IMediaTranscriptionProvider, IDisposable
 {
     private readonly IAmazonTranscribeService _transcribe;
@@ -59,7 +62,7 @@ public sealed class AwsMediaTranscriptionProvider : IMediaTranscriptionProvider,
         }
     }
 
-    public async Task<MediaTranscriptionResult?> TranscribeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<MediaTranscriptionResult?> TranscribeAsync(Stream stream, StreamInfo streamInfo, MediaTranscriptionRequest? request = null, CancellationToken cancellationToken = default)
     {
         if (stream is null)
         {
@@ -71,25 +74,30 @@ public sealed class AwsMediaTranscriptionProvider : IMediaTranscriptionProvider,
         var keyPrefix = string.IsNullOrWhiteSpace(_options.InputKeyPrefix) ? string.Empty : EnsureSuffix(_options.InputKeyPrefix!, "/");
         var objectKey = keyPrefix + jobName + extension;
 
-        byte[] payload;
-        using (var memory = new MemoryStream())
-        {
-            await stream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
-            payload = memory.ToArray();
-        }
+        var language = string.IsNullOrWhiteSpace(request?.Language) ? _options.LanguageCode : request.Language;
 
-        await UploadAsync(objectKey, payload, streamInfo, cancellationToken).ConfigureAwait(false);
+        await using var payloadHandle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension, bufferSize: 256 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
+
+        await UploadAsync(objectKey, payloadHandle.FilePath, streamInfo, cancellationToken).ConfigureAwait(false);
 
         var mediaUri = $"s3://{_options.InputBucketName}/{objectKey}";
         var startRequest = new StartTranscriptionJobRequest
         {
             TranscriptionJobName = jobName,
-            LanguageCode = _options.LanguageCode,
+            LanguageCode = language,
             Media = new Media { MediaFileUri = mediaUri },
             MediaFormat = DetermineMediaFormat(extension),
             OutputBucketName = _options.OutputBucketName,
             OutputKey = BuildOutputKey(jobName)
         };
+
+        if (!string.IsNullOrWhiteSpace(request?.VocabularyName))
+        {
+            startRequest.Settings = new Settings
+            {
+                VocabularyName = request.VocabularyName
+            };
+        }
 
         await _transcribe.StartTranscriptionJobAsync(startRequest, cancellationToken).ConfigureAwait(false);
 
@@ -106,7 +114,7 @@ public sealed class AwsMediaTranscriptionProvider : IMediaTranscriptionProvider,
         }
 
         var transcriptJson = await _httpClient.GetStringAsync(transcriptUri, cancellationToken).ConfigureAwait(false);
-        var result = ParseTranscript(transcriptJson);
+        var result = ParseTranscript(transcriptJson, language);
         if (result is null)
         {
             return null;
@@ -120,9 +128,15 @@ public sealed class AwsMediaTranscriptionProvider : IMediaTranscriptionProvider,
         return result;
     }
 
-    private async Task UploadAsync(string key, byte[] payload, StreamInfo streamInfo, CancellationToken cancellationToken)
+    private async Task UploadAsync(string key, string filePath, StreamInfo streamInfo, CancellationToken cancellationToken)
     {
-        using var uploadStream = new MemoryStream(payload, writable: false);
+        await using var uploadStream = new FileStream(filePath, new FileStreamOptions
+        {
+            Access = FileAccess.Read,
+            Mode = FileMode.Open,
+            Share = FileShare.Read,
+            Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+        });
         var request = new PutObjectRequest
         {
             BucketName = _options.InputBucketName,
@@ -221,7 +235,7 @@ public sealed class AwsMediaTranscriptionProvider : IMediaTranscriptionProvider,
         return value.EndsWith(suffix, StringComparison.Ordinal) ? value : value + suffix;
     }
 
-    private MediaTranscriptionResult? ParseTranscript(string json)
+    private MediaTranscriptionResult? ParseTranscript(string json, string language)
     {
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
@@ -250,9 +264,9 @@ public sealed class AwsMediaTranscriptionProvider : IMediaTranscriptionProvider,
             segments.Add(new MediaTranscriptSegment(transcripts ?? string.Empty));
         }
 
-        metadata[MetadataKeys.Language] = _options.LanguageCode;
+        metadata[MetadataKeys.Language] = language;
 
-        return new MediaTranscriptionResult(segments, _options.LanguageCode, metadata);
+        return new MediaTranscriptionResult(segments, language, metadata);
     }
 
     private static IEnumerable<MediaTranscriptSegment> BuildSegmentsFromItems(JsonElement items)

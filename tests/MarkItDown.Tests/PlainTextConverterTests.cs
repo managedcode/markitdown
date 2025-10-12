@@ -96,7 +96,6 @@ public class PlainTextConverterTests
 
         // Assert
         Assert.Equal(content, result.Markdown);
-        Assert.Equal(content, result.TextContent); // Test legacy property
         Assert.Equal(content, result.ToString());
     }
 

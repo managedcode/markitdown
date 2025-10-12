@@ -7,5 +7,5 @@ namespace MarkItDown.Intelligence;
 /// </summary>
 public interface IImageUnderstandingProvider
 {
-    Task<ImageUnderstandingResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default);
+    Task<ImageUnderstandingResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, ImageUnderstandingRequest? request = null, CancellationToken cancellationToken = default);
 }

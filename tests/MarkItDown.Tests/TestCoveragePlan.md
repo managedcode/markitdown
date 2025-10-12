@@ -26,7 +26,7 @@ These fixtures enable parity testing across nearly every built-in converter.
 
 - Integration coverage only touches a handful of formats with synthetic streams.
 - Converters that depend on external tools (`Docx`, `Epub`, `BingSerp`, `Image`, `Audio`, `Pdf`, `Zip`) either lack tests or rely on network/process access and therefore remain untested.
-- `StreamInfoGuesser` and `MarkItDown.ConvertUriAsync` paths are partially covered but do not exercise real-world file signatures or data URIs.
+- `MarkItDown.ConvertUriAsync` paths are partially covered but do not exercise real-world file signatures or data URIs.
 - Regression checks that specific IDs/phrases appear (mirroring `_test_vectors.py`) are missing.
 
 ## 3. Target Architecture for Tests

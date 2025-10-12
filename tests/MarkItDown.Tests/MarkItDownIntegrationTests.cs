@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MarkItDown;
+using MarkItDown.Converters;
 
 namespace MarkItDown.Tests;
 
@@ -112,9 +113,11 @@ public class MarkItDownIntegrationTests
         using var nonSeekableStream = new NonSeekableMemoryStream(bytes);
         var streamInfo = new StreamInfo(extension: ".txt");
 
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => markItDown.ConvertAsync(nonSeekableStream, streamInfo));
+        // Act
+        var result = await markItDown.ConvertAsync(nonSeekableStream, streamInfo);
+
+        // Assert
+        Assert.Equal(content, result.Markdown);
     }
 
     [Fact]
@@ -396,16 +399,19 @@ public class MarkItDownIntegrationTests
     }
 
     // Helper class for testing custom converters
-    private class TestCustomConverter : IDocumentConverter
+    private class TestCustomConverter : DocumentConverterBase
     {
-        public int Priority => 50;
+        public TestCustomConverter()
+            : base(priority: 50)
+        {
+        }
 
-        public bool AcceptsInput(StreamInfo streamInfo)
+        public override bool AcceptsInput(StreamInfo streamInfo)
         {
             return streamInfo.Extension == ".test";
         }
 
-        public Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+        public override Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
         {
             var result = new DocumentConverterResult("# Test Custom Converter\n\nThis is from the test converter.");
             return Task.FromResult(result);

@@ -1,4 +1,5 @@
 using MarkItDown;
+using MarkItDown.Converters;
 using System.Text;
 
 namespace MarkItDown.Tests;
@@ -53,16 +54,19 @@ public class MarkItDownTests
     }
 
     [Fact]
-    public async Task ConvertAsync_NonSeekableStream_ThrowsArgumentException()
+    public async Task ConvertAsync_NonSeekableStream_CompletesViaDiskBuffering()
     {
         // Arrange
         var markItDown = new global::MarkItDown.MarkItDownClient();
-        var nonSeekableStream = new NonSeekableMemoryStream([1, 2, 3]);
+        var content = "disk-first";
+        var nonSeekableStream = new NonSeekableMemoryStream(Encoding.UTF8.GetBytes(content));
         var streamInfo = new StreamInfo(extension: ".txt");
 
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => markItDown.ConvertAsync(nonSeekableStream, streamInfo));
+        // Act
+        var result = await markItDown.ConvertAsync(nonSeekableStream, streamInfo);
+
+        // Assert
+        Assert.Equal(content, result.Markdown);
     }
 
     [Fact]
@@ -101,21 +105,24 @@ public class MarkItDownTests
         public override bool CanSeek => false;
     }
 
-    private class TestConverter : IDocumentConverter
+    private class TestConverter : DocumentConverterBase
     {
-        public int Priority => 999;
+        public TestConverter()
+            : base(priority: 999)
+        {
+        }
 
-        public bool AcceptsInput(StreamInfo streamInfo)
+        public override bool AcceptsInput(StreamInfo streamInfo)
         {
             return false; // Never accepts to avoid interfering with other tests
         }
 
-        public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+        public override bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
         {
             return false; // Never accepts to avoid interfering with other tests
         }
 
-        public Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+        public override Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new DocumentConverterResult("Test conversion"));
         }

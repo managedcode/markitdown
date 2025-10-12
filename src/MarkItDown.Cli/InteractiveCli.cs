@@ -199,10 +199,16 @@ internal sealed class InteractiveCli
                     {
                         task.MaxValue = info.Total;
                         task.Value = Math.Min(info.Processed, info.Total);
+                        var percent = task.MaxValue > 0 ? task.Percentage : 0;
                         if (!string.IsNullOrWhiteSpace(info.Current))
                         {
                             var fileName = Path.GetFileName(info.Current);
-                            task.Description = $"[green]{Markup.Escape(string.IsNullOrWhiteSpace(fileName) ? info.Current : fileName)}[/]";
+                            var label = string.IsNullOrWhiteSpace(fileName) ? info.Current : fileName;
+                            task.Description = $"[green]{Markup.Escape(label)}[/] ({percent:0.##}% complete)";
+                        }
+                        else if (percent > 0)
+                        {
+                            task.Description = $"[green]{percent:0.##}% complete[/]";
                         }
                     }
                 });
@@ -387,7 +393,9 @@ internal sealed class InteractiveCli
         }
 
         AnsiConsole.Write(table);
-        AnsiConsole.MarkupLine($"[green]Completed[/]: {summary.SuccessCount} succeeded, [red]{summary.FailureCount} failed[/].");
+        var total = summary.Results.Count;
+        var successPercent = total == 0 ? 0 : (double)summary.SuccessCount / total * 100d;
+        AnsiConsole.MarkupLine($"[green]Completed[/]: {summary.SuccessCount}/{total} succeeded ({successPercent:0.##}%), [red]{summary.FailureCount} failed[/].");
     }
 
     private void PreviewFile()

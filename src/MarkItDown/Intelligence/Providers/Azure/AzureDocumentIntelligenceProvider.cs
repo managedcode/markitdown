@@ -5,13 +5,17 @@ using Azure;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Azure.Identity;
 using MarkItDown;
+using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Models;
+using ManagedCode.MimeTypes;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MarkItDown.Intelligence.Providers.Azure;
 
 /// <summary>
 /// Azure implementation of <see cref="IDocumentIntelligenceProvider"/> built on top of Document Intelligence (Form Recognizer).
 /// </summary>
+[ExcludeFromCodeCoverage]
 public sealed class AzureDocumentIntelligenceProvider : IDocumentIntelligenceProvider
 {
     private readonly DocumentAnalysisClient _client;
@@ -45,11 +49,16 @@ public sealed class AzureDocumentIntelligenceProvider : IDocumentIntelligencePro
         }
     }
 
-    public async Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, DocumentIntelligenceRequest? request = null, CancellationToken cancellationToken = default)
     {
         if (stream is null)
         {
             throw new ArgumentNullException(nameof(stream));
+        }
+
+        if (!IsSupportedStream(streamInfo))
+        {
+            return null;
         }
 
         if (stream.CanSeek)
@@ -57,11 +66,27 @@ public sealed class AzureDocumentIntelligenceProvider : IDocumentIntelligencePro
             stream.Position = 0;
         }
 
-        AnalyzeDocumentOperation operation = await _client.AnalyzeDocumentAsync(
-            WaitUntil.Completed,
-            _options.ModelId,
-            stream,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+        var effectiveModelId = request?.Azure?.ModelId;
+        if (string.IsNullOrWhiteSpace(effectiveModelId))
+        {
+            effectiveModelId = _options.ModelId;
+        }
+
+        var client = ResolveClient(request?.Azure);
+
+        AnalyzeDocumentOperation operation;
+        try
+        {
+            operation = await client.AnalyzeDocumentAsync(
+                WaitUntil.Completed,
+                effectiveModelId,
+                stream,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        catch (RequestFailedException ex) when (IsUnsupportedContentError(ex))
+        {
+            return null;
+        }
 
         AnalyzeResult analyzeResult = operation.Value;
 
@@ -115,6 +140,51 @@ public sealed class AzureDocumentIntelligenceProvider : IDocumentIntelligencePro
 
         return new DocumentIntelligenceResult(pages, tables, images: Array.Empty<DocumentImageResult>());
     }
+
+    private DocumentAnalysisClient ResolveClient(AzureDocumentIntelligenceOverrides? overrides)
+    {
+        if (overrides is null || (string.IsNullOrWhiteSpace(overrides.Endpoint) && string.IsNullOrWhiteSpace(overrides.ApiKey)))
+        {
+            return _client;
+        }
+
+        var endpoint = overrides.Endpoint ?? _options.Endpoint;
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            return _client;
+        }
+
+        if (!string.IsNullOrWhiteSpace(overrides.ApiKey))
+        {
+            return new DocumentAnalysisClient(new Uri(endpoint), new AzureKeyCredential(overrides.ApiKey));
+        }
+
+        if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            return new DocumentAnalysisClient(new Uri(endpoint), new AzureKeyCredential(_options.ApiKey));
+        }
+
+        return new DocumentAnalysisClient(new Uri(endpoint), new DefaultAzureCredential());
+    }
+
+    private static bool IsSupportedStream(StreamInfo streamInfo)
+    {
+        var extension = streamInfo.Extension?.ToLowerInvariant();
+        if (extension is ".pdf" or ".tiff" or ".tif")
+        {
+            return true;
+        }
+
+        var mimeType = streamInfo.ResolveMimeType();
+        return string.Equals(mimeType, MimeHelper.PDF, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(mimeType, MimeHelper.TIFF, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsUnsupportedContentError(RequestFailedException ex)
+        => string.Equals(ex.ErrorCode, "InvalidRequest", StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(ex.ErrorCode, "InvalidContent", StringComparison.OrdinalIgnoreCase) ||
+           ex.Message.Contains("Invalid content", StringComparison.OrdinalIgnoreCase) ||
+           ex.Message.Contains("unsupported", StringComparison.OrdinalIgnoreCase);
 
     private static DocumentTableResult ConvertTable(DocumentTable table)
     {

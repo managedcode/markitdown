@@ -7,5 +7,5 @@ namespace MarkItDown.Intelligence;
 /// </summary>
 public interface IMediaTranscriptionProvider
 {
-    Task<MediaTranscriptionResult?> TranscribeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default);
+    Task<MediaTranscriptionResult?> TranscribeAsync(Stream stream, StreamInfo streamInfo, MediaTranscriptionRequest? request = null, CancellationToken cancellationToken = default);
 }

@@ -11,7 +11,7 @@ namespace MarkItDown.Cli;
 
 internal sealed class ConversionService
 {
-    public async Task<ConversionSummary> ConvertFilesAsync(IReadOnlyList<string> files, string outputDirectory, MarkItDownOptions options, IProgress<ConversionProgress>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<ConversionSummary> ConvertFilesAsync(IReadOnlyList<string>? files, string outputDirectory, MarkItDownOptions options, IProgress<ConversionProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         if (files is null || files.Count == 0)
         {

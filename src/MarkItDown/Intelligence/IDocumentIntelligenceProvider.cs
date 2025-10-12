@@ -10,5 +10,5 @@ public interface IDocumentIntelligenceProvider
     /// <summary>
     /// Analyze the supplied document stream. Returns <c>null</c> if the provider is unavailable or disabled.
     /// </summary>
-    Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default);
+    Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, DocumentIntelligenceRequest? request = null, CancellationToken cancellationToken = default);
 }

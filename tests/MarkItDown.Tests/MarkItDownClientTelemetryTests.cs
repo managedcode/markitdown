@@ -92,15 +92,18 @@ public sealed class MarkItDownClientTelemetryTests
             .ShouldBeTrue();
     }
 
-    private sealed class FakeConverter : IDocumentConverter
+    private sealed class FakeConverter : DocumentConverterBase
     {
-        public int Priority => 0;
+        public FakeConverter()
+            : base(priority: 0)
+        {
+        }
 
-        public bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default) => true;
+        public override bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default) => true;
 
-        public bool AcceptsInput(StreamInfo streamInfo) => true;
+        public override bool AcceptsInput(StreamInfo streamInfo) => true;
 
-        public Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+        public override Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new DocumentConverterResult("ok", streamInfo.FileName));
         }

@@ -40,7 +40,7 @@ public class AudioConverterIntelligenceTests
             this.result = result;
         }
 
-        public Task<MediaTranscriptionResult?> TranscribeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+        public Task<MediaTranscriptionResult?> TranscribeAsync(Stream stream, StreamInfo streamInfo, MediaTranscriptionRequest? request = null, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(result);
         }

@@ -16,14 +16,18 @@ public sealed class ConversionPipeline : IConversionPipeline
     private readonly IReadOnlyList<IConversionMiddleware> middlewares;
     private readonly IAiModelProvider aiModels;
     private readonly ILogger? logger;
+    private readonly SegmentOptions segmentOptions;
+    private readonly ProgressDetailLevel progressDetail;
 
-    public static IConversionPipeline Empty { get; } = new ConversionPipeline(Array.Empty<IConversionMiddleware>(), NullAiModelProvider.Instance, logger: null);
+    public static IConversionPipeline Empty { get; } = new ConversionPipeline(Array.Empty<IConversionMiddleware>(), NullAiModelProvider.Instance, logger: null, SegmentOptions.Default, ProgressDetailLevel.Basic);
 
-    public ConversionPipeline(IEnumerable<IConversionMiddleware> middlewares, IAiModelProvider aiModels, ILogger? logger)
+    public ConversionPipeline(IEnumerable<IConversionMiddleware> middlewares, IAiModelProvider aiModels, ILogger? logger, SegmentOptions segmentOptions, ProgressDetailLevel progressDetail)
     {
         this.middlewares = (middlewares ?? throw new ArgumentNullException(nameof(middlewares))).ToArray();
         this.aiModels = aiModels ?? NullAiModelProvider.Instance;
         this.logger = logger;
+        this.segmentOptions = segmentOptions ?? SegmentOptions.Default;
+        this.progressDetail = progressDetail;
     }
 
     public async Task ExecuteAsync(StreamInfo streamInfo, ConversionArtifacts artifacts, IList<DocumentSegment> segments, CancellationToken cancellationToken)
@@ -33,7 +37,8 @@ public sealed class ConversionPipeline : IConversionPipeline
             return;
         }
 
-        var context = new ConversionPipelineContext(streamInfo, artifacts, segments, aiModels, logger);
+        var effectiveSegments = ConversionContextAccessor.Current?.Segments ?? segmentOptions;
+        var context = new ConversionPipelineContext(streamInfo, artifacts, segments, aiModels, logger, effectiveSegments, progressDetail);
         foreach (var middleware in middlewares)
         {
             cancellationToken.ThrowIfCancellationRequested();

@@ -1,9 +1,10 @@
 #pragma warning disable MEAI001
-using System.Linq;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 using MarkItDown;
 using MarkItDown.Intelligence;
 using MarkItDown.Conversion.Middleware;
@@ -49,7 +50,9 @@ public class AiModelPipelineTests
         var pipeline = new ConversionPipeline(
             new IConversionMiddleware[] { new SpeechAnnotationMiddleware(new byte[] { 1, 2, 3 }, () => invoked = true) },
             new StaticAiModelProvider(null, speechClient),
-            logger: null);
+            logger: null,
+            SegmentOptions.Default,
+            ProgressDetailLevel.Basic);
 
         var artifacts = new ConversionArtifacts();
         var segments = new List<DocumentSegment>();
@@ -72,7 +75,8 @@ public class AiModelPipelineTests
         {
             var recorded = new List<ChatMessage>(messages);
             Requests.Add(recorded);
-            var reply = new ChatMessage(ChatRole.Assistant, responseText);
+            var payload = JsonSerializer.Serialize(new { description = responseText });
+            var reply = new ChatMessage(ChatRole.Assistant, payload);
             return Task.FromResult(new ChatResponse(new List<ChatMessage> { reply }));
         }
 

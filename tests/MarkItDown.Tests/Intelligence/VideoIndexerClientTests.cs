@@ -141,7 +141,7 @@ public class VideoIndexerClientTests
         };
 
         var client = new VideoIndexerClient(options, httpClient, new StubArmTokenService("arm-token"));
-        using var document = await client.GetVideoIndexAsync("video123", "token123", CancellationToken.None);
+        using var document = await client.GetVideoIndexAsync("video123", "token123", language: null, CancellationToken.None);
         document.ShouldNotBeNull();
         document!.RootElement.GetProperty("videos").GetArrayLength().ShouldBe(1);
     }

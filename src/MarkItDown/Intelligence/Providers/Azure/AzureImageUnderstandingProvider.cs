@@ -1,10 +1,12 @@
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Diagnostics.CodeAnalysis;
 using Azure;
 using Azure.AI.Vision.ImageAnalysis;
 using Azure.Identity;
 using MarkItDown;
+using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Models;
 
 namespace MarkItDown.Intelligence.Providers.Azure;
@@ -12,6 +14,7 @@ namespace MarkItDown.Intelligence.Providers.Azure;
 /// <summary>
 /// Azure Computer Vision provider for image OCR and captioning.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public sealed class AzureImageUnderstandingProvider : IImageUnderstandingProvider
 {
     private readonly ImageAnalysisClient _client;
@@ -42,24 +45,25 @@ public sealed class AzureImageUnderstandingProvider : IImageUnderstandingProvide
         }
     }
 
-    public async Task<ImageUnderstandingResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<ImageUnderstandingResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, ImageUnderstandingRequest? request = null, CancellationToken cancellationToken = default)
     {
         if (stream is null)
         {
             throw new ArgumentNullException(nameof(stream));
         }
 
-        if (stream.CanSeek)
+        await using var handle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension, bufferSize: 128 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
+        await using var localStream = handle.OpenRead();
+
+        var overrides = request?.Azure;
+        var visualFeatures = ResolveVisualFeatures(overrides?.VisualFeatures);
+        var options = new ImageAnalysisOptions();
+        if (!string.IsNullOrWhiteSpace(overrides?.ModelVersion))
         {
-            stream.Position = 0;
+            options.ModelVersion = overrides.ModelVersion;
         }
 
-        using var memory = new MemoryStream();
-        await stream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
-        memory.Position = 0;
-
-        var visualFeatures = VisualFeatures.Caption | VisualFeatures.DenseCaptions | VisualFeatures.Objects | VisualFeatures.Tags | VisualFeatures.Read;
-        var response = await _client.AnalyzeAsync(BinaryData.FromStream(memory), visualFeatures, new ImageAnalysisOptions(), cancellationToken).ConfigureAwait(false);
+        var response = await _client.AnalyzeAsync(BinaryData.FromStream(localStream), visualFeatures, options, cancellationToken).ConfigureAwait(false);
         var analysis = response.Value;
 
         var caption = analysis.Caption?.Text;
@@ -103,5 +107,31 @@ public sealed class AzureImageUnderstandingProvider : IImageUnderstandingProvide
         }
 
         return new ImageUnderstandingResult(caption, ocrText, tags, objects, metadata);
+    }
+
+    private static VisualFeatures ResolveVisualFeatures(IReadOnlyList<string>? requested)
+    {
+        if (requested is null || requested.Count == 0)
+        {
+            return VisualFeatures.Caption | VisualFeatures.DenseCaptions | VisualFeatures.Objects | VisualFeatures.Tags | VisualFeatures.Read;
+        }
+
+        var features = VisualFeatures.None;
+        foreach (var item in requested)
+        {
+            if (string.IsNullOrWhiteSpace(item))
+            {
+                continue;
+            }
+
+            if (Enum.TryParse<VisualFeatures>(item, ignoreCase: true, out var parsed))
+            {
+                features |= parsed;
+            }
+        }
+
+        return features == VisualFeatures.None
+            ? VisualFeatures.Caption | VisualFeatures.DenseCaptions | VisualFeatures.Objects | VisualFeatures.Tags | VisualFeatures.Read
+            : features;
     }
 }

@@ -83,7 +83,7 @@ public class AwsProvidersTests
         await using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
         var streamInfo = new StreamInfo(mimeType: "application/pdf", extension: ".pdf", fileName: "sample.pdf");
 
-        var result = await provider.AnalyzeAsync(stream, streamInfo, CancellationToken.None);
+        var result = await provider.AnalyzeAsync(stream, streamInfo, request: null, CancellationToken.None);
 
         result.ShouldNotBeNull();
         result!.Tables.Count.ShouldBe(1);
@@ -134,7 +134,7 @@ public class AwsProvidersTests
         await using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
         var streamInfo = new StreamInfo(mimeType: "image/png", extension: ".png", fileName: "image.png");
 
-        var result = await provider.AnalyzeAsync(stream, streamInfo, CancellationToken.None);
+        var result = await provider.AnalyzeAsync(stream, streamInfo, request: null, CancellationToken.None);
 
         result.ShouldNotBeNull();
         result!.Caption.ShouldBe("Document");
@@ -211,7 +211,7 @@ public class AwsProvidersTests
         await using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
         var streamInfo = new StreamInfo(mimeType: "audio/wav", extension: ".wav", fileName: "audio.wav");
 
-        var result = await provider.TranscribeAsync(stream, streamInfo, CancellationToken.None);
+        var result = await provider.TranscribeAsync(stream, streamInfo, request: null, CancellationToken.None);
 
         result.ShouldNotBeNull();
         result!.Segments.Count.ShouldBe(1);

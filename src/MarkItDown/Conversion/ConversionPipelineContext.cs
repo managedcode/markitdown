@@ -10,13 +10,15 @@ namespace MarkItDown;
 /// </summary>
 public sealed class ConversionPipelineContext
 {
-    internal ConversionPipelineContext(StreamInfo streamInfo, ConversionArtifacts artifacts, IList<DocumentSegment> segments, IAiModelProvider aiModels, ILogger? logger)
+    internal ConversionPipelineContext(StreamInfo streamInfo, ConversionArtifacts artifacts, IList<DocumentSegment> segments, IAiModelProvider aiModels, ILogger? logger, SegmentOptions segmentOptions, ProgressDetailLevel progressDetail)
     {
         StreamInfo = streamInfo ?? throw new ArgumentNullException(nameof(streamInfo));
         Artifacts = artifacts ?? throw new ArgumentNullException(nameof(artifacts));
         Segments = segments ?? throw new ArgumentNullException(nameof(segments));
         AiModels = aiModels ?? NullAiModelProvider.Instance;
         Logger = logger;
+        SegmentOptions = segmentOptions ?? SegmentOptions.Default;
+        ProgressDetail = progressDetail;
     }
 
     /// <summary>
@@ -43,4 +45,14 @@ public sealed class ConversionPipelineContext
     /// Gets the logger supplied by the conversion host.
     /// </summary>
     public ILogger? Logger { get; }
+
+    /// <summary>
+    /// Gets the segment options configured for the current conversion.
+    /// </summary>
+    public SegmentOptions SegmentOptions { get; }
+
+    /// <summary>
+    /// Gets the configured progress detail level.
+    /// </summary>
+    public ProgressDetailLevel ProgressDetail { get; }
 }

@@ -33,6 +33,7 @@ public class AudioConverterTests
         var result = await converter.ConvertAsync(stream, streamInfo);
 
         // Assert
+        Assert.Contains("title: \"Test Track\"", result.Markdown);
         Assert.Contains("Title: Test Track", result.Markdown);
         Assert.Contains("Artist: The Artist", result.Markdown);
         Assert.Contains("### Audio Transcript", result.Markdown);
@@ -60,7 +61,8 @@ public class AudioConverterTests
         var result = await converter.ConvertAsync(stream, streamInfo);
 
         // Assert
-        Assert.Equal("*No audio metadata available.*", result.Markdown);
+        Assert.StartsWith("---", result.Markdown);
+        Assert.Contains("*No audio metadata available.*", result.Markdown);
         Assert.Equal("sample", result.Title);
     }
 

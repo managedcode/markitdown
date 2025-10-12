@@ -8,16 +8,20 @@ using Amazon.Runtime;
 using Amazon.Textract;
 using Amazon.Textract.Model;
 using MarkItDown;
+using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Models;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MarkItDown.Intelligence.Providers.Aws;
 
 /// <summary>
 /// AWS Textract implementation of <see cref="IDocumentIntelligenceProvider"/>.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public sealed class AwsDocumentIntelligenceProvider : IDocumentIntelligenceProvider, IDisposable
 {
     private readonly IAmazonTextract _client;
+    private readonly AwsDocumentIntelligenceOptions _options;
     private bool _disposed;
 
     public AwsDocumentIntelligenceProvider(AwsDocumentIntelligenceOptions options, IAmazonTextract? client = null)
@@ -27,81 +31,125 @@ public sealed class AwsDocumentIntelligenceProvider : IDocumentIntelligenceProvi
             throw new ArgumentNullException(nameof(options));
         }
 
+        _options = options;
         _client = client ?? CreateClient(options);
     }
 
-    public async Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, DocumentIntelligenceRequest? request = null, CancellationToken cancellationToken = default)
     {
         if (stream is null)
         {
             throw new ArgumentNullException(nameof(stream));
         }
 
-        using var memory = new MemoryStream();
-        await stream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
-        memory.Position = 0;
+        await using var handle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension, bufferSize: 256 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
+        var payload = await File.ReadAllBytesAsync(handle.FilePath, cancellationToken).ConfigureAwait(false);
 
-        var request = new AnalyzeDocumentRequest
+        var featureTypes = ResolveFeatureTypes(request?.Aws);
+        using var documentStream = new MemoryStream(payload, writable: false);
+
+        var analyzeRequest = new AnalyzeDocumentRequest
         {
             Document = new Document
             {
-                Bytes = memory
+                Bytes = documentStream
             },
-            FeatureTypes = new List<string> { FeatureType.TABLES.ToString(), FeatureType.FORMS.ToString() }
+            FeatureTypes = featureTypes
         };
 
-        var response = await _client.AnalyzeDocumentAsync(request, cancellationToken).ConfigureAwait(false);
-        if (response.Blocks.Count == 0)
+        var (client, ownsClient) = ResolveClient(request?.Aws);
+
+        try
         {
-            return null;
-        }
-
-        var blockMap = response.Blocks.ToDictionary(b => b.Id ?? string.Empty, b => b);
-        var tables = new List<DocumentTableResult>();
-        var pages = new List<DocumentPageResult>();
-
-        var pageNumbers = response.Blocks
-            .Where(b => string.Equals(b.BlockType, BlockType.PAGE, StringComparison.OrdinalIgnoreCase) && b.Page.HasValue)
-            .Select(b => b.Page!.Value)
-            .Distinct()
-            .OrderBy(n => n)
-            .ToArray();
-
-        foreach (var pageNumber in pageNumbers)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var lines = response.Blocks
-                .Where(b => b.Page == pageNumber && string.Equals(b.BlockType, BlockType.LINE, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(b => b.Geometry?.BoundingBox?.Top ?? 0)
-                .ThenBy(b => b.Geometry?.BoundingBox?.Left ?? 0)
-                .Select(b => b.Text)
-                .Where(static t => !string.IsNullOrWhiteSpace(t))
-                .ToArray();
-
-            var text = string.Join(Environment.NewLine, lines);
-
-            var pageTableIndices = new List<int>();
-
-            var pageTables = response.Blocks
-                .Where(b => b.Page == pageNumber && string.Equals(b.BlockType, BlockType.TABLE, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            foreach (var tableBlock in pageTables)
+            var response = await client.AnalyzeDocumentAsync(analyzeRequest, cancellationToken).ConfigureAwait(false);
+            if (response.Blocks.Count == 0)
             {
-                var converted = ConvertTable(tableBlock, blockMap, pageNumber);
-                pageTableIndices.Add(tables.Count);
-                tables.Add(converted);
+                return null;
             }
 
-        var metadata = new Dictionary<string, string>
-        {
-            [MetadataKeys.Page] = pageNumber.ToString(CultureInfo.InvariantCulture)
-        };
+            var blockMap = response.Blocks.ToDictionary(b => b.Id ?? string.Empty, b => b);
+            var tables = new List<DocumentTableResult>();
+            var pages = new List<DocumentPageResult>();
 
-            pages.Add(new DocumentPageResult(pageNumber, text, pageTableIndices, metadata: metadata));
+            var pageNumbers = response.Blocks
+                .Where(b => string.Equals(b.BlockType, BlockType.PAGE, StringComparison.OrdinalIgnoreCase) && b.Page.HasValue)
+                .Select(b => b.Page!.Value)
+                .Distinct()
+                .OrderBy(n => n)
+                .ToArray();
+
+            foreach (var pageNumber in pageNumbers)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var lines = response.Blocks
+                    .Where(b => b.Page == pageNumber && string.Equals(b.BlockType, BlockType.LINE, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(b => b.Geometry?.BoundingBox?.Top ?? 0)
+                    .ThenBy(b => b.Geometry?.BoundingBox?.Left ?? 0)
+                    .Select(b => b.Text)
+                    .Where(static t => !string.IsNullOrWhiteSpace(t))
+                    .ToArray();
+
+                var text = string.Join(Environment.NewLine, lines);
+
+                var pageTableIndices = new List<int>();
+
+                var pageTables = response.Blocks
+                    .Where(b => b.Page == pageNumber && string.Equals(b.BlockType, BlockType.TABLE, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                foreach (var tableBlock in pageTables)
+                {
+                    var converted = ConvertTable(tableBlock, blockMap, pageNumber);
+                    pageTableIndices.Add(tables.Count);
+                    tables.Add(converted);
+                }
+
+                var metadata = new Dictionary<string, string>
+                {
+                    [MetadataKeys.Page] = pageNumber.ToString(CultureInfo.InvariantCulture)
+                };
+
+                pages.Add(new DocumentPageResult(pageNumber, text, pageTableIndices, metadata: metadata));
+            }
+
+            return new DocumentIntelligenceResult(pages, tables, images: Array.Empty<DocumentImageResult>());
+        }
+        finally
+        {
+            if (ownsClient)
+            {
+                (client as IDisposable)?.Dispose();
+            }
+        }
+    }
+
+    private static List<string> ResolveFeatureTypes(AwsDocumentIntelligenceOverrides? overrides)
+    {
+        if (overrides?.FeatureTypes is { Count: > 0 })
+        {
+            return overrides.FeatureTypes.Select(ft => ft.ToUpperInvariant()).ToList();
         }
 
-        return new DocumentIntelligenceResult(pages, tables, images: Array.Empty<DocumentImageResult>());
+        return new List<string> { FeatureType.TABLES.ToString(), FeatureType.FORMS.ToString() };
+    }
+
+    private (IAmazonTextract Client, bool OwnsClient) ResolveClient(AwsDocumentIntelligenceOverrides? overrides)
+    {
+        if (overrides is null || string.IsNullOrWhiteSpace(overrides.Region))
+        {
+            return (_client, false);
+        }
+
+        var effectiveOptions = new AwsDocumentIntelligenceOptions
+        {
+            Credentials = _options.Credentials,
+            AccessKeyId = _options.AccessKeyId,
+            SecretAccessKey = _options.SecretAccessKey,
+            SessionToken = _options.SessionToken,
+            Region = overrides.Region
+        };
+
+        return (CreateClient(effectiveOptions), true);
     }
 
     private static DocumentTableResult ConvertTable(Block tableBlock, IDictionary<string, Block> blockMap, int pageNumber)

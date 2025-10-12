@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.Net.Http;
 using System.Text.Json;
+using System.Diagnostics.CodeAnalysis;
 using Azure.Core;
 using Azure.Identity;
+using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Models;
 using MarkItDown.Intelligence.Providers.Azure.VideoIndexer;
 using Microsoft.Extensions.Logging;
@@ -12,6 +14,7 @@ namespace MarkItDown.Intelligence.Providers.Azure;
 /// <summary>
 /// Partial Azure Video Indexer integration. Uploads media and retrieves the primary transcript when credentials are provided.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvider, IDisposable
 {
     private readonly AzureMediaIntelligenceOptions _options;
@@ -30,7 +33,7 @@ public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvide
         _client = new VideoIndexerClient(options, httpClient, armTokenService, logger);
     }
 
-    public async Task<MediaTranscriptionResult?> TranscribeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<MediaTranscriptionResult?> TranscribeAsync(Stream stream, StreamInfo streamInfo, MediaTranscriptionRequest? request = null, CancellationToken cancellationToken = default)
     {
         if (stream is null)
         {
@@ -45,13 +48,13 @@ public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvide
 
         await _client.WaitForProcessingAsync(uploadResult.Value.VideoId, uploadResult.Value.AccountAccessToken, cancellationToken).ConfigureAwait(false);
 
-        using var index = await _client.GetVideoIndexAsync(uploadResult.Value.VideoId, uploadResult.Value.AccountAccessToken, cancellationToken).ConfigureAwait(false);
+        using var index = await _client.GetVideoIndexAsync(uploadResult.Value.VideoId, uploadResult.Value.AccountAccessToken, request?.Language, cancellationToken).ConfigureAwait(false);
         if (index is null)
         {
             return null;
         }
 
-        return ParseTranscript(index.RootElement, uploadResult.Value.VideoId);
+        return ParseTranscript(index.RootElement, uploadResult.Value.VideoId, request);
     }
 
     private static TimeSpan? ParseTimeSpan(string? value)
@@ -69,7 +72,7 @@ public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvide
         return null;
     }
 
-    private static MediaTranscriptionResult? ParseTranscript(JsonElement root, string videoId)
+    private static MediaTranscriptionResult? ParseTranscript(JsonElement root, string videoId, MediaTranscriptionRequest? request)
     {
         if (!root.TryGetProperty("videos", out var videos) || videos.GetArrayLength() == 0)
         {
@@ -95,6 +98,11 @@ public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvide
                 [MetadataKeys.Provider] = MetadataValues.ProviderAzureVideoIndexer
             };
 
+            if (!string.IsNullOrWhiteSpace(request?.Language))
+            {
+                metadata[MetadataKeys.Language] = request.Language;
+            }
+
             segments.Add(new MediaTranscriptSegment(text, start, end, metadata));
         }
 
@@ -108,6 +116,11 @@ public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvide
             [MetadataKeys.VideoId] = videoId,
             [MetadataKeys.Provider] = MetadataValues.ProviderAzureVideoIndexer
         };
+
+        if (!string.IsNullOrWhiteSpace(request?.Language))
+        {
+            resultMetadata[MetadataKeys.Language] = request.Language;
+        }
 
         return new MediaTranscriptionResult(segments, metadata: resultMetadata);
     }

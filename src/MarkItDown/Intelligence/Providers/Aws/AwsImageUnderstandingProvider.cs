@@ -10,13 +10,16 @@ using Amazon.Rekognition;
 using Amazon.Rekognition.Model;
 using Amazon.Runtime;
 using MarkItDown;
+using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Models;
+using System.Diagnostics.CodeAnalysis;
 
 namespace MarkItDown.Intelligence.Providers.Aws;
 
 /// <summary>
 /// AWS Rekognition implementation of <see cref="IImageUnderstandingProvider"/>.
 /// </summary>
+[ExcludeFromCodeCoverage]
 public sealed class AwsImageUnderstandingProvider : IImageUnderstandingProvider, IDisposable
 {
     private readonly IAmazonRekognition _client;
@@ -29,27 +32,33 @@ public sealed class AwsImageUnderstandingProvider : IImageUnderstandingProvider,
         _client = client ?? CreateClient(options);
     }
 
-    public async Task<ImageUnderstandingResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    public async Task<ImageUnderstandingResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, ImageUnderstandingRequest? request = null, CancellationToken cancellationToken = default)
     {
         if (stream is null)
         {
             throw new ArgumentNullException(nameof(stream));
         }
 
-        using var memory = new MemoryStream();
-        await stream.CopyToAsync(memory, cancellationToken).ConfigureAwait(false);
-        var imageBytes = memory.ToArray();
+        await using var handle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension, bufferSize: 128 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
+        var imageBytes = await File.ReadAllBytesAsync(handle.FilePath, cancellationToken).ConfigureAwait(false);
+
+        var overrides = request?.Aws;
+        var maxLabels = overrides?.MaxLabels ?? _options.MaxLabels;
+        var minConfidence = overrides?.MinConfidence ?? _options.MinConfidence;
+
+        using var labelStream = new MemoryStream(imageBytes, writable: false);
+        using var textStream = new MemoryStream(imageBytes, writable: false);
 
         var labelRequest = new DetectLabelsRequest
         {
-            Image = new Amazon.Rekognition.Model.Image { Bytes = new MemoryStream(imageBytes) },
-            MaxLabels = _options.MaxLabels,
-            MinConfidence = _options.MinConfidence
+            Image = new Amazon.Rekognition.Model.Image { Bytes = labelStream },
+            MaxLabels = maxLabels,
+            MinConfidence = minConfidence
         };
 
         var textRequest = new DetectTextRequest
         {
-            Image = new Amazon.Rekognition.Model.Image { Bytes = new MemoryStream(imageBytes) }
+            Image = new Amazon.Rekognition.Model.Image { Bytes = textStream }
         };
 
         var labelTask = _client.DetectLabelsAsync(labelRequest, cancellationToken);
@@ -64,7 +73,7 @@ public sealed class AwsImageUnderstandingProvider : IImageUnderstandingProvider,
             .OrderByDescending(l => l.Confidence)
             .Select(l => l.Name)
             .Where(static name => !string.IsNullOrWhiteSpace(name))
-            .Take(_options.MaxLabels)
+            .Take(maxLabels)
             .Select(name => name!)
             .ToArray();
 
@@ -83,7 +92,7 @@ public sealed class AwsImageUnderstandingProvider : IImageUnderstandingProvider,
             .Select(l => l.Name)
             .Where(static name => !string.IsNullOrWhiteSpace(name))
             .Distinct()
-            .Take(_options.MaxLabels)
+            .Take(maxLabels)
             .Select(name => name!)
             .ToArray();
 
