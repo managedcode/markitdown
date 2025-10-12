@@ -97,7 +97,7 @@ public sealed class RtfConverter : IDocumentConverter
                         if (i + 1 < rtf.Length)
                         {
                             var hex = rtf.Substring(i, 2);
-                            if (byte.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var value))
+                            if (byte.TryParse(hex, System.Globalization.NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value))
                             {
                                 builder.Append(Encoding.Default.GetString(new[] { value }));
                             }
