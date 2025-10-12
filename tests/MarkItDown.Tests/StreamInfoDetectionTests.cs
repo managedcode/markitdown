@@ -42,7 +42,7 @@ public class StreamInfoDetectionTests
     [Fact]
     public void GuessStreamInfo_HtmlContent_DetectsCorrectMimeType()
     {
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var htmlContent = "<!DOCTYPE html><html><head><title>Test</title></head><body><h1>Test</h1></body></html>";
         var bytes = Encoding.UTF8.GetBytes(htmlContent);
         
@@ -57,7 +57,7 @@ public class StreamInfoDetectionTests
     [Fact]
     public void GuessStreamInfo_PdfSignature_DetectsPdfMimeType()
     {
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var pdfSignature = new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2D }; // %PDF-
         
         using var stream = new MemoryStream(pdfSignature);
@@ -69,7 +69,7 @@ public class StreamInfoDetectionTests
     [Fact]
     public void GuessStreamInfo_JsonContent_DetectsJsonMimeType()
     {
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var jsonContent = "{\"test\": \"value\", \"number\": 123}";
         var bytes = Encoding.UTF8.GetBytes(jsonContent);
         

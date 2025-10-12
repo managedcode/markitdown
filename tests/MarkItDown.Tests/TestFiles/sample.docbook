@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<book>
+  <title>Sample DocBook</title>
+  <chapter>
+    <title>Introduction</title>
+    <para>This is an introductory paragraph.</para>
+    <section>
+      <title>Details</title>
+      <para>DocBook content becomes Markdown.</para>
+    </section>
+  </chapter>
+</book>

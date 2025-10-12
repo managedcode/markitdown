@@ -16,12 +16,15 @@ public sealed class CsvConverter : IDocumentConverter
 {
     private static readonly HashSet<string> AcceptedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".csv"
+        ".csv",
+        ".tsv",
+        ".tab",
     };
 
     private static readonly IReadOnlyCollection<string> AcceptedMimeTypePrefixes = new List<string>
     {
         MimeHelper.CSV,
+        MimeTypeUtilities.WithSubtype(MimeHelper.CSV, "tab-separated-values"),
         MimeTypeUtilities.WithType(MimeHelper.CSV, "application"),
     };
 
@@ -53,11 +56,17 @@ public sealed class CsvConverter : IDocumentConverter
                 stream.Position = 0;
 
             using var reader = new StreamReader(stream, streamInfo.Charset ?? Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+            var normalizedMime = MimeTypeUtilities.NormalizeMime(streamInfo);
+            var isTabSeparated = string.Equals(streamInfo.Extension, ".tsv", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(streamInfo.Extension, ".tab", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalizedMime, MimeTypeUtilities.WithSubtype(MimeHelper.CSV, "tab-separated-values"), StringComparison.OrdinalIgnoreCase);
+
             using var sepReader = await Sep.Reader(options => options with
             {
                 HasHeader = true,
                 Unescape = true,
                 Trim = SepTrim.All,
+                Sep = new Sep(isTabSeparated ? '\t' : ','),
             }).FromAsync(reader, cancellationToken).ConfigureAwait(false);
 
             var rows = new List<string[]>();

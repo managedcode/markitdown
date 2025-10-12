@@ -1,0 +1,24 @@
++++
+{
+  "title": "MetaMD Sample",
+  "abstract": "Short abstract about the document.",
+  "contributors": ["Ada Lovelace"],
+  "affiliations": ["Analytical Engines"],
+  "keywords": ["references", "markdown"],
+  "references": [
+    {
+      "id": "lovelace1843",
+      "title": "Sketch of the Analytical Engine",
+      "authors": ["Ada Lovelace"],
+      "url": "https://example.com/lovelace"
+    }
+  ]
+}
++++
+
+The MetaMD body references [@lovelace1843].
+
+:::diagram type="mermaid"
+graph TD
+  Start --> End
+:::

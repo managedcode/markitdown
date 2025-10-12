@@ -23,7 +23,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_WithValidFile_ReturnsSuccess()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var htmlContent = "<html><body><h1>Test Header</h1><p>Test content</p></body></html>";
         var bytes = Encoding.UTF8.GetBytes(htmlContent);
         
@@ -44,7 +44,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_WithCancellationToken_RespectsToken()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var content = "Simple text content for testing";
         var bytes = Encoding.UTF8.GetBytes(content);
         var cts = new CancellationTokenSource();
@@ -72,7 +72,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_WithLargeContent_ProcessesCorrectly()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var largeContent = new StringBuilder();
         
         // Create a large HTML document
@@ -105,7 +105,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_StreamNotSeekable_HandlesCorrectly()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var content = "Test content for non-seekable stream";
         var bytes = Encoding.UTF8.GetBytes(content);
         
@@ -121,7 +121,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_EmptyStream_ReturnsEmptyResult()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         using var stream = new MemoryStream();
         var streamInfo = new StreamInfo(extension: ".txt");
 
@@ -137,7 +137,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_BinaryContent_ThrowsUnsupportedFormatException()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var binaryData = new byte[] { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 }; // Random binary data
         
         using var stream = new MemoryStream(binaryData);
@@ -152,7 +152,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_JsonContent_ReturnsFormattedOutput()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var jsonContent = "{\"name\": \"test\", \"value\": 123, \"nested\": {\"key\": \"value\"}}";
         var bytes = Encoding.UTF8.GetBytes(jsonContent);
         
@@ -175,7 +175,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_MarkdownContent_ReturnsAsIs()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var markdownContent = "# Header\n\nThis is **bold** and *italic* text.\n\n- List item 1\n- List item 2\n";
         var bytes = Encoding.UTF8.GetBytes(markdownContent);
         
@@ -194,7 +194,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_ComplexHtmlWithTables_ConvertsCorrectly()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var htmlContent = @"
             <html>
                 <body>
@@ -237,7 +237,7 @@ public class MarkItDownIntegrationTests
     [MemberData(nameof(GeneralVectors))]
     public async Task Convert_FilePath_VectorExpectations(FileTestVector vector)
     {
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var path = TestAssetLoader.GetAssetPath(vector.FileName);
         var result = await markItDown.ConvertAsync(path);
         AssertVectorOutput(vector, result);
@@ -247,7 +247,7 @@ public class MarkItDownIntegrationTests
     [MemberData(nameof(GeneralVectors))]
     public async Task Convert_StreamWithHints_VectorExpectations(FileTestVector vector)
     {
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var path = TestAssetLoader.GetAssetPath(vector.FileName);
         await using var stream = File.OpenRead(path);
         var streamInfo = new StreamInfo(
@@ -268,7 +268,7 @@ public class MarkItDownIntegrationTests
             return;
         }
 
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var path = TestAssetLoader.GetAssetPath(vector.FileName);
         await using var stream = File.OpenRead(path);
 
@@ -280,7 +280,7 @@ public class MarkItDownIntegrationTests
     [MemberData(nameof(GeneralVectors))]
     public async Task Convert_FileUri_VectorExpectations(FileTestVector vector)
     {
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var uri = new Uri(TestAssetLoader.GetAssetPath(vector.FileName)).AbsoluteUri;
         var result = await markItDown.ConvertUriAsync(uri, streamInfo: null);
         AssertVectorOutput(vector, result);
@@ -295,7 +295,7 @@ public class MarkItDownIntegrationTests
             return;
         }
 
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var bytes = await File.ReadAllBytesAsync(TestAssetLoader.GetAssetPath(vector.FileName));
         var base64 = Convert.ToBase64String(bytes);
         var mime = vector.MimeType ?? "application/octet-stream";
@@ -309,7 +309,7 @@ public class MarkItDownIntegrationTests
     public async Task ConvertAsync_MultipleConcurrentCalls_HandlesCorrectly()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var tasks = new Task<DocumentConverterResult>[10];
         
         for (int i = 0; i < 10; i++)
@@ -338,7 +338,7 @@ public class MarkItDownIntegrationTests
     public void RegisterConverter_CustomConverter_AddsToList()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var customConverter = new TestCustomConverter();
 
         // Act
@@ -354,7 +354,7 @@ public class MarkItDownIntegrationTests
     public void RegisterConverter_NullConverter_ThrowsArgumentNullException()
     {
         // Arrange
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => markItDown.RegisterConverter(null!));
@@ -417,7 +417,7 @@ public class MarkItDownIntegrationTests
     public async Task Convert_FilePath_UnsupportedThrows(string fileName, StreamInfo streamInfo)
     {
         Assert.NotNull(streamInfo);
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var path = TestAssetLoader.GetAssetPath(fileName);
 
         await Assert.ThrowsAsync<UnsupportedFormatException>(() => markItDown.ConvertAsync(path));
@@ -427,7 +427,7 @@ public class MarkItDownIntegrationTests
     [MemberData(nameof(UnsupportedVectors))]
     public async Task Convert_StreamWithHints_UnsupportedThrows(string fileName, StreamInfo streamInfo)
     {
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         await using var stream = TestAssetLoader.OpenAsset(fileName);
 
         await Assert.ThrowsAsync<UnsupportedFormatException>(() => markItDown.ConvertAsync(stream, streamInfo));
@@ -438,7 +438,7 @@ public class MarkItDownIntegrationTests
     public async Task Convert_StreamWithoutHints_UnsupportedThrows(string fileName, StreamInfo streamInfo)
     {
         Assert.NotNull(streamInfo);
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         await using var stream = TestAssetLoader.OpenAsset(fileName);
 
         await Assert.ThrowsAsync<UnsupportedFormatException>(() => markItDown.ConvertAsync(stream, new StreamInfo()));
@@ -448,7 +448,7 @@ public class MarkItDownIntegrationTests
     [MemberData(nameof(UnsupportedVectors))]
     public async Task Convert_DataUri_UnsupportedThrows(string fileName, StreamInfo streamInfo)
     {
-        var markItDown = new global::MarkItDown.MarkItDown();
+        var markItDown = new global::MarkItDown.MarkItDownClient();
         var bytes = await File.ReadAllBytesAsync(TestAssetLoader.GetAssetPath(fileName));
         var dataUri = $"data:{streamInfo.MimeType ?? "application/octet-stream"};base64,{Convert.ToBase64String(bytes)}";
 

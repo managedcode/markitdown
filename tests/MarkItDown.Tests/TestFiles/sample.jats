@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://jats.nlm.nih.gov">
+  <front>
+    <article-meta>
+      <title-group>
+        <article-title>Sample JATS Article</article-title>
+      </title-group>
+    </article-meta>
+  </front>
+  <body>
+    <sec>
+      <title>Background</title>
+      <p>The JATS body supports sections.</p>
+    </sec>
+  </body>
+</article>
