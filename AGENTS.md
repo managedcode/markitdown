@@ -14,6 +14,7 @@ If I tell you to remember something, you do the same, update
 - CSV parsing must use the `Sep` library; avoid Sylvan or other CSV parsers for new or updated code.
 - Format integration tasks: never break the project or existing tests, and validate new format handling against real sample files.
 - Test fixtures must be surfaced via the auto-generated `TestAssetCatalog`; add binaries under `TestFiles/` and rely on its constants in tests.
+- YouTube converter work: include at least one live integration test that exercises the real metadata provider (skip gracefully if the upstream API is unavailable) so the flow mirrors production behaviour.
 
 # Repository Guidelines
 

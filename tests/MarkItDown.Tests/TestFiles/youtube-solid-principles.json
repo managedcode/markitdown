@@ -3,10 +3,10 @@
   "title": "SOLID Principles for Writing Clean and Structured Code",
   "channelTitle": "Managed Code",
   "watchUrl": "https://www.youtube.com/watch?v=8hnpIIamb6k",
-  "channelUrl": "https://www.youtube.com/@managed-code",
+  "channelUrl": "https://www.youtube.com/channel/UC9zqeHWPaRsFInFEoe_4vcQ",
   "durationSeconds": 186,
   "uploadDate": "2024-07-23T00:25:55+00:00",
-  "viewCount": 483,
+  "viewCount": 484,
   "likeCount": 29,
   "tags": [
     "SOLID Principles",
@@ -19,33 +19,240 @@
     "Coding Principles",
     "Software Design"
   ],
-  "description": "Are you ready to learn how to write clean and structured code? In this video, we explore the SOLID principles in programming that will help you create high-quality, understandable, and maintainable code.",
+  "description": "Are you ready to learn how to write clean and structured code? In this video, we explore the SOLID principles in programming that will help you create high-quality, understandable, and maintainable code.\n\nLearn about:\n\nSingle Responsibility Principle: One object, one task.\nOpen/Closed Principle: Add new features without changing existing code.\nLiskov Substitution Principle: Avoid subtype issues.\nInterface Segregation Principle: Use only the necessary interfaces.\nDependency Inversion Principle: Depend on abstractions, not details.\nSubscribe to the channel, leave comments, and share your programming stories!\n\nSee you soon!\nGitHub: https://github.com/managedcode\nDiscord: https://discord.gg/3wsxCRMmKp\nWebsite: https://www.managed-code.com",
   "thumbnails": [
     "https://i.ytimg.com/vi/8hnpIIamb6k/3.jpg",
-    "https://i.ytimg.com/vi_webp/8hnpIIamb6k/3.webp"
+    "https://i.ytimg.com/vi_webp/8hnpIIamb6k/3.webp",
+    "https://i.ytimg.com/vi/8hnpIIamb6k/2.jpg",
+    "https://i.ytimg.com/vi_webp/8hnpIIamb6k/2.webp",
+    "https://i.ytimg.com/vi/8hnpIIamb6k/1.jpg",
+    "https://i.ytimg.com/vi_webp/8hnpIIamb6k/1.webp",
+    "https://i.ytimg.com/vi/8hnpIIamb6k/mq3.jpg",
+    "https://i.ytimg.com/vi_webp/8hnpIIamb6k/mq3.webp",
+    "https://i.ytimg.com/vi/8hnpIIamb6k/mq2.jpg",
+    "https://i.ytimg.com/vi_webp/8hnpIIamb6k/mq2.webp"
   ],
   "captions": [
     {
-      "text": "Welcome to Managed Code! Let's explore the SOLID principles for writing clean software.",
-      "start": 0.0,
-      "end": 6.5,
+      "text": "hello today we're going to look at solid",
+      "start": 12.669,
+      "end": 12.679,
       "metadata": {
         "language": "en",
-        "provider": "YouTube"
+        "provider": "youtube"
       }
     },
     {
-      "text": "First up is the Single Responsibility Principle which keeps each component focused on one task.",
-      "start": 6.5,
-      "end": 14.0,
+      "text": "hello today we're going to look at solid five principles that will help you build",
+      "start": 12.679,
+      "end": 14.629,
       "metadata": {
         "language": "en",
-        "provider": "YouTube"
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "five principles that will help you build",
+      "start": 14.629,
+      "end": 14.639,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "five principles that will help you build stable and reliable systems let's go",
+      "start": 14.639,
+      "end": 17.99,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "stable and reliable systems let's go",
+      "start": 17.99,
+      "end": 18.0,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "stable and reliable systems let's go single responsibility principle the",
+      "start": 18.0,
+      "end": 20.07,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "single responsibility principle the",
+      "start": 20.07,
+      "end": 20.08,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "single responsibility principle the single responsibility principle states",
+      "start": 20.08,
+      "end": 22.029,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "single responsibility principle states",
+      "start": 22.029,
+      "end": 22.039,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "single responsibility principle states that an object should have only one",
+      "start": 22.039,
+      "end": 23.71,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "that an object should have only one",
+      "start": 23.71,
+      "end": 23.72,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "that an object should have only one reason to change meaning it should",
+      "start": 23.72,
+      "end": 25.509,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "reason to change meaning it should",
+      "start": 25.509,
+      "end": 25.519,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "reason to change meaning it should perform a single specific",
+      "start": 25.519,
+      "end": 27.91,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "perform a single specific",
+      "start": 27.91,
+      "end": 27.92,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "perform a single specific task a plane is designed to transport",
+      "start": 27.92,
+      "end": 30.669,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "task a plane is designed to transport",
+      "start": 30.669,
+      "end": 30.679,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "task a plane is designed to transport people through the air a boat is",
+      "start": 30.679,
+      "end": 32.549,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "people through the air a boat is",
+      "start": 32.549,
+      "end": 32.559,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
+      }
+    },
+    {
+      "text": "people through the air a boat is designed to transport people over water",
+      "start": 32.559,
+      "end": 34.83,
+      "metadata": {
+        "language": "en",
+        "provider": "youtube"
       }
     }
   ],
+  "chapters": [
+    {
+      "title": "Introduction",
+      "timeSeconds": 0
+    },
+    {
+      "title": "Single Responsibility",
+      "timeSeconds": 18
+    },
+    {
+      "title": "Open/Closed",
+      "timeSeconds": 46
+    },
+    {
+      "title": "Liskov Substitution",
+      "timeSeconds": 74
+    },
+    {
+      "title": "Interface Segregation",
+      "timeSeconds": 108
+    },
+    {
+      "title": "Dependency Inversion",
+      "timeSeconds": 142
+    },
+    {
+      "title": "Recap",
+      "timeSeconds": 170
+    }
+  ],
   "additionalMetadata": {
-    "category": "Education",
-    "shortDescription": "SOLID principles overview"
+    "durationFormatted": "3:06",
+    "channelHandle": "@managed-code",
+    "channelId": "UC9zqeHWPaRsFInFEoe_4vcQ",
+    "subscriberCount": "218",
+    "commentCount": "2",
+    "automaticCaptionLanguages": "aa, ab, af, ak, am, ar, as, ay, az, ba, be, bg, bho, bn, bo",
+    "bestVideoFormat": "96 (1920x1080 avc1.640028)",
+    "bestAudioFormat": "140 (mp4a.40.2 129.505kbps)",
+    "retrievedAtUtc": "2025-10-12T17:32:36Z"
   }
 }

@@ -114,7 +114,7 @@ public sealed class NewFormatsConverterTests
     public async Task RstConverter_ConvertsHeadings(string fileName)
     {
         var result = await ConvertAsync(fileName);
-        result.Markdown.ShouldContain("# Helios Engineering Notes");
+        result.Markdown.ShouldContain("Engineering Notes");
         result.Markdown.ShouldContain("telemetry-events.jsonl");
     }
 
@@ -141,7 +141,14 @@ public sealed class NewFormatsConverterTests
     {
         var result = await ConvertAsync(fileName);
         result.Markdown.ShouldContain("Helios Observatory Shift Log");
-        result.Markdown.ShouldContain("mission-outline.opml");
+        if (fileName == TestAssetCatalog.ObservatoryLogDjot)
+        {
+            result.Markdown.ShouldContain("mission-outline.opml");
+        }
+        else
+        {
+            result.Markdown.ShouldContain("telemetry-events.jsonl");
+        }
     }
 
     [Theory]

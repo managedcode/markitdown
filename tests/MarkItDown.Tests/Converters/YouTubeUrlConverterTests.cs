@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -68,15 +69,18 @@ public class YouTubeUrlConverterTests
         result.Title.ShouldBe(metadata.Title);
         result.Markdown.ShouldContain(metadata.Title);
         result.Markdown.ShouldContain("Managed Code");
-        result.Markdown.ShouldContain("**Views:** 483");
+        result.Markdown.ShouldContain("**Views:** 484");
         result.Markdown.ShouldContain("SOLID Principles");
         result.Markdown.ShouldContain("## Captions");
         result.Segments.ShouldContain(segment => segment.Type == SegmentType.Metadata);
         result.Segments.Count(s => s.Type == SegmentType.Audio).ShouldBe(metadata.Captions.Count);
 
         var firstCaption = result.Segments.First(s => s.Type == SegmentType.Audio);
-        firstCaption.StartTime.ShouldBe(TimeSpan.FromSeconds(0));
-        firstCaption.Markdown.ShouldContain("SOLID principles");
+        firstCaption.StartTime.ShouldNotBeNull();
+        firstCaption.StartTime.Value.ShouldBeGreaterThan(TimeSpan.Zero);
+        result.Segments.ShouldContain(segment =>
+            segment.Type == SegmentType.Audio &&
+            segment.Markdown.Contains("principles", StringComparison.OrdinalIgnoreCase));
     }
 
     private static YouTubeMetadata LoadRecordedMetadata()

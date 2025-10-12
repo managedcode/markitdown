@@ -1,4 +1,16 @@
+{{Infobox mission
+| name           = Helios Lunar Research Hub
+| designation    = HL-4 Research Platform
+| established    = 2044-11-15
+| lead_scientist = Dr. Lian Ortiz
+| status         = Active
+| latest_log     = [[telemetry-events.jsonl|Telemetry Snapshot]]
+}}
+__TOC__
+
 = Helios Lunar Research Hub =
+
+The Helios program curates a central MediaWiki space so orbital and surface teams can synchronise notes with the rest of the digital knowledge stack.<ref name="mission-summary">{{cite web |url=mission-summary.metamd |title=Mission Summary (MetaMarkdown) |access-date=2045-04-12}}</ref> The portal mirrors artefacts produced in the upstream [[mission-wiki.wiki|Mission Wiki]] and the typst overview in [[navigation-overview.typst]].
 
 == Introduction ==
 This article summarises lunar science operations and links to the supporting documents:
@@ -6,25 +18,105 @@ This article summarises lunar science operations and links to the supporting doc
 * Observation procedures: [[observation-handbook.dbk|DocBook handbook]].
 * Narrative summaries: [[explorer-journal.fb2|Explorer Journal]].
 
+; Collaboration cadence
+: Weekly async sync with playback notes in [[youtube-solid-principles.json|training metadata]] and related annotations stored within [[mission-operations.creole]].
+
+[[File:architecture-diagram.jpg|thumb|right|300px|Systems diagram for the Helios research stack.]]
+
 === Cross-References ===
 * Operational guidance lives in [[mission-operations.creole]].
-* Engineering reports are tracked in [[engineering-notes.rst]].
-* Resource tables are available at [[resource-allocation.tsv]].
+* Engineering reports are tracked in [[engineering-notes.rst]] and [[engineering-notes.rest]].
+* Resource tables are available at [[resource-allocation.tsv]] (tab-separated) and the compressed variants inside [[mixed-fixture-archive.zip]].
 
 === External Links ===
 * [[mission-wiki.wiki|Mission Knowledge Base]]
 * [[mission-flowchart.mermaid|Mission Flowchart]]
+* [[navigation-theory.tex|LaTeX guidance equations]]
 * [[youtube-solid-principles.json|Training Video Metadata]]
 
-== Instrument Health ==
-{| class="wikitable"
-! Instrument !! Status !! Linked Asset
+== Mission Overview ==
+The hub aggregates milestones from both surface and orbital campaigns:
+# '''Deployment''' &ndash; Instruments shipped per manifest [[mission-checklist.org]].
+# '''Commissioning''' &ndash; Runbook stored in [[celestial-navigation-notes.adoc]].
+# '''Steady ops''' &ndash; Daily payload summaries appended to [[mission-summary.metamd]].
+# '''Anomaly review''' &ndash; Outcomes documented alongside [[telemetry-events.ndjson]] extracts.
+
+=== Observational Campaigns ===
+{| class="wikitable sortable"
+! Campaign !! Objective !! Lead !! Assets !! Notes
 |-
-| Spectrometer || Stable || [[observatory-log.dj|Observatory Log]]
+| Tycho Rille Survey || Stereo imaging || Cmdr. Reyes || [[observatory-log.djot]] || Paired with [[mission-network.gv]] overlays
 |-
-| L4 Relay || Degraded || [[mission-network.gv|Topology Graph]]
+| Mare Tranquillitatis Dust Study || Electrostatic sampling || Dr. Singh || [[resource-allocation.tsv]] || Requires [[autogen-notebook.ipynb]] pipelines
 |-
-| Guidance Gyro || Monitoring || [[telemetry-events.jsonl|Telemetry Stream]]
+| Near-Side Relay Optimisation || UHF beam tuning || Eng. Cao || [[mission-network.dot]] || Cross-check with [[mission-flowchart.mmd]]
+|-
+| Terminator Temperature Sweep || Thermal gradient || Spec. Varga || [[telemetry-events.jsonl]] || Sync charts to [[deployment-diagram.puml]]
 |}
 
+=== Research Highlights ===
+* '''Spectrometer gains''' tuned using calibration snapshots in [[observatory-log.dj]].
+** Nested note: Batching scripts executed from [[autogen-paper-with-comments.docx]] macros.
+* '''Guidance gyro''' refinements validated through [[navigation-theory.latex]] derivations.
+* '''Crew training''' references [[youtube-solid-principles.json]] while linking to bibliographic sources [[orbital-research.bib]] and [[mission-citations.csljson]].
+
+== Data Integration ==
+{{Quote box
+ |quote = ''"Every Helios data product must have a Markdown, MediaWiki, or MetaMarkdown representation to ensure parity across converters."''<ref>{{cite book |title=Converter Manifesto |publisher=Managed Code |year=2043}}</ref>
+ |author = Principal Engineer Harper
+ |source = Converter Guidelines
+}}
+Unified ingestion is enforced through the following layers:
+* <math>Q_{flux} = \\frac{\\Delta E}{\\Delta t}</math> annotations appended to each physics bundle.
+* Synced metadata stored in `telemetry-events.ndjson` to power the CLI integration tests.
+* Process automation orchestrated via [[deployment-diagram.tikz]] and tracked in [[mission-outline.opml]].
+
+{{Notice|text=For every fixture under ``tests/MarkItDown.Tests/TestFiles``, a corresponding assertion must exist in the .NET suite. No orphaned files are allowed.}}
+
+<syntaxhighlight lang="json">
+{
+  "relatedVideo": "8hnpIIamb6k",
+  "source": "youtube-solid-principles.json",
+  "exported": "2045-04-11T18:05:00Z",
+  "notes": [
+    "Clip embedded in mission-operations.creole training annex.",
+    "Captions audited and mirrored to mission-summary.metamd."
+  ]
+}
+</syntaxhighlight>
+
+== Instrument Health ==
+{| class="wikitable mw-collapsible"
+! Instrument !! Status !! Linked Asset !! Last Updated !! Follow-up
+|-
+| Spectrometer || Stable || [[observatory-log.dj|Observatory Log]] || 2045-04-09 || Compare against [[stellar-observation.jats]]
+|-
+| L4 Relay || Degraded || [[mission-network.gv|Topology Graph]] || 2045-04-10 || Escalate per [[crew-handbook.textile]]
+|-
+| Guidance Gyro || Monitoring || [[telemetry-events.jsonl|Telemetry Stream]] || 2045-04-11 || Align with [[engineering-notes.rst]]
+|-
+| EVA Suit Sensors || Nominal || [[mission-checklist.org|Checklists]] || 2045-04-11 || Snapshot to [[mission-summary.metamd]]
+|}
+
+== Timeline ==
+* 2044-11-15 &ndash; Platform activated, baseline archived in [[mission-outline.opml]].
+* 2045-01-03 &ndash; MediaWiki sync with DocBook assets via [[observation-handbook.dbk]] ingest.
+* 2045-03-21 &ndash; Training refresh triggered by [[youtube-solid-principles.json]] update.
+* 2045-04-11 &ndash; Consolidated analytics forwarded to [[telemetry-events.jsonl]] and mirrored in [[resource-allocation.tab]].
+
+== Gallery ==
+<gallery widths="240" heights="160">
+llm-workflow.jpg|Workflow map exported from the CLI pipeline.
+architecture-diagram.jpg|Subsystem architecture highlighting cross-format references.
+</gallery>
+
+== Reference Notes ==
+# [[explorer-journal.fb2|Explorer Journal entry 24]] summarises crew feedback and links to <code>mission-operations.creole</code>.
+# [[mission-briefing.dokuwiki]] cross-publishes the same bulletins with stable anchors for doc viewers.
+# [[mission-summary.metamd]] consolidates citations from [[orbital-research-extended.bibtex]].
+
+<references/>
+
 [[Category:Helios]]
+[[Category:Lunar science]]
+[[Category:Knowledge base]]
