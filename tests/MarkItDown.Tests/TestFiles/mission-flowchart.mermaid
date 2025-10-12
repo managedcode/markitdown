@@ -1,0 +1,24 @@
+graph LR
+  subgraph Planning
+    PL1[Compile nav updates<br/>celestial-navigation-notes.adoc]
+    PL2[Review telemetry<br/>telemetry-events.jsonl]
+    PL3[Sync action items<br/>mission-briefing.dokuwiki]
+  end
+
+  subgraph Execution
+    EX1{Burn window open?}
+    EX2[Execute burn<br/>navigation-theory.tex]
+    EX3[Record metrics<br/>resource-allocation.tsv]
+  end
+
+  subgraph Reporting
+    RP1[Update handbook<br/>observation-handbook.dbk]
+    RP2[Publish summary<br/>mission-summary.metamd]
+    RP3[Flag citations<br/>mission-citations.csljson]
+  end
+
+  PL1 --> PL2 --> PL3 --> EX1
+  EX1 -- yes --> EX2 --> EX3 --> RP1
+  EX1 -- no --> RP2
+  RP1 --> RP2 --> RP3
+  RP3 -->|Link video briefs| youtubeSolidPrinciples[(youtube-solid-principles.json)]

@@ -1,0 +1,46 @@
+[
+  {
+    "id": "ellison-2045",
+    "type": "article-journal",
+    "title": "Adaptive Course Control during the Helios Transfer",
+    "container-title": "Journal of Deep Space Navigation",
+    "issued": { "date-parts": [[2045, 4, 11]] },
+    "URL": "https://mission-archives.example.org/papers/helios-adaptive-course",
+    "author": [
+      { "given": "Mara", "family": "Ellison" },
+      { "given": "Tomas", "family": "Aguirre" }
+    ],
+    "note": "Referenced by celestial-navigation-notes.adoc and astrodynamics-study.bits."
+  },
+  {
+    "id": "nguyen-2044",
+    "type": "paper-conference",
+    "title": "Trustworthy Telemetry Pipelines for Jovian Missions",
+    "container-title": "Proceedings of the 22nd Interplanetary Systems Symposium",
+    "issued": { "date-parts": [[2044, 10, 2]] },
+    "publisher": "Interplanetary Systems Press",
+    "publisher-place": "New Geneva",
+    "page": "88-105",
+    "URL": "https://mission-archives.example.org/proceedings/iss2044/trustworthy-telemetry",
+    "author": [
+      { "given": "Leila", "family": "Nguyen" },
+      { "given": "Andrei", "family": "Price" }
+    ],
+    "keyword": "telemetry",
+    "note": "Data captured in telemetry-events.jsonl and telemetry-events.ndjson."
+  },
+  {
+    "id": "carter-2043",
+    "type": "book",
+    "title": "Field Manual for Autonomous Observatories",
+    "issued": { "date-parts": [[2043]] },
+    "publisher": "Helios Initiative Press",
+    "publisher-place": "Tycho City",
+    "ISBN": "978-0-9922334-2-1",
+    "URL": "https://mission-archives.example.org/manuals/autonomous-observatories",
+    "author": [
+      { "given": "Nia", "family": "Carter" }
+    ],
+    "note": "Cross-referenced by mission-operations.creole and mission-briefing.dokuwiki."
+  }
+]

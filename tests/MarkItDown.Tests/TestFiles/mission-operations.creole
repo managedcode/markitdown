@@ -1,0 +1,29 @@
+= Helios Mission Operations Guide
+
+== Overview ==
+The Helios crew relies on this Creole guide whenever updating systems referenced in the `mission-wiki.wiki` knowledge hub or the structured outline stored in `mission-outline.opml`. Coordination with navigation is tracked through the <<celestial-navigation-notes.adoc,Asciidoc navigation log>>.
+
+=== Roles ===
+* **Flight Director** -- approves burn plans from //navigation-theory.tex//.
+* **Communications Lead** -- verifies network diagrams in {{{mission-network.dot}}}.
+* **Onboard Scientist** -- updates observation payload manifests mirrored in [[../stellar-observation.docbook|DocBook archive]].
+
+=== Shift Checklist ===
+# Sync timeline with {{{mission-summary.metamd}}}.
+# Review telemetry anomalies flagged in [[../telemetry-events.jsonl|JSONL stream]].
+# Update OODA loop board; crosslink tasks to [[../mission-briefing.dokuwiki#ActionItems|Briefing Action Items]].
+
+=== Cross-System Dependencies ===
+|= Asset |= Purpose |= Linked Procedure |
+| [[../mission-flowchart.mermaid|Mermaid Flowchart]] | Visualizes burn-to-communication sequencing | Section 4 of this guide |
+| [[../deployment-diagram.wsd|WebSequence Diagram]] | Models operator hand-offs | Appendix A |
+| [[../crew-handbook.textile|Crew Handbook (Textile)]] | Human factors checklist | Chapter 2 |
+
+=== Anomaly Response ===
+If the telemetry queue exceeds thresholds:
+* Capture raw packets in the {{telemetry-events.ndjson}} log.
+* Annotate findspots in the `engineering-notes.rest` document.
+* Notify knowledge archivists to append a narrative to `explorer-journal.fb2`.
+
+----
+{{Document owner: Operations Guild. Last synced with youtube-solid-principles.json insights on 2045-04-11.}}

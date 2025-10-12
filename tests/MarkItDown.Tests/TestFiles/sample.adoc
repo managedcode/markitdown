@@ -1,6 +1,0 @@
-= Sample AsciiDoc
-
-This paragraph includes *bold* and _italic_ text.
-
-* Item one
-* Item two

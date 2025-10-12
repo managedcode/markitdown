@@ -254,12 +254,12 @@ public class NewConvertersTests
         var pipeline = new RecordingPipeline("SLIDE");
         var converter = new PptxConverter(pipeline: pipeline);
 
-        await using var stream = TestAssetLoader.OpenAsset("test.pptx");
+        await using var stream = TestAssetLoader.OpenAsset(TestAssetCatalog.AutogenStrategyPptx);
         var streamInfo = new StreamInfo(
             mimeType: MimeHelper.GetMimeType(".pptx"),
             extension: ".pptx",
-            fileName: "test.pptx",
-            localPath: TestAssetLoader.GetAssetPath("test.pptx"));
+            fileName: "autogen-strategy.pptx",
+            localPath: TestAssetLoader.GetAssetPath(TestAssetCatalog.AutogenStrategyPptx));
 
         var result = await converter.ConvertAsync(stream, streamInfo);
 

@@ -1,0 +1,21 @@
+digraph MissionTopology {
+  graph [tooltip="Network topology referenced by mission-network.dot and mission-flowchart.mermaid"];
+  node [shape=ellipse, style=filled, fillcolor="#1f3b4d", fontcolor="#ffffff"];
+
+  "Tycho Station" -> "Relay A (L4)" [label="uplink", color="#4caf50"];
+  "Tycho Station" -> "Relay B (Callisto)" [label="uplink", color="#4caf50"];
+  "Relay A (L4)" -> "Helios Vehicle" [label="primary link", color="#2196f3"];
+  "Relay B (Callisto)" -> "Helios Vehicle" [label="redundant", color="#ff9800"];
+  "Helios Vehicle" -> "Science Deck" [label="data bus", color="#9c27b0"];
+  "Helios Vehicle" -> "Crew Quarters" [label="alerts", color="#cddc39"];
+
+  {
+    rank=same;
+    "Relay A (L4)";
+    "Relay B (Callisto)";
+  }
+
+  // Node metadata pointing to other formats
+  "Science Deck" [URL="engineering-notes.rst", tooltip="Engineering notes"];
+  "Crew Quarters" [URL="crew-handbook.textile", tooltip="Crew handbook reference"];
+}

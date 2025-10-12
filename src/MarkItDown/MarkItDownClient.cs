@@ -20,7 +20,6 @@ using MarkItDown.Intelligence.Providers.Aws;
 using MarkItDown.Intelligence.Providers.Azure;
 using MarkItDown.Intelligence.Providers.Google;
 using MarkItDown.YouTube;
-using Microsoft.Extensions.Logging;
 
 namespace MarkItDown;
 

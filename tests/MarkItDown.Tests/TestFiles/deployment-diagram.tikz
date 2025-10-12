@@ -1,0 +1,14 @@
+\begin{tikzpicture}[node distance=2.2cm, every node/.style={draw, rounded corners, font=\small}]
+  \node (crew) {Crew Terminal\\\texttt{crew-handbook.textile}};
+  \node[right of=crew] (ops) {Mission Ops\\\texttt{mission-operations.creole}};
+  \node[right of=ops] (nav) {Navigation Core\\\texttt{navigation-theory.tex}};
+  \node[below of=nav] (telemetry) {Telemetry Broker\\\texttt{telemetry-events.jsonl}};
+  \node[right of=nav] (archive) {Mission Archive\\\texttt{mission-summary.metamd}};
+
+  \draw[->, thick] (crew) -- node[above]{requests} (ops);
+  \draw[->, thick] (ops) -- node[above]{burn plan} (nav);
+  \draw[->, thick, color=blue!70] (nav) -- node[right]{metrics} (telemetry);
+  \draw[->, thick, color=green!60!black] (telemetry) -- node[below]{rollups} (archive);
+  \draw[->, dashed] (archive) -- ++(0,-2) node[below, draw=none]{Refer to \texttt{mission-wiki.wiki}};
+  \draw[->, dashed] (ops) -- ++(0,2) node[above, draw=none]{Briefing notes in \texttt{mission-briefing.dokuwiki}};
+\end{tikzpicture}

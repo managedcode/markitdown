@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://jats.nlm.nih.gov">
+  <front>
+    <article-meta>
+      <title-group>
+        <article-title>Astrodynamics Study Notes for the Helios Mission</article-title>
+        <subtitle>Cross-linked references to operational assets</subtitle>
+      </title-group>
+      <contrib-group>
+        <contrib contrib-type="author">
+          <name>
+            <surname>Ellison</surname>
+            <given-names>Mara</given-names>
+          </name>
+          <aff>Helios Navigation Directorate</aff>
+        </contrib>
+        <contrib contrib-type="author">
+          <name>
+            <surname>Nguyen</surname>
+            <given-names>Leila</given-names>
+          </name>
+          <aff>Helios Telemetry Office</aff>
+        </contrib>
+      </contrib-group>
+      <pub-date iso-8601-date="2045-04-11">
+        <day>11</day>
+        <month>04</month>
+        <year>2045</year>
+      </pub-date>
+    </article-meta>
+  </front>
+  <body>
+    <sec>
+      <title>Background</title>
+      <p>The navigation posture described here supplements the plain-text overview in
+        <ext-link ext-link-type="wiki" xlink:href="mission-wiki.wiki">Mission Knowledge Base</ext-link>
+        and the AsciiDoc log contained in <ext-link ext-link-type="asciidoc" xlink:href="celestial-navigation-notes.adoc">Helios Navigation Operations Log</ext-link>.
+        Quantitative tables referenced below are sourced from the TSV data set
+        <ext-link ext-link-type="data" xlink:href="resource-allocation.tsv">resource-allocation.tsv</ext-link>.</p>
+    </sec>
+    <sec>
+      <title>Delta-V Ledger</title>
+      <p>The delta-v budget aligns with the math derivations maintained in <ext-link ext-link-type="tex" xlink:href="navigation-theory.tex">Navigation Theory</ext-link>
+        and the summary captured in the Typst manuscript <ext-link ext-link-type="typst" xlink:href="navigation-overview.typst">Navigation Overview</ext-link>.</p>
+      <table-wrap id="tbl-dv">
+        <label>Table 1</label>
+        <caption>
+          <title>Helios burn sequence</title>
+        </caption>
+        <table>
+          <thead>
+            <tr>
+              <th>Burn ID</th>
+              <th>Planned Δv (m/s)</th>
+              <th>Actual Δv (m/s)</th>
+              <th>Related Asset</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>MNV-2045-17</td>
+              <td>12.4</td>
+              <td>12.6</td>
+              <td><ext-link ext-link-type="jsonl" xlink:href="telemetry-events.jsonl">Telemetry Batch 3021</ext-link></td>
+            </tr>
+            <tr>
+              <td>MNV-2045-18</td>
+              <td>4.8</td>
+              <td>4.9</td>
+              <td><ext-link ext-link-type="rst" xlink:href="engineering-notes.rst">Engineering Report 44-B</ext-link></td>
+            </tr>
+          </tbody>
+        </table>
+      </table-wrap>
+    </sec>
+    <sec>
+      <title>Cross-Discipline References</title>
+      <list list-type="bullet">
+        <list-item>
+          <p>Communications coverage zones are encoded in <ext-link ext-link-type="mermaid" xlink:href="mission-flowchart.mermaid">Mission Flowchart</ext-link> and the PlantUML pair
+            <ext-link xlink:href="deployment-diagram.plantuml">deployment-diagram.plantuml</ext-link>.</p>
+        </list-item>
+        <list-item>
+          <p>Observatory narratives reference <ext-link xlink:href="explorer-journal.fb2">Explorer Journal</ext-link> and the structured observation record
+            <ext-link xlink:href="observatory-log.djot">Observatory Log DJOT</ext-link>.</p>
+        </list-item>
+        <list-item>
+          <p>Bibliographic support is maintained in <ext-link ext-link-type="bib" xlink:href="orbital-research.bib">Orbital Research Bibliography</ext-link>,
+            with EndNote equivalents (<ext-link xlink:href="orbital-research.enl">.enl</ext-link>, <ext-link xlink:href="orbital-research.endnote.xml">.endnote.xml</ext-link>).</p>
+        </list-item>
+      </list>
+    </sec>
+  </body>
+  <back>
+    <ref-list>
+      <title>References</title>
+      <ref id="ref-ellison">
+        <label>[1]</label>
+        <mixed-citation>Ellison, M., &amp; Aguirre, T. (2045). Adaptive Course Control during the Helios Transfer. <italic>Journal of Deep Space Navigation</italic>, 58(4), 201–224.
+          Retrieved from <ext-link xlink:href="orbital-research.bib">orbital-research.bib</ext-link>.</mixed-citation>
+      </ref>
+      <ref id="ref-nguyen">
+        <label>[2]</label>
+        <mixed-citation>Nguyen, L., &amp; Price, A. (2044). Trustworthy Telemetry Pipelines for Jovian Missions. In <italic>Proc. 22nd Interplanetary Systems Symposium</italic>.
+          Dataset mirror in <ext-link xlink:href="telemetry-events.ndjson">telemetry-events.ndjson</ext-link>.</mixed-citation>
+      </ref>
+    </ref-list>
+  </back>
+</article>

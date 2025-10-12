@@ -12,6 +12,8 @@ If I tell you to remember something, you do the same, update
 - MIME handling: always use `ManagedCode.MimeTypes` for MIME constants, lookups, and validation logic.
 - Treat this repository as a high-fidelity port of `microsoft-markitdown`: every test fixture copied from the upstream `tests/test_files/` directory must be referenced by .NET tests (either as positive conversions or explicit unsupported cases). No orphaned fixtures.
 - CSV parsing must use the `Sep` library; avoid Sylvan or other CSV parsers for new or updated code.
+- Format integration tasks: never break the project or existing tests, and validate new format handling against real sample files.
+- Test fixtures must be surfaced via the auto-generated `TestAssetCatalog`; add binaries under `TestFiles/` and rely on its constants in tests.
 
 # Repository Guidelines
 

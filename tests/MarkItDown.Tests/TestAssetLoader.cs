@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
@@ -12,6 +13,10 @@ internal static class TestAssetLoader
     }
 
     private static readonly string AssetsRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "TestFiles"));
+
+    public static IReadOnlyDictionary<string, string> AllAssets => TestAssetCatalog.All;
+
+    public static string AssetsDirectory => AssetsRoot;
 
     public static string GetAssetPath(string fileName)
     {

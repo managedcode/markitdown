@@ -1,0 +1,22 @@
+@startuml
+skinparam handwritten true
+
+participant "Crew Console" as Crew
+participant "Mission Ops" as Ops
+participant "Helios NavCore" as Nav
+participant "Telemetry Broker" as Telemetry
+participant "Archive" as Archive
+
+Crew -> Ops : Request burn plan
+Ops -> Nav : Validate against navigation-theory.tex
+Nav -> Telemetry : Stream delta-v metrics
+Telemetry -> Archive : Persist to mission-summary.metamd
+Archive -> Ops : Confirmation (links to mission-operations.creole)
+Ops -> Crew : Deliver updated checklist (crew-handbook.textile)
+
+note over Nav,Telemetry
+  If anomaly, check telemetry-events.ndjson
+  and log to engineering-notes.rst
+end note
+
+@enduml

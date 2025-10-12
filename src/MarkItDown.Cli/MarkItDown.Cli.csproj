@@ -11,6 +11,7 @@
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <SelfContained Condition="'$(SelfContained)' == ''">false</SelfContained>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>

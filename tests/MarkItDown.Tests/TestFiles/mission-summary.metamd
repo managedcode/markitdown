@@ -1,0 +1,50 @@
+++
+{
+  "title": "Helios Mission Cross-System Summary",
+  "abstract": "Meta-document linking navigation, telemetry, and knowledge-base assets.",
+  "contributors": ["Mara Ellison", "Leila Nguyen", "Nia Carter"],
+  "affiliations": ["Helios Navigation Directorate", "Helios Telemetry Office"],
+  "keywords": ["Helios", "navigation", "telemetry", "knowledge base"],
+  "references": [
+    {
+      "id": "ellison2045",
+      "title": "Adaptive Course Control during the Helios Transfer",
+      "authors": ["Mara Ellison", "Tomas Aguirre"],
+      "url": "orbital-research.bib#ellison2045"
+    },
+    {
+      "id": "nguyen2044",
+      "title": "Trustworthy Telemetry Pipelines for Jovian Missions",
+      "authors": ["Leila Nguyen", "Andrei Price"],
+      "url": "mission-citations.csljson#nguyen-2044"
+    },
+    {
+      "id": "carter2043",
+      "title": "Field Manual for Autonomous Observatories",
+      "authors": ["Nia Carter"],
+      "url": "mission-citations.csljson#carter-2043"
+    }
+  ]
+}
++++
+
+## Navigation Highlights
+The navigation team confirmed burn sequence MNV-2045-18. Details reside in [`celestial-navigation-notes.adoc`](celestial-navigation-notes.adoc) and the supporting calculations in [`navigation-theory.tex`](navigation-theory.tex). Key telemetry packets appear in [`telemetry-events.jsonl`](telemetry-events.jsonl) and the condensed NDJSON mirror.
+
+## Operations Summary
+* Crew actions tracked through [`mission-operations.creole`](mission-operations.creole) and [[mission-briefing.dokuwiki|DokuWiki briefing]].
+* Resource consumption recorded in both `resource-allocation.tsv` and `resource-allocation.tab` for ingestion into analytics pipelines.
+* Communications status confirmed via diagrams: `mission-network.dot`, `mission-network.gv`, and the PlantUML/WebSequence/TikZ set.
+
+## Knowledge Base Links
+The canonical wiki articles (`mission-wiki.wiki`, `lunar-research.mediawiki`) cite the bibliographic entries [@ellison2045], [@nguyen2044], and [@carter2043]. Each article is mirrored in the OPML tree (`mission-outline.opml`) and the typographic references `navigation-overview.typst` / `navigation-overview.typ`.
+
+:::diagram type="mermaid"
+graph TD
+  A[Navigation Log<br/>celestial-navigation-notes.adoc] --> B{Burn Decision}
+  B -- yes --> C[Execute Burn<br/>navigation-theory.tex]
+  C --> D[Update Telemetry<br/>telemetry-events.jsonl]
+  D --> E[Summarize<br/>mission-summary.metamd]
+  E --> F[Publish KB<br/>mission-wiki.wiki]
+  B -- no --> G[Hold Review<br/>mission-operations.creole]
+:::

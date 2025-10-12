@@ -1,0 +1,26 @@
+====== Helios Daily Briefing ======
+
+===== Overview =====
+The Helios crew convenes each cycle to review navigation updates, science goals, and outstanding tasks. This DokuWiki page is mirrored in the OPML tree ([[../mission-outline.opml]]) and summarised in the MetaMarkdown file ([[../mission-summary.metamd]]). The facilitation checklist lives in the Textile guide ([[../crew-handbook.textile]]).
+
+  * **Navigation Update**
+    * Link: [[../celestial-navigation-notes.adoc|Navigation Log (AsciiDoc)]]
+    * Verify burn requests against ::navigation-theory.tex:: derivations.
+  * **Telemetry Health**
+    * Inspect [[../telemetry-events.jsonl|JSONL feed]] for anomalies.
+    * Confirm follow-up actions recorded in [[../engineering-notes.rest|REST engineering log]].
+  * **Science Highlights**
+    * Reference [[../stellar-observation.jats|Observation Record]].
+    * Add narrative summary to [[../explorer-journal.fb2|Explorer Journal]].
+
+==== Action Items ====
+|= ID |= Description |= Owner |= Linked Asset |
+| ACT-07 | Recalibrate Tracker-B camera housing | Lt. Vega | [[../observatory-log.dj|Observatory Log]] |
+| ACT-12 | Publish updated bibliography | Dr. Ellison | [[../orbital-research.bib|Bib]] / [[../mission-citations.csljson|CSL JSON]] |
+| ACT-19 | Update comms topology diagram | Eng. Price | [[../mission-network.dot|DOT]] & [[../mission-flowchart.mermaid|Mermaid]] |
+
+==== Reference Media ====
+{{:architecture-diagram.jpg?direct|Architecture Diagram}} illustrates the current communications spine described in [[../deployment-diagram.puml|PlantUML]] and [[../deployment-diagram.wsd|WSD]].
+
+===== Notes =====
+((Reminder|Cross-post briefing minutes to the knowledge base entry [[../mission-wiki.wiki#briefings|Mission Wiki Briefings]] and include mentions of the SOLID training session captured in `youtube-solid-principles.json`.))

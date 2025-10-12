@@ -1,0 +1,15 @@
+# Helios Observatory Shift Log (DJOT)
+
+## Entry: 2044-11-19T18:22Z
+
+- Observed **ion tail divergence** near Callisto corridor.
+- Raw frames archived at `architecture-diagram.jpg`; annotate via `mission-network.gv`.
+- See [mission-outline.opml](mission-outline.opml) node `Science/Observations/IonTail`.
+
+### Follow-up Tasks
+
+1. Update [mission-summary.metamd](mission-summary.metamd) with a bullet under *Anomalies*.
+2. Attach supporting citations {mission-citations.csljson}[nguyen-2044].
+3. Synchronise commentary inside the reStructuredText deck (`engineering-notes.rest`).
+
+> Transcript version: consult `crew-briefing.rtf` section "Scientific Notes".

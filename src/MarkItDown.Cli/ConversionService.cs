@@ -20,7 +20,7 @@ internal sealed class ConversionService
 
         Directory.CreateDirectory(outputDirectory);
         var results = new List<ConversionResult>(files.Count);
-        var markItDown = new MarkItDown(options);
+        var markItDown = new MarkItDownClient(options);
 
         for (var index = 0; index < files.Count; index++)
         {
@@ -53,7 +53,7 @@ internal sealed class ConversionService
         }
 
         Directory.CreateDirectory(outputDirectory);
-        var markItDown = new MarkItDown(options);
+        var markItDown = new MarkItDownClient(options);
         var conversion = await markItDown.ConvertFromUrlAsync(url, cancellationToken: cancellationToken).ConfigureAwait(false);
         var outputPath = await WriteMarkdownAsync(conversion.Markdown, DeriveFileNameFromUrl(url, conversion.Title), outputDirectory, cancellationToken).ConfigureAwait(false);
         var result = new ConversionResult(url, outputPath, true, null, conversion.Segments.Count);

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<book version="5.0"
+      xmlns="http://docbook.org/ns/docbook"
+      xmlns:xlink="http://www.w3.org/1999/xlink">
+  <info>
+    <title>Helios Observation Handbook</title>
+    <subtitle>Coordinated asset references for the mission archive</subtitle>
+    <author>
+      <personname>
+        <firstname>Nia</firstname>
+        <surname>Carter</surname>
+      </personname>
+      <affiliation>
+        <orgname>Helios Initiative</orgname>
+      </affiliation>
+    </author>
+    <pubdate>2045-04-11</pubdate>
+  </info>
+
+  <chapter xml:id="overview">
+    <title>Mission Overview</title>
+    <para>This handbook enumerates observation procedures. It is synchronized with
+      <link xlink:href="stellar-observation.jats">JATS observation records</link>,
+      the <link xlink:href="explorer-journal.fb2">Explorer Journal</link>,
+      and the <link xlink:href="mission-summary.metamd">MetaMarkdown summary</link>.</para>
+    <para>Before each shift, review the <link xlink:href="mission-operations.creole">Mission Operations Guide</link>
+      and cross-check anomaly tickets within the <link xlink:href="mission-wiki.wiki">Mission Wiki</link>.</para>
+    <section xml:id="assets">
+      <title>Referenced Assets</title>
+      <itemizedlist>
+        <listitem>
+          <para>Star tracker alignment tables reside in <link xlink:href="engineering-notes.rst">Engineering Notes</link>
+            and <link xlink:href="engineering-notes.rest">reStructuredText REST mirror</link>.</para>
+        </listitem>
+        <listitem>
+          <para>Observation network diagrams: <link xlink:href="mission-network.dot">DOT</link>,
+            <link xlink:href="mission-network.gv">Graphviz</link>, and <link xlink:href="mission-flowchart.mermaid">Mermaid flow</link>.</para>
+        </listitem>
+        <listitem>
+          <para>Mission bibliographies maintained in <link xlink:href="orbital-research.bib">BibTeX</link>,
+            <link xlink:href="orbital-research-extended.bibtex">Extended BibTeX</link>,
+            and <link xlink:href="mission-citations.csljson">CSL JSON</link>.</para>
+        </listitem>
+      </itemizedlist>
+    </section>
+  </chapter>
+
+  <chapter xml:id="field-operations">
+    <title>Field Operations</title>
+    <para>When entering observational data, use the following structure.</para>
+    <section>
+      <title>Checklist</title>
+      <orderedlist>
+        <listitem><para>Confirm voice briefings are logged in <link xlink:href="crew-briefing.rtf">Crew Briefing</link>.</para></listitem>
+        <listitem><para>Annotate spectral anomalies in <link xlink:href="observatory-log.dj">Observatory Log (DJ)</link> and its DJOT variant.</para></listitem>
+        <listitem><para>Synchronize telemetry windows described in <link xlink:href="telemetry-events.jsonl">telemetry-events.jsonl</link>.</para></listitem>
+      </orderedlist>
+    </section>
+    <section>
+      <title>Resource Allocation</title>
+      <para>The resource plan is stored in both <link xlink:href="resource-allocation.tsv">TSV</link>
+        and <link xlink:href="resource-allocation.tab">TAB</link> formats for compatibility with navigation planning tools.</para>
+    </section>
+  </chapter>
+
+  <chapter xml:id="appendix">
+    <title>Appendix</title>
+    <para>Additional media: <link xlink:href="lunar-research.mediawiki">Lunar Research MediaWiki article</link>,
+      <link xlink:href="mission-briefing.dokuwiki">DokuWiki briefing</link>,
+      and the <link xlink:href="mission-outline.opml">OPML outline</link>.</para>
+    <para>Design documents: <link xlink:href="navigation-theory.tex">LaTeX derivation</link>,
+      <link xlink:href="navigation-theory.latex">Plain TeX variant</link>,
+      and <link xlink:href="navigation-overview.typ">Typst manuscript</link>.</para>
+  </chapter>
+</book>

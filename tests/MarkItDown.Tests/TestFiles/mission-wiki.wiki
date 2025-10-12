@@ -1,0 +1,16 @@
+= Helios Mission Knowledge Base =
+
+== Navigation ==
+* [[celestial-navigation-notes.adoc|Navigation Operations Log]]
+* [[navigation-theory.tex|Guidance Equations]]
+* [[mission-network.dot|Communications Graph]]
+
+== Science ==
+# [[observation-handbook.dbk|Observation Handbook]]
+# [[stellar-observation.jats|Structured Observation Record]]
+# [[explorer-journal.fb2|Explorer Narrative]]
+
+== References ==
+* Bibliography: [[orbital-research.bib|BibTeX]], [[mission-citations.csljson|CSL JSON]]
+* Operations Guide: [[mission-operations.creole|Creole manual]]
+* Training Media: [[youtube-solid-principles.json|SOLID Principles Video Metadata]]

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<book version="5.0"
+      xmlns="http://docbook.org/ns/docbook"
+      xmlns:xlink="http://www.w3.org/1999/xlink">
+  <info>
+    <title>Stellar Observation Compendium</title>
+    <subtitle>Supplement to the Observation Handbook</subtitle>
+    <pubdate>2045-04-11</pubdate>
+    <author>
+      <personname>
+        <firstname>Leila</firstname>
+        <surname>Nguyen</surname>
+      </personname>
+    </author>
+  </info>
+
+  <chapter xml:id="spectral-analysis">
+    <title>Spectral Analysis Procedures</title>
+    <para>Refer to <link xlink:href="astrodynamics-study.bits">Astrodynamics Study Notes</link>
+      for the theoretical foundation. Raw sensor data is traced within
+      <link xlink:href="telemetry-events.ndjson">telemetry-events.ndjson</link>.
+      Anomalies are cataloged in <link xlink:href="mission-summary.metamd">Mission Summary</link>.</para>
+    <section>
+      <title>Calibration Checklist</title>
+      <itemizedlist>
+        <listitem><para>Synchronize with <link xlink:href="mission-operations.creole">Operations Guide</link>.</para></listitem>
+        <listitem><para>Confirm resources in <link xlink:href="resource-allocation.tsv">Resource Worksheet</link>.</para></listitem>
+        <listitem><para>Log narrative into <link xlink:href="explorer-journal.fb2">Explorer Journal</link>.</para></listitem>
+      </itemizedlist>
+    </section>
+  </chapter>
+
+  <chapter xml:id="bibliography">
+    <title>Supporting Literature</title>
+    <para>All cited works are stored in <link xlink:href="orbital-research.bib">orbital-research.bib</link>
+      and <link xlink:href="mission-citations.csljson">mission-citations.csljson</link>.
+      Extended EndNote variants exist (<link xlink:href="orbital-research.enl">.enl</link>,
+      <link xlink:href="orbital-research.endnote.xml">.endnote.xml</link>).</para>
+  </chapter>
+</book>

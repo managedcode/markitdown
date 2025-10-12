@@ -518,3 +518,6 @@ coverage*.info
 
 # Temporary test files
 *.tmp
+
+# Generated test asset catalog
+tests/MarkItDown.Tests/Generated/

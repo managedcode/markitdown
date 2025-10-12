@@ -6,18 +6,18 @@ The upstream Python project (`microsoft-markitdown/packages/markitdown/tests/tes
 
 | File | Format | Primary Expectations |
 |------|--------|---------------------|
-| `test.docx`, `test_with_comment.docx` | Word | Heading detection, inline images skipped, comments hidden |
-| `test.xlsx`, `test.xls` | Excel | Worksheet headings, table conversion |
-| `test.pptx` | PowerPoint | Slide text, chart captions, embedded images |
-| `test.pdf` | PDF | Multi-page text extraction |
-| `test.epub` | EPUB | Spine ordering, metadata parsing |
-| `test_blog.html`, `test_wikipedia.html`, `test_serp.html` | HTML/Serp | Sanitised content, link normalisation |
-| `test_rss.xml`, `test_mskanji.csv`, `test.json`, `test_notebook.ipynb` | XML/CSV/JSON/Notebook | Charset handling, header rendering, code fences |
-| `test_files.zip` | Archive | Delegated inner conversions |
-| `test.mp3`, `test.m4a`, `test.wav` | Audio | Metadata extraction, transcript wiring |
-| `test_outlook_msg.msg` | Outlook message | Envelope fields, body markdown |
+| `autogen-paper.docx`, `autogen-paper-with-comments.docx` | Word | Heading detection, inline images skipped, comments hidden |
+| `autogen-forecast.xlsx`, `legacy-ledger.xls` | Excel | Worksheet headings, table conversion |
+| `autogen-strategy.pptx` | PowerPoint | Slide text, chart captions, embedded images |
+| `autogen-trial-transcript.pdf` | PDF | Multi-page text extraction |
+| `autogen-ebook.epub` | EPUB | Spine ordering, metadata parsing |
+| `autogen-blog.html`, `microsoft-wikipedia.html`, `bing-search-results.html` | HTML/Serp | Sanitised content, link normalisation |
+| `microsoft-blog-feed.xml`, `kanji-dataset.csv`, `customer-records.json`, `autogen-notebook.ipynb` | XML/CSV/JSON/Notebook | Charset handling, header rendering, code fences |
+| `mixed-fixture-archive.zip` | Archive | Delegated inner conversions |
+| `meeting-audio.mp3`, `meeting-audio.m4a`, `meeting-audio.wav` | Audio | Metadata extraction, transcript wiring |
+| `project-status.msg` | Outlook message | Envelope fields, body markdown |
 | `equations.docx` | Math-heavy Word | Equation formatting |
-| `test.jpg`, `test_llm.jpg` | Images | OCR/exif-paths |
+| `architecture-diagram.jpg`, `llm-workflow.jpg` | Images | OCR/exif-paths |
 | `random.bin` | Negative case for unsupported formats |
 
 These fixtures enable parity testing across nearly every built-in converter.
@@ -51,7 +51,7 @@ To reach ≥90% line coverage without shipping native/tooling dependencies, intr
 4. **Converter-Specific Unit Tests**
    - Docx/Xlsx/Pptx: verify headings/tables, ensure inline images yield base64 placeholders not raw binaries.
    - JSON/Notebook/RSS/CSV: assert formatting decisions (code fences, table layout, header levels).
-   - Zip: use `test_files.zip` to confirm recursive conversion and MIME detection.
+   - Zip: use `mixed-fixture-archive.zip` to confirm recursive conversion and MIME detection.
    - Audio/Image: with injected fakes, validate metadata layout and optional transcript/caption text.
 
 5. **Error & Edge Cases**

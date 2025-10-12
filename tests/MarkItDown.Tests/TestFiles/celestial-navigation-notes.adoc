@@ -1,0 +1,46 @@
+= Helios Navigation Operations Log
+Author: Dr. Mara Ellison <mara.ellison@helios.example>
+:toc:
+:sectnums:
+
+The *Helios Initiative* keeps a rolling log of navigation discussions that feed the `mission-outline.opml` planning tree and the shared `mission-wiki.wiki`. Crew members are expected to link each action item back to the authoritative references held in the `orbital-research.bib` bibliography.
+
+== Morning Constellation Check
+
+Date:: 2045-04-11
+Location:: Jovian Transfer Corridor (Segment 3)
+
+The navigation console reported a drift of _3.4 arcseconds_ relative to the expected reference frame. See the supporting telemetry in `telemetry-events.jsonl`. The correction burn is tracked as **MNV-2045-18** and detailed in the engineering briefing (`engineering-notes.rst`).
+
+NOTE: The drift coincides with a spike in the magnetometer feed captured in the `resource-allocation.tsv` summary (Row `Helios-Gyro-17`).
+
+== Star Tracker Calibration
+
+* Inspect the optical assembly for ice crystals. If found, edit the [[../mission-operations.creole#Maintenance|Mission Operations Guide]].
+* Record calibration coefficients in the `navigation-overview.typst` design spec.
+* Upload snapshots to the archive referenced in `mission-summary.metamd`.
+
+[cols="1,1,1",options="header"]
+|===
+|Sensor |Offset (arcsec) |Linked Issue
+|Helios-Tracker-A |2.1 | [[../mission-briefing.dokuwiki#ActionItems|Action-07]]
+|Helios-Tracker-B |3.4 | `observatory-log.dj`
+|Helios-Tracker-C |1.2 | `observatory-log.djot`
+|===
+
+== Cross-System Links
+
+. Charting Resources
+.. link:mission-flowchart.mermaid[Systems Flow]
+.. link:mission-network.gv[Rendezvous Graph]
+.. link:deployment-diagram.tikz[Deployment TikZ Diagram]
+. Procedure References
+.. `crew-handbook.textile` — internal training summary.
+.. `crew-briefing.rtf` — daily briefing template.
+.. `mission-outline.opml` — canonical task tree.
+
+== Historical Context
+
+The `explorer-journal.fb2` novella keeps a human-readable narrative of these entries, while the formal observation data is preserved in the XML pair `stellar-observation.docbook` and `stellar-observation.jats`. For the legislative compliance trail, consult the `mission-citations.csljson` auto-generated citation file.
+
+TIP: During code freeze, ensure the guidance algorithm described in `navigation-theory.tex` matches the simplified example in `navigation-theory.latex`.

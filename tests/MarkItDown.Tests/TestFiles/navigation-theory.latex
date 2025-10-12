@@ -1,0 +1,16 @@
+\title{Helios Navigation Theory (Plain LaTeX)}
+\author{Mara Ellison}
+\date{April 11, 2045}
+
+\section{Reference Frames}
+The burn schedule derives from the telemetry analysed in \texttt{telemetry-events.jsonl} and summarised within \texttt{mission-summary.metamd}. Each coefficient aligns with the empirical data discussed in the article \emph{Adaptive Course Control during the Helios Transfer} (see \texttt{orbital-research.bib}).
+
+\section{Delta-V Budget}
+Let $\Delta v_{total} = \sum_i \Delta v_i$. The breakdown is published to the AsciiDoc log \texttt{celestial-navigation-notes.adoc} and cross-checked against the resource worksheet \texttt{resource-allocation.tsv}.
+
+\subsection{Supporting Assets}
+\begin{itemize}
+  \item Communications topology: \texttt{mission-network.dot}, \texttt{mission-network.gv}.
+  \item Procedure manuals: \texttt{mission-operations.creole}, \texttt{mission-briefing.dokuwiki}.
+  \item Visual flow: \texttt{mission-flowchart.mermaid} and PlantUML/TikZ deployments.
+\end{itemize}

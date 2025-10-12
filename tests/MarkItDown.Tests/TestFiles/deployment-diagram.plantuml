@@ -1,0 +1,27 @@
+@startuml HeliosDeployment
+!theme spacelab
+
+actor Crew as "Crew Terminal\n(crew-handbook.textile)"
+node "Helios Vehicle" {
+  component NavCore as "Navigation Core\nnavigation-theory.tex"
+  component Telemetry as "Telemetry Broker\ntelemetry-events.jsonl"
+  database Archive as "Mission Archive\nmission-summary.metamd"
+}
+
+node "Ground Segment" {
+  component FlightControl as "Flight Control\ncelestial-navigation-notes.adoc"
+  component KnowledgeHub as "Knowledge Base\nmission-wiki.wiki"
+}
+
+Crew --> NavCore : Commands
+NavCore --> Telemetry : State
+Telemetry --> Archive : Append logs
+Archive --> KnowledgeHub : Publish summary
+FlightControl --> NavCore : Burn approval
+KnowledgeHub --> Crew : Briefing
+
+note over Crew,FlightControl
+  References: mission-operations.creole, mission-briefing.dokuwiki
+end note
+
+@enduml

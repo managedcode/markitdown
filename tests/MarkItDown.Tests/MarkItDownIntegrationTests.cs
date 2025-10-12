@@ -15,8 +15,8 @@ public class MarkItDownIntegrationTests
     public static IEnumerable<object[]> UnsupportedVectors => new List<object[]>
     {
         new object[] { "random.bin", new StreamInfo(mimeType: "application/octet-stream", extension: ".bin") },
-        new object[] { "test.xls", new StreamInfo(mimeType: "application/vnd.ms-excel", extension: ".xls") },
-        new object[] { "test_outlook_msg.msg", new StreamInfo(mimeType: "application/vnd.ms-outlook", extension: ".msg") },
+        new object[] { "legacy-ledger.xls", new StreamInfo(mimeType: "application/vnd.ms-excel", extension: ".xls") },
+        new object[] { "project-status.msg", new StreamInfo(mimeType: "application/vnd.ms-outlook", extension: ".msg") },
     };
 
     [Fact]

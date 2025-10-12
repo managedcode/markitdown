@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using ManagedCode.MimeTypes;
 using MarkItDown;
 using MarkItDown.Converters;
+using MarkItDown.Tests.Fixtures;
 using Shouldly;
 
 namespace MarkItDown.Tests;
@@ -16,11 +17,11 @@ public class PptxConverterTests
         var pipeline = new RecordingPipeline("PPTX ENRICHED");
         var converter = new PptxConverter(pipeline: pipeline);
 
-        await using var stream = TestAssetLoader.OpenAsset("test.pptx");
+        await using var stream = TestAssetLoader.OpenAsset(TestAssetCatalog.AutogenStrategyPptx);
         var streamInfo = new StreamInfo(
             mimeType: MimeHelper.GetMimeType(".pptx"),
             extension: ".pptx",
-            fileName: "test.pptx");
+            fileName: "autogen-strategy.pptx");
 
         // Act
         var result = await converter.ConvertAsync(stream, streamInfo);
@@ -43,5 +44,33 @@ public class PptxConverterTests
         placeholderIndex.ShouldBeGreaterThanOrEqualTo(0);
         var trailing = segment.Markdown[(placeholderIndex + image.PlaceholderMarkdown!.Length)..];
         trailing.TrimStart('\r', '\n').ShouldStartWith("PPTX ENRICHED");
+    }
+
+    [Fact]
+    public async Task ConvertAsync_ComplexPptx_EmitsSlidesAndArtifacts()
+    {
+        var client = new MarkItDownClient();
+        var path = TestAssetLoader.GetAssetPath(TestAssetCatalog.ComplexPptx);
+
+        var result = await client.ConvertAsync(path);
+
+        result.Title.ShouldBe("Slide 1");
+        result.Markdown.ShouldContain("## Slide 2");
+        result.Markdown.ShouldContain("Quarterly Breakdown");
+        result.Markdown.ShouldContain("Key wins: automation, coverage, resilience");
+        result.Markdown.ShouldContain("![ComplexFixtureImage]");
+    }
+
+    [Fact]
+    public async Task ConvertAsync_BrokenPptx_RaisesFileConversionError()
+    {
+        var client = new MarkItDownClient();
+        var path = TestAssetLoader.GetAssetPath(TestAssetCatalog.BrokenPptx);
+
+        var exception = await Should.ThrowAsync<UnsupportedFormatException>(async () => await client.ConvertAsync(path));
+        exception.InnerException.ShouldNotBeNull();
+        exception.InnerException.ShouldBeOfType<AggregateException>();
+        var aggregate = (AggregateException)exception.InnerException!;
+        aggregate.InnerExceptions.ShouldContain(e => e is FileConversionException);
     }
 }

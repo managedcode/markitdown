@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>Helios Mission Outline</title>
+  </head>
+  <body>
+    <outline text="Mission Overview" _note="See mission-summary.metamd">
+      <outline text="Navigation" _note="celestial-navigation-notes.adoc; navigation-overview.typst" />
+      <outline text="Telemetry" _note="telemetry-events.jsonl; engineering-notes.rst" />
+      <outline text="Communications" _note="mission-network.dot; mission-flowchart.mermaid" />
+    </outline>
+    <outline text="Science Operations" _note="stellar-observation.docbook; explorer-journal.fb2">
+      <outline text="Observatory Logs" _note="observatory-log.dj; observatory-log.djot" />
+      <outline text="Bibliography" _note="orbital-research.bib; mission-citations.csljson" />
+      <outline text="MediaWiki Hub" _note="mission-wiki.wiki; lunar-research.mediawiki" />
+    </outline>
+    <outline text="Crew Coordination" _note="mission-operations.creole; crew-handbook.textile">
+      <outline text="Briefings" _note="crew-briefing.rtf; mission-briefing.dokuwiki" />
+      <outline text="Training Media" _note="youtube-solid-principles.json; deployment-diagram.puml" />
+    </outline>
+  </body>
+</opml>

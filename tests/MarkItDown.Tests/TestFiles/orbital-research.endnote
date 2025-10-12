@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<records xmlns="http://www.endnote.com/xml">
+  <record>
+    <titles>
+      <title>Adaptive Course Control during the Helios Transfer</title>
+    </titles>
+    <contributors>
+      <authors>
+        <author><name>Mara Ellison</name></author>
+        <author><name>Tomas Aguirre</name></author>
+      </authors>
+    </contributors>
+    <dates>
+      <year>2045</year>
+    </dates>
+    <periodical>
+      <full-title>Journal of Deep Space Navigation</full-title>
+    </periodical>
+    <urls>
+      <related-urls>
+        <url>orbital-research.bib#ellison2045</url>
+      </related-urls>
+    </urls>
+    <notes>
+      <note>Referenced by celestial-navigation-notes.adoc and mission-summary.metamd.</note>
+    </notes>
+  </record>
+  <record>
+    <titles>
+      <title>Trustworthy Telemetry Pipelines for Jovian Missions</title>
+    </titles>
+    <contributors>
+      <authors>
+        <author><name>Leila Nguyen</name></author>
+        <author><name>Andrei Price</name></author>
+      </authors>
+    </contributors>
+    <dates>
+      <year>2044</year>
+    </dates>
+    <periodical>
+      <full-title>Interplanetary Systems Symposium</full-title>
+    </periodical>
+    <urls>
+      <related-urls>
+        <url>mission-citations.csljson#nguyen-2044</url>
+      </related-urls>
+    </urls>
+    <notes>
+      <note>Linked to telemetry-events.jsonl and telemetry-events.ndjson datasets.</note>
+    </notes>
+  </record>
+</records>

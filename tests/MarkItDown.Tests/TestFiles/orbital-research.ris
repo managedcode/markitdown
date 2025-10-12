@@ -1,0 +1,19 @@
+TY  - JOUR
+TI  - Adaptive Course Control during the Helios Transfer
+AU  - Ellison, Mara
+AU  - Aguirre, Tomas
+JO  - Journal of Deep Space Navigation
+PY  - 2045
+UR  - orbital-research.bib#ellison2045
+N1  - Referenced in celestial-navigation-notes.adoc and mission-summary.metamd
+ER  -
+
+TY  - CONF
+TI  - Trustworthy Telemetry Pipelines for Jovian Missions
+AU  - Nguyen, Leila
+AU  - Price, Andrei
+CY  - New Geneva
+PY  - 2044
+UR  - mission-citations.csljson#nguyen-2044
+N1  - Telemetry stream correlations stored in telemetry-events.jsonl
+ER  -

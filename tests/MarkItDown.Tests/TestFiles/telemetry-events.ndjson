@@ -1,0 +1,3 @@
+{"event_id":"JOV-3112","stage":"analysis","source":"telemetry-events.jsonl","details":"drift detected","linked":"engineering-notes.rest"}
+{"event_id":"COM-8821","stage":"mitigation","source":"mission-network.gv","details":"relay power adjusted","linked":"mission-operations.creole"}
+{"event_id":"SCI-1420","stage":"reporting","source":"observatory-log.djot","details":"spectrometer gain tuned","linked":"mission-summary.metamd"}

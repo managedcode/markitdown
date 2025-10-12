@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns="http://jats.nlm.nih.gov">
+  <front>
+    <article-meta>
+      <title-group>
+        <article-title>Helios Stellar Observation Record</article-title>
+      </title-group>
+      <abstract>
+        <p>Structured summary accompanying the DocBook handbook and explorer journal narrative.</p>
+      </abstract>
+    </article-meta>
+  </front>
+  <body>
+    <sec>
+      <title>Observation Summary</title>
+      <p>Entries align with <ext-link ext-link-type="docbook" xlink:href="observation-handbook.dbk">Observation Handbook</ext-link> and <ext-link xlink:href="explorer-journal.fb2">Explorer Journal</ext-link>.</p>
+    </sec>
+    <sec>
+      <title>Related Assets</title>
+      <list list-type="bullet">
+        <list-item><p>Operational context documented in <ext-link xlink:href="mission-operations.creole">Mission Operations Guide</ext-link>.</p></list-item>
+        <list-item><p>Bibliography anchored to <ext-link xlink:href="orbital-research.bib">Orbital Research Bibliography</ext-link>.</p></list-item>
+        <list-item><p>Telemetry packets archived in <ext-link xlink:href="telemetry-events.jsonl">telemetry-events.jsonl</ext-link>.</p></list-item>
+      </list>
+    </sec>
+  </body>
+</article>

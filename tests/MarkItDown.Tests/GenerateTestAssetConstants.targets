@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <UsingTask TaskName="GenerateTestAssetProperties"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <ProjectDirectory ParameterType="System.String" Required="true" />
+      <OutputFile ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Linq" />
+      <Using Namespace="System.Text" />
+      <Using Namespace="System.Text.RegularExpressions" />
+      <Using Namespace="System.Collections.Generic" />
+      <Code Type="Fragment" Language="cs">
+<![CDATA[
+#pragma warning disable CS0162
+var assetsRoot = Path.Combine(ProjectDirectory, "TestFiles");
+var outputPath = Path.Combine(ProjectDirectory, OutputFile);
+
+if (!Directory.Exists(assetsRoot))
+{
+    Log.LogMessage(MessageImportance.High, $"TestFiles directory not found at: {assetsRoot}. Creating empty directory.");
+    Directory.CreateDirectory(assetsRoot);
+}
+
+Func<string, string> ToPropertyName = fileName =>
+{
+    var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+    var safeName = Regex.Replace(nameWithoutExt, @"[\s\-\.\(\),]+", "_");
+    safeName = Regex.Replace(safeName, @"[^\w\d_]", "");
+    safeName = Regex.Replace(safeName, "_+", "_").Trim('_');
+
+    if (string.IsNullOrEmpty(safeName))
+    {
+        return "UnknownFile";
+    }
+
+    var tokens = safeName.Split(new[] { '_' }, StringSplitOptions.RemoveEmptyEntries);
+    var builder = new StringBuilder();
+    foreach (var token in tokens)
+    {
+        if (token.Length <= 3 && token.ToUpperInvariant() == token)
+        {
+            builder.Append(token);
+        }
+        else
+        {
+            builder.Append(char.ToUpperInvariant(token[0]));
+            if (token.Length > 1)
+            {
+                builder.Append(token.Substring(1).ToLowerInvariant());
+            }
+        }
+    }
+
+    var result = builder.Length == 0 ? "UnknownFile" : builder.ToString();
+
+    var extension = Path.GetExtension(fileName);
+    if (!string.IsNullOrEmpty(extension))
+    {
+        var extToken = Regex.Replace(extension.TrimStart('.'), @"[^\w\d_]", "_");
+        extToken = Regex.Replace(extToken, "_+", "_").Trim('_');
+        if (!string.IsNullOrEmpty(extToken))
+        {
+            var extParts = extToken.Split(new[] { '_' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in extParts)
+            {
+                var normalized = part.ToLowerInvariant();
+                result += char.ToUpperInvariant(normalized[0]) + normalized.Substring(1);
+            }
+        }
+    }
+
+    if (char.IsDigit(result[0]))
+    {
+        result = "_" + result;
+    }
+
+    return result;
+};
+
+Func<string, string> ToClassName = folderName =>
+{
+    var safeName = Regex.Replace(folderName, @"[^\w\d]", "");
+    if (string.IsNullOrEmpty(safeName))
+    {
+        safeName = "UnknownFolder";
+    }
+    if (char.IsDigit(safeName[0]))
+    {
+        safeName = "_" + safeName;
+    }
+
+    return safeName;
+};
+
+var propertyEntries = new List<(string key, string reference, string relativePath)>();
+
+Action<StringBuilder, DirectoryInfo, string, int, string> GenerateMembers = null!;
+GenerateMembers = (sb, dir, basePath, indentLevel, classPath) =>
+{
+    var indent = new string(' ', indentLevel * 4);
+
+    var directories = dir.GetDirectories()
+        .Where(d => !d.Name.StartsWith(".", StringComparison.Ordinal))
+        .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    foreach (var subDir in directories)
+    {
+        var className = ToClassName(subDir.Name);
+        var nestedClassName = className;
+        var nestedClassPath = $"{classPath}.{nestedClassName}";
+
+        sb.AppendLine($"{indent}/// <summary>");
+        sb.AppendLine($"{indent}/// Test assets from \"{subDir.Name}\" folder.");
+        sb.AppendLine($"{indent}/// </summary>");
+        sb.AppendLine($"{indent}public static class {nestedClassName}");
+        sb.AppendLine($"{indent}{{");
+
+        GenerateMembers(sb, subDir, basePath, indentLevel + 1, nestedClassPath);
+
+        sb.AppendLine($"{indent}}}");
+        sb.AppendLine();
+    }
+
+    var files = dir.GetFiles()
+        .Where(f => !f.Name.StartsWith(".", StringComparison.Ordinal))
+        .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    foreach (var file in files)
+    {
+        var basePropertyName = ToPropertyName(file.Name);
+        var propertyName = basePropertyName;
+        var suffix = 1;
+        while (!usedNames.Add(propertyName))
+        {
+            propertyName = $"{basePropertyName}{suffix++}";
+        }
+
+        var referencePath = $"{classPath}.{propertyName}";
+
+        var normalizedBase = basePath.Replace('\\', '/');
+        if (!normalizedBase.EndsWith("/", StringComparison.Ordinal))
+        {
+            normalizedBase += "/";
+        }
+
+        var fullPath = file.FullName.Replace('\\', '/');
+        var relativePath = fullPath.StartsWith(normalizedBase, StringComparison.OrdinalIgnoreCase)
+            ? fullPath.Substring(normalizedBase.Length)
+            : file.Name;
+
+        sb.AppendLine($"{indent}/// <summary>");
+        sb.AppendLine($"{indent}/// Relative path: {relativePath}");
+        sb.AppendLine($"{indent}/// </summary>");
+        sb.AppendLine($"{indent}public const string {propertyName} = \"{relativePath}\";");
+        sb.AppendLine();
+
+        propertyEntries.Add((referencePath, referencePath, relativePath));
+    }
+};
+
+var stringBuilder = new StringBuilder();
+stringBuilder.AppendLine("// <auto-generated />");
+stringBuilder.AppendLine("// This file is auto-generated by MSBuild. Do not modify manually.");
+stringBuilder.AppendLine("// Generated from the TestFiles directory.");
+stringBuilder.AppendLine();
+stringBuilder.AppendLine("#nullable enable");
+stringBuilder.AppendLine();
+stringBuilder.AppendLine("using System;");
+stringBuilder.AppendLine("using System.Collections.Generic;");
+stringBuilder.AppendLine();
+stringBuilder.AppendLine("namespace MarkItDown.Tests;");
+stringBuilder.AppendLine();
+stringBuilder.AppendLine("/// <summary>");
+stringBuilder.AppendLine("/// Auto-generated constants for test asset file paths.");
+stringBuilder.AppendLine("/// </summary>");
+stringBuilder.AppendLine("public static partial class TestAssetCatalog");
+stringBuilder.AppendLine("{");
+
+var rootDirectory = new DirectoryInfo(assetsRoot);
+GenerateMembers(stringBuilder, rootDirectory, assetsRoot, 1, "TestAssetCatalog");
+
+stringBuilder.AppendLine("    /// <summary>");
+stringBuilder.AppendLine("    /// Map of fully-qualified property names to relative asset paths.");
+stringBuilder.AppendLine("    /// </summary>");
+stringBuilder.AppendLine("    public static IReadOnlyDictionary<string, string> All { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)");
+stringBuilder.AppendLine("    {");
+foreach (var entry in propertyEntries.OrderBy(e => e.relativePath, StringComparer.OrdinalIgnoreCase))
+{
+    stringBuilder.AppendLine($"        [\"{entry.key}\"] = {entry.reference},");
+}
+stringBuilder.AppendLine("    };");
+stringBuilder.AppendLine("}");
+
+var outputDirectory = Path.GetDirectoryName(outputPath);
+if (!string.IsNullOrEmpty(outputDirectory))
+{
+    Directory.CreateDirectory(outputDirectory);
+}
+
+File.WriteAllText(outputPath, stringBuilder.ToString(), Encoding.UTF8);
+
+var generatedFileCount = Directory.GetFiles(assetsRoot, "*", SearchOption.AllDirectories)
+    .Count(f => !Path.GetFileName(f).StartsWith(".", StringComparison.Ordinal));
+var generatedFolderCount = Directory.GetDirectories(assetsRoot, "*", SearchOption.AllDirectories)
+    .Count(d => !new DirectoryInfo(d).Name.StartsWith(".", StringComparison.Ordinal));
+
+Log.LogMessage(MessageImportance.High, $"Generated test asset catalog: {outputPath}");
+Log.LogMessage(MessageImportance.High, $"Processed {generatedFileCount} files across {generatedFolderCount} folders.");
+
+return true;
+#pragma warning restore CS0162
+]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="GenerateTestAssetCatalog"
+          BeforeTargets="BeforeBuild">
+    <GenerateTestAssetProperties
+      ProjectDirectory="$(MSBuildProjectDirectory)"
+      OutputFile="Generated/TestAssetCatalog.g.cs" />
+  </Target>
+</Project>

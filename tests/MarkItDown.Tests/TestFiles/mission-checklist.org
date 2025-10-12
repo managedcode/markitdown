@@ -1,0 +1,27 @@
+#+TITLE: Helios Mission Daily Checklist
+#+AUTHOR: Lt. Vega
+#+DATE: 2045-04-11
+
+* Pre-Shift
+** Navigation Sync
+- Review [[file:celestial-navigation-notes.adoc][Navigation Log (AsciiDoc)]]
+- Confirm equations in =navigation-theory.tex=
+** Telemetry Audit
+- Inspect anomalies in [[file:telemetry-events.jsonl][JSONL feed]]
+- Cross-check =telemetry-events.ndjson=
+
+* During Shift
+** Observation Tasks
+- Update [[file:observatory-log.dj][Observatory Log]] and DJOT variant
+- Capture narrative snippet for [[file:explorer-journal.fb2][Explorer Journal]]
+** Communications
+- Verify diagrams: [[file:mission-network.dot][DOT]], [[file:mission-network.gv][GV]]
+- Ensure backups in =deployment-diagram.tikz=
+
+* Post-Shift
+** Reporting
+- Publish summary to [[file:mission-summary.metamd][MetaMarkdown summary]]
+- Append bibliography tags per [[file:mission-citations.csljson][CSL JSON]]
+** Knowledge Base
+- Update [[file:mission-wiki.wiki][Mission Wiki]] briefing section
+- Share SOLID training link via [[file:youtube-solid-principles.json][YouTube metadata]]

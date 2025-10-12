@@ -1,0 +1,30 @@
+= Helios Lunar Research Hub =
+
+== Introduction ==
+This article summarises lunar science operations and links to the supporting documents:
+* Navigation coordination: [[celestial-navigation-notes.adoc|AsciiDoc log]].
+* Observation procedures: [[observation-handbook.dbk|DocBook handbook]].
+* Narrative summaries: [[explorer-journal.fb2|Explorer Journal]].
+
+=== Cross-References ===
+* Operational guidance lives in [[mission-operations.creole]].
+* Engineering reports are tracked in [[engineering-notes.rst]].
+* Resource tables are available at [[resource-allocation.tsv]].
+
+=== External Links ===
+* [[mission-wiki.wiki|Mission Knowledge Base]]
+* [[mission-flowchart.mermaid|Mission Flowchart]]
+* [[youtube-solid-principles.json|Training Video Metadata]]
+
+== Instrument Health ==
+{| class="wikitable"
+! Instrument !! Status !! Linked Asset
+|-
+| Spectrometer || Stable || [[observatory-log.dj|Observatory Log]]
+|-
+| L4 Relay || Degraded || [[mission-network.gv|Topology Graph]]
+|-
+| Guidance Gyro || Monitoring || [[telemetry-events.jsonl|Telemetry Stream]]
+|}
+
+[[Category:Helios]]

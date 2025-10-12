@@ -1,0 +1,27 @@
+Helios Engineering Notes
+========================
+
+.. note::
+   Correlate these entries with the telemetry artifacts in ``telemetry-events.jsonl`` and the anomaly catalogue stored in ``mission-summary.metamd``.
+
+Subsystem Diagnostics
+---------------------
+
+* Navigation: drift correction ``MNV-2045-18`` logged in ``celestial-navigation-notes.adoc``.
+* Communications: relay power reset referencing the diagrams in ``mission-network.dot`` and ``mission-flowchart.mmd``.
+* Science: sensor recalibration narrative in ``observatory-log.dj`` and ``observatory-log.djot``.
+
+Data Attachments
+----------------
+
+.. list-table:: Supporting Files
+   :header-rows: 1
+
+   * - Asset
+     - Purpose
+   * - ``resource-allocation.tsv``
+     - Resource ledger for burn planning
+   * - ``deployment-diagram.tikz``
+     - Visual confirmation of signal routing
+   * - ``mission-citations.csljson``
+     - Bibliographic traceability

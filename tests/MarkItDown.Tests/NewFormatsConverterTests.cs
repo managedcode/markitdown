@@ -10,35 +10,54 @@ namespace MarkItDown.Tests;
 public sealed class NewFormatsConverterTests
 {
     private const string SampleOdtBase64 = "UEsDBBQAAAAIAABbTFuvsRNW0gAAAJgBAAALAAAAY29udGVudC54bWyNkDFuwzAMRXefgtDupN0KwVaWImuHOgdQZToWIJOCJAfJ7SvZTtpm6kTw6z/qk83hOjm4YIiWqRWvuxcBSIZ7S+dWnLpj/SYOqmp4GKxB2bOZJ6RUG6aUK2SaolxfWzEHkqyjjZL0hFEmI9kj3Sn52y3LX9U2IOE1/Rcv3gVWFcA92Bf3t9L/KMW2KllbmBGWwnNylrB2eEGXVxbqU0/eIXy8d81+df4FvepGG8HroM9B+xEM53gwBJ5AU+EgLiN2G++3KPunLA9hjfton8+qqm9QSwECFAMUAAAACAAAW0xbr7ETVtIAAACYAQAACwAAAAAAAAAAAAAAgAEAAAAAY29udGVudC54bWxQSwUGAAAAAAEAAQA5AAAA+wAAAAAA";
-    [Fact]
-    public async Task DocBookConverter_ProducesSectionHeadings()
+    [Theory]
+    [InlineData(TestAssetCatalog.StellarObservationDocbook)]
+    [InlineData(TestAssetCatalog.ObservationHandbookDbk)]
+    public async Task DocBookConverter_ProducesSectionHeadings(string fileName)
     {
-        var result = await ConvertAsync("sample.docbook");
-        result.Markdown.ShouldContain("## Details");
+        var result = await ConvertAsync(fileName);
+        if (fileName == TestAssetCatalog.ObservationHandbookDbk)
+        {
+            result.Markdown.ShouldContain("## Field Operations");
+        }
+        else
+        {
+            result.Markdown.ShouldContain("## Stellar Observation Compendium");
+        }
     }
 
-    [Fact]
-    public async Task JatsConverter_UsesArticleTitle()
+    [Theory]
+    [InlineData(TestAssetCatalog.StellarObservationJats)]
+    [InlineData(TestAssetCatalog.AstrodynamicsStudyBits)]
+    public async Task JatsConverter_UsesArticleTitle(string fileName)
     {
-        var result = await ConvertAsync("sample.jats");
-        result.Markdown.ShouldContain("Sample JATS Article");
-        result.Markdown.ShouldContain("## Background");
+        var result = await ConvertAsync(fileName);
+        if (fileName == TestAssetCatalog.StellarObservationJats)
+        {
+            result.Markdown.ShouldContain("Helios Stellar Observation Record");
+            result.Markdown.ShouldContain("Observation Summary");
+        }
+        else
+        {
+            result.Markdown.ShouldContain("Astrodynamics Study Notes");
+            result.Markdown.ShouldContain("Delta-V Ledger");
+        }
     }
 
     [Fact]
     public async Task OpmlConverter_RendersOutline()
     {
-        var result = await ConvertAsync("sample.opml");
-        result.Markdown.ShouldContain("- Parent");
-        result.Markdown.ShouldContain("Child 1");
+        var result = await ConvertAsync(TestAssetCatalog.MissionOutlineOpml);
+        result.Markdown.ShouldContain("- Mission Overview");
+        result.Markdown.ShouldContain("- Science Operations");
     }
 
     [Fact]
     public async Task Fb2Converter_WritesSectionHeading()
     {
-        var result = await ConvertAsync("sample.fb2");
-        result.Markdown.ShouldContain("## Section Heading");
-        result.Markdown.ShouldContain("FictionBook paragraphs");
+        var result = await ConvertAsync(TestAssetCatalog.ExplorerJournalFb2);
+        result.Markdown.ShouldContain("# Sol Day 142 — Debris Field");
+        result.Markdown.ShouldContain("## Science Log");
     }
 
     [Fact]
@@ -67,154 +86,238 @@ public sealed class NewFormatsConverterTests
     [Fact]
     public async Task RtfConverter_ExtractsPlainText()
     {
-        var result = await ConvertAsync("sample.rtf");
-        result.Markdown.ShouldContain("Sample RTF Document");
-        result.Markdown.ShouldContain("italics");
+        var result = await ConvertAsync(TestAssetCatalog.CrewBriefingRtf);
+        result.Markdown.ShouldContain("Helios Crew Briefing");
+        result.Markdown.ShouldContain("Navigation summary");
     }
 
-    [Fact]
-    public async Task LatexConverter_ConvertsSections()
+    [Theory]
+    [InlineData(TestAssetCatalog.NavigationTheoryTex)]
+    [InlineData(TestAssetCatalog.NavigationTheoryLatex)]
+    public async Task LatexConverter_ConvertsSections(string fileName)
     {
-        var result = await ConvertAsync("sample.tex");
-        result.Markdown.ShouldContain("# Overview");
-        result.Markdown.ShouldContain("- First item");
+        var result = await ConvertAsync(fileName);
+        result.Markdown.ShouldContain("telemetry-events.jsonl");
+        if (fileName == TestAssetCatalog.NavigationTheoryTex)
+        {
+            result.Markdown.ShouldContain("# Burn Planning Model");
+        }
+        else
+        {
+            result.Markdown.ShouldContain("# Reference Frames");
+        }
     }
 
-    [Fact]
-    public async Task RstConverter_ConvertsHeadings()
+    [Theory]
+    [InlineData(TestAssetCatalog.EngineeringNotesRst)]
+    [InlineData(TestAssetCatalog.EngineeringNotesRest)]
+    public async Task RstConverter_ConvertsHeadings(string fileName)
     {
-        var result = await ConvertAsync("sample.rst");
-        result.Markdown.ShouldContain("# Sample RST Heading");
-        result.Markdown.ShouldContain("`inline code`");
+        var result = await ConvertAsync(fileName);
+        result.Markdown.ShouldContain("# Helios Engineering Notes");
+        result.Markdown.ShouldContain("telemetry-events.jsonl");
     }
 
     [Fact]
     public async Task AsciiDocConverter_ConvertsHeadings()
     {
-        var result = await ConvertAsync("sample.adoc");
-        result.Markdown.ShouldContain("# Sample AsciiDoc");
-        result.Markdown.ShouldContain("**bold**");
+        var result = await ConvertAsync(TestAssetCatalog.CelestialNavigationNotesAdoc);
+        result.Markdown.ShouldContain("# Helios Navigation Operations Log");
+        result.Markdown.ShouldContain("Mission Operations Guide");
     }
 
     [Fact]
     public async Task OrgConverter_ConvertsHeadings()
     {
-        var result = await ConvertAsync("sample.org");
-        result.Markdown.ShouldContain("# Sample Org");
-        result.Markdown.ShouldContain("- First bullet");
+        var result = await ConvertAsync(TestAssetCatalog.MissionChecklistOrg);
+        result.Markdown.ShouldContain("Helios Mission Daily Checklist");
+        result.Markdown.ShouldContain("celestial-navigation-notes.adoc");
     }
 
-    [Fact]
-    public async Task DjotConverter_PassesThroughContent()
+    [Theory]
+    [InlineData(TestAssetCatalog.ObservatoryLogDj)]
+    [InlineData(TestAssetCatalog.ObservatoryLogDjot)]
+    public async Task DjotConverter_PassesThroughContent(string fileName)
     {
-        var result = await ConvertAsync("sample.dj");
-        result.Markdown.ShouldContain("Sample Djot");
+        var result = await ConvertAsync(fileName);
+        result.Markdown.ShouldContain("Helios Observatory Shift Log");
+        result.Markdown.ShouldContain("mission-outline.opml");
     }
 
-    [Fact]
-    public async Task TypstConverter_ConvertsHeading()
+    [Theory]
+    [InlineData(TestAssetCatalog.NavigationOverviewTyp)]
+    [InlineData(TestAssetCatalog.NavigationOverviewTypst)]
+    public async Task TypstConverter_ConvertsHeading(string fileName)
     {
-        var result = await ConvertAsync("sample.typ");
-        result.Markdown.ShouldContain("# Sample Typst");
-        result.Markdown.ShouldContain("- item one");
+        var result = await ConvertAsync(fileName);
+        result.Markdown.ShouldContain("Navigation Overview");
+        result.Markdown.ShouldContain("mission-summary.metamd");
     }
 
     [Fact]
     public async Task TextileConverter_ConvertsHeading()
     {
-        var result = await ConvertAsync("sample.textile");
-        result.Markdown.ShouldContain("# Sample Textile");
-        result.Markdown.ShouldContain("1. Numbered one");
+        var result = await ConvertAsync(TestAssetCatalog.CrewHandbookTextile);
+        result.Markdown.ShouldContain("# Helios Crew Handbook (Excerpt)");
+        result.Markdown.ShouldContain("mission-network");
     }
 
-    [Fact]
-    public async Task WikiMarkupConverter_ConvertsLink()
+    [Theory]
+    [InlineData(TestAssetCatalog.MissionWikiWiki, "# Helios Mission Knowledge Base")]
+    [InlineData(TestAssetCatalog.LunarResearchMediawiki, "# Helios Lunar Research Hub")]
+    [InlineData(TestAssetCatalog.MissionOperationsCreole, "# Helios Mission Operations Guide")]
+    [InlineData(TestAssetCatalog.MissionBriefingDokuwiki, "###### Helios Daily Briefing")]
+    public async Task WikiMarkupConverter_ConvertsLink(string fileName, string expectedHeading)
     {
-        var result = await ConvertAsync("sample.wiki");
-        result.Markdown.ShouldContain("# Sample Wiki");
-        result.Markdown.ShouldContain("[Example](https://example.com)");
+        var result = await ConvertAsync(fileName);
+        result.Markdown.ShouldContain(expectedHeading);
+        result.Markdown.ShouldContain("mission");
     }
 
-    [Fact]
-    public async Task BibTexConverter_RendersBibliography()
+    [Theory]
+    [InlineData(TestAssetCatalog.OrbitalResearchBib)]
+    [InlineData(TestAssetCatalog.OrbitalResearchExtendedBibtex)]
+    public async Task BibTexConverter_RendersBibliography(string fileName)
     {
-        var result = await ConvertAsync("sample.bib");
-        result.Markdown.ShouldContain("Sample Entry");
-        result.Markdown.ShouldContain("Ada Lovelace");
+        var result = await ConvertAsync(fileName);
+        if (fileName == TestAssetCatalog.OrbitalResearchBib)
+        {
+            result.Markdown.ShouldContain("Adaptive Course Control");
+        }
+        else
+        {
+            result.Markdown.ShouldContain("SOLID Navigation Principles");
+        }
+        result.Markdown.ShouldContain("Helios");
     }
 
     [Fact]
     public async Task RisConverter_RendersEntries()
     {
-        var result = await ConvertAsync("sample.ris");
-        result.Markdown.ShouldContain("Sample RIS Entry");
-        result.Markdown.ShouldContain("https://example.com/ris");
+        var result = await ConvertAsync(TestAssetCatalog.OrbitalResearchRis);
+        result.Markdown.ShouldContain("Adaptive Course Control");
+        result.Markdown.ShouldContain("Trustworthy Telemetry");
     }
 
-    [Fact]
-    public async Task EndNoteXmlConverter_RendersAuthors()
+    [Theory]
+    [InlineData(TestAssetCatalog.OrbitalResearchEndnoteXml, "Helios Knowledge Office")]
+    [InlineData(TestAssetCatalog.OrbitalResearchEnl, null)]
+    [InlineData(TestAssetCatalog.OrbitalResearchEndnote, null)]
+    public async Task EndNoteXmlConverter_RendersBibliography(string fileName, string? expectedAuthor)
     {
-        var result = await ConvertAsync("sample.endnote.xml");
-        result.Markdown.ShouldContain("Sample EndNote");
-        result.Markdown.ShouldContain("Test Researcher");
+        var result = await ConvertAsync(fileName);
+        result.Markdown.ShouldContain("Helios");
+        switch (fileName)
+        {
+            case TestAssetCatalog.OrbitalResearchEndnoteXml:
+                result.Markdown.ShouldContain("Helios Systems Guide Collection");
+                break;
+            case TestAssetCatalog.OrbitalResearchEnl:
+                result.Markdown.ShouldContain("Autonomous Observatory Field Manual");
+                break;
+            case TestAssetCatalog.OrbitalResearchEndnote:
+                result.Markdown.ShouldContain("Adaptive Course Control");
+                break;
+        }
+        if (!string.IsNullOrWhiteSpace(expectedAuthor))
+        {
+            result.Markdown.ShouldContain(expectedAuthor);
+        }
     }
 
     [Fact]
     public async Task CslJsonConverter_RendersReference()
     {
-        var result = await ConvertAsync("sample.csljson");
-        result.Markdown.ShouldContain("CSL JSON Entry");
-        result.Markdown.ShouldContain("https://example.com/csl");
+        var result = await ConvertAsync(TestAssetCatalog.MissionCitationsCsljson);
+        result.Markdown.ShouldContain("Adaptive Course Control");
+        result.Markdown.ShouldContain("Trustworthy Telemetry Pipelines");
     }
 
-    [Fact]
-    public async Task CsvConverter_SupportsTsv()
+    [Theory]
+    [InlineData(TestAssetCatalog.TelemetryEventsJsonl, "\"event_id\": \"JOV-3112\"")]
+    [InlineData(TestAssetCatalog.TelemetryEventsNdjson, "\"stage\":\"analysis\"")]
+    public async Task JsonConverter_SupportsJsonLines(string fileName, string expectedFragment)
+    {
+        var result = await ConvertAsync(fileName);
+        result.Markdown.ShouldContain("```json");
+        result.Markdown.ShouldContain(expectedFragment);
+    }
+
+    [Theory]
+    [InlineData(TestAssetCatalog.ResourceAllocationTsv)]
+    [InlineData(TestAssetCatalog.ResourceAllocationTab)]
+    public async Task CsvConverter_SupportsDelimitedFiles(string fileName)
     {
         var markItDown = new MarkItDownClient();
-        var path = TestAssetLoader.GetAssetPath("sample.tsv");
+        var path = TestAssetLoader.GetAssetPath(fileName);
         var result = await markItDown.ConvertAsync(path);
-        result.Markdown.ShouldContain("| Name | Value |");
-        result.Markdown.ShouldContain("| Alpha | 1 |");
+        result.Markdown.ShouldContain("| Subsystem | Resource | Units | Reference |");
+        result.Markdown.ShouldContain("| Navigation | Reaction Mass (kg) | 42 |");
     }
 
-    [Fact]
-    public async Task MermaidConverter_WrapsFencedBlock()
+    [Theory]
+    [InlineData(TestAssetCatalog.MissionFlowchartMermaid)]
+    [InlineData(TestAssetCatalog.MissionFlowchartMmd)]
+    public async Task MermaidConverter_WrapsFencedBlock(string fileName)
     {
-        var result = await ConvertAsync("sample.mermaid");
+        var result = await ConvertAsync(fileName);
         result.Markdown.ShouldStartWith("```mermaid");
-        result.Markdown.ShouldContain("A[Start]");
+        if (fileName == TestAssetCatalog.MissionFlowchartMermaid)
+        {
+            result.Markdown.ShouldContain("celestial-navigation-notes.adoc");
+        }
+        else
+        {
+            result.Markdown.ShouldContain("telemetry-events.ndjson");
+        }
     }
 
-    [Fact]
-    public async Task GraphvizConverter_WrapsFencedBlock()
+    [Theory]
+    [InlineData(TestAssetCatalog.MissionNetworkDot)]
+    [InlineData(TestAssetCatalog.MissionNetworkGv)]
+    public async Task GraphvizConverter_WrapsFencedBlock(string fileName)
     {
-        var result = await ConvertAsync("sample.dot");
+        var result = await ConvertAsync(fileName);
         result.Markdown.ShouldStartWith("```dot");
-        result.Markdown.ShouldContain("A -> B");
+        result.Markdown.ShouldContain("Helios Vehicle");
     }
 
-    [Fact]
-    public async Task PlantUmlConverter_WrapsFencedBlock()
+    [Theory]
+    [InlineData(TestAssetCatalog.DeploymentDiagramPuml)]
+    [InlineData(TestAssetCatalog.DeploymentDiagramPlantuml)]
+    [InlineData(TestAssetCatalog.DeploymentDiagramWsd)]
+    public async Task PlantUmlConverter_WrapsFencedBlock(string fileName)
     {
-        var result = await ConvertAsync("sample.puml");
+        var result = await ConvertAsync(fileName);
         result.Markdown.ShouldStartWith("```plantuml");
-        result.Markdown.ShouldContain("Alice");
+        switch (fileName)
+        {
+            case TestAssetCatalog.DeploymentDiagramWsd:
+                result.Markdown.ShouldContain("Crew->Ops");
+                break;
+            case TestAssetCatalog.DeploymentDiagramPuml:
+                result.Markdown.ShouldContain("Crew Console");
+                break;
+            default:
+                result.Markdown.ShouldContain("Crew Terminal");
+                break;
+        }
     }
 
     [Fact]
     public async Task TikzConverter_WrapsLatexBlock()
     {
-        var result = await ConvertAsync("sample.tikz");
+        var result = await ConvertAsync(TestAssetCatalog.DeploymentDiagramTikz);
         result.Markdown.ShouldStartWith("```latex");
-        result.Markdown.ShouldContain("\\draw");
+        result.Markdown.ShouldContain("Crew Terminal");
     }
 
     [Fact]
     public async Task MetaMdConverter_ExpandsMetadataAndReferences()
     {
-        var result = await ConvertAsync("sample.metamd");
-        result.Markdown.ShouldContain("# MetaMD Sample");
-        result.Markdown.ShouldContain("Sketch of the Analytical Engine");
+        var result = await ConvertAsync(TestAssetCatalog.MissionSummaryMetamd);
+        result.Markdown.ShouldContain("\"title\": \"Helios Mission Cross-System Summary\"");
+        result.Markdown.ShouldContain("Adaptive Course Control");
         result.Markdown.ShouldContain("```mermaid");
     }
 

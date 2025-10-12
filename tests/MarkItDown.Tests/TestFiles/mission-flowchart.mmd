@@ -1,0 +1,21 @@
+flowchart TD
+    subgraph Diagnostics
+        D1[Check telemetry queue\ntelemetry-events.ndjson]
+        D2[Inspect engineering log\nengineering-notes.rest]
+    end
+
+    subgraph Mitigation
+        M1{Queue overflow?}
+        M2[Throttle bandwidth\nmission-network.dot]
+        M3[Escalate anomaly\nmission-wiki.wiki]
+    end
+
+    subgraph Documentation
+        R1[Update narrative\nexplorer-journal.fb2]
+        R2[Archive session\nmission-operations.creole]
+    end
+
+    D1 --> D2 --> M1
+    M1 -- yes --> M2 --> R1
+    M1 -- no --> R2
+    R1 --> R2

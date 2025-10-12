@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<records xmlns="http://www.endnote.com/xml">
+  <record>
+    <titles>
+      <title>Autonomous Observatory Field Manual</title>
+    </titles>
+    <contributors>
+      <authors>
+        <author><name>Nia Carter</name></author>
+      </authors>
+    </contributors>
+    <dates><year>2043</year></dates>
+    <periodical>
+      <full-title>Helios Initiative Press</full-title>
+    </periodical>
+    <urls>
+      <related-urls>
+        <url>mission-citations.csljson#carter-2043</url>
+      </related-urls>
+    </urls>
+    <notes>
+      <note>Reference for mission-operations.creole and observation-handbook.dbk.</note>
+    </notes>
+  </record>
+</records>

@@ -212,37 +212,51 @@ public sealed class XlsxConverter : IDocumentConverter
 
     private static string GetCellValue(Cell cell, SharedStringTable? stringTable)
     {
-        if (cell.CellValue == null)
-            return "";
+        var dataType = cell.DataType?.Value;
+        var cellValue = cell.CellValue?.Text;
 
-        var value = cell.CellValue.Text;
-        
-        if (cell.DataType != null && cell.DataType.Value == CellValues.SharedString)
+        if (dataType == CellValues.InlineString)
         {
-            // Look up the value in the shared string table
-            if (stringTable != null && int.TryParse(value, out var stringIndex))
+            return cell.InlineString?.InnerText ?? cell.InnerText ?? string.Empty;
+        }
+
+        if (!string.IsNullOrEmpty(cellValue))
+        {
+            if (dataType == CellValues.SharedString)
             {
-                var stringItem = stringTable.Elements<SharedStringItem>().ElementAtOrDefault(stringIndex);
-                if (stringItem != null)
+                if (stringTable != null && int.TryParse(cellValue, out var stringIndex))
                 {
-                    return stringItem.InnerText;
+                    var stringItem = stringTable.Elements<SharedStringItem>().ElementAtOrDefault(stringIndex);
+                    if (stringItem is not null)
+                    {
+                        return stringItem.InnerText;
+                    }
                 }
             }
-        }
-        else if (cell.DataType != null && cell.DataType.Value == CellValues.Boolean)
-        {
-            return value == "0" ? "FALSE" : "TRUE";
-        }
-        else if (cell.DataType != null && cell.DataType.Value == CellValues.Date)
-        {
-            if (double.TryParse(value, out var dateValue))
+            else if (dataType == CellValues.Boolean)
             {
-                var date = DateTime.FromOADate(dateValue);
-                return date.ToString("yyyy-MM-dd");
+                return cellValue == "0" ? "FALSE" : "TRUE";
             }
+            else if (dataType == CellValues.Date && double.TryParse(cellValue, out var dateValue))
+            {
+                return DateTime.FromOADate(dateValue).ToString("yyyy-MM-dd");
+            }
+
+            return cellValue;
         }
 
-        return value ?? "";
+        if (cell.CellFormula is not null && !string.IsNullOrWhiteSpace(cell.CellFormula.Text))
+        {
+            return "=" + cell.CellFormula.Text.Trim();
+        }
+
+        if (cell.InlineString is not null)
+        {
+            return cell.InlineString.InnerText;
+        }
+
+        var innerText = cell.InnerText;
+        return innerText ?? string.Empty;
     }
 
     private static void CreateMarkdownTable(List<List<string>> tableData, StringBuilder result)

@@ -1,0 +1,26 @@
+\title{Helios Navigation Theory}
+\author{Helios Navigation Directorate}
+\date{April 11, 2045}
+
+\section{Burn Planning Model}
+The maneuver sequence computed in this document serves as the authoritative reference for the operational log found in \texttt{celestial-navigation-notes.adoc}. Telemetry values originate from the JSONL and NDJSON feeds, and final results are posted to the MetaMarkdown summary.
+
+The total required delta-v is
+\[
+  \Delta v_\text{total} = \sqrt{(\Delta v_x)^2 + (\Delta v_y)^2 + (\Delta v_z)^2},
+\]
+where each component is derived from the momentum exchange recorded in \texttt{telemetry-events.jsonl}.
+
+\subsection{Constraint Checks}
+\begin{enumerate}
+  \item Verify burn window openings with the mission outline (\texttt{mission-outline.opml}).
+  \item Confirm resource availability in \texttt{resource-allocation.tsv}---the Creole operations guide references the same table.
+  \item Annotate anomalies in \texttt{engineering-notes.rst} for archival in the DocBook handbook.
+\end{enumerate}
+
+\section{Cross References}
+\begin{itemize}
+  \item PlantUML sequence (\texttt{deployment-diagram.puml}) captures the live escalation for deviations.
+  \item Bibliographic references include ellison2045 and nguyen2044 as catalogued in \texttt{orbital-research.bib} and \texttt{mission-citations.csljson}.
+  \item Training content synchronized with metadata file \texttt{youtube-solid-principles.json}.
+\end{itemize}

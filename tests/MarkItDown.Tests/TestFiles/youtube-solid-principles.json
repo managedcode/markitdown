@@ -1,0 +1,51 @@
+{
+  "videoId": "8hnpIIamb6k",
+  "title": "SOLID Principles for Writing Clean and Structured Code",
+  "channelTitle": "Managed Code",
+  "watchUrl": "https://www.youtube.com/watch?v=8hnpIIamb6k",
+  "channelUrl": "https://www.youtube.com/@managed-code",
+  "durationSeconds": 186,
+  "uploadDate": "2024-07-23T00:25:55+00:00",
+  "viewCount": 483,
+  "likeCount": 29,
+  "tags": [
+    "SOLID Principles",
+    "Clean Code",
+    "Programming Basics",
+    "Learn to Code",
+    "SOLID",
+    "Code Maintenance",
+    "Managed Code",
+    "Coding Principles",
+    "Software Design"
+  ],
+  "description": "Are you ready to learn how to write clean and structured code? In this video, we explore the SOLID principles in programming that will help you create high-quality, understandable, and maintainable code.",
+  "thumbnails": [
+    "https://i.ytimg.com/vi/8hnpIIamb6k/3.jpg",
+    "https://i.ytimg.com/vi_webp/8hnpIIamb6k/3.webp"
+  ],
+  "captions": [
+    {
+      "text": "Welcome to Managed Code! Let's explore the SOLID principles for writing clean software.",
+      "start": 0.0,
+      "end": 6.5,
+      "metadata": {
+        "language": "en",
+        "provider": "YouTube"
+      }
+    },
+    {
+      "text": "First up is the Single Responsibility Principle which keeps each component focused on one task.",
+      "start": 6.5,
+      "end": 14.0,
+      "metadata": {
+        "language": "en",
+        "provider": "YouTube"
+      }
+    }
+  ],
+  "additionalMetadata": {
+    "category": "Education",
+    "shortDescription": "SOLID principles overview"
+  }
+}

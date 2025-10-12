@@ -1,0 +1,5 @@
+Subsystem	Resource	Units	Reference
+Navigation	Reaction Mass (kg)	42	nav-log:celestial-navigation-notes.adoc
+Communications	Relay Power (kW)	18	diagram:mission-network.gv
+Science	Sensor Time (hrs)	36	observation:stellar-observation.jats
+Crew	Life Support Margin (hrs)	12	briefing:mission-briefing.dokuwiki

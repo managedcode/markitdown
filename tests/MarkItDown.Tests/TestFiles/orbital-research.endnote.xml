@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<records xmlns="http://www.endnote.com/xml">
+  <record>
+    <titles>
+      <title>Helios Systems Guide Collection</title>
+    </titles>
+    <contributors>
+      <corporate>
+        <name>Helios Knowledge Office</name>
+      </corporate>
+    </contributors>
+    <dates><year>2045</year></dates>
+    <urls>
+      <related-urls>
+        <url>mission-operations.creole</url>
+        <url>mission-wiki.wiki</url>
+      </related-urls>
+    </urls>
+    <notes>
+      <note>Connects crew handbook, mission-summary.metamd, and youtube-solid-principles.json.</note>
+    </notes>
+  </record>
+</records>

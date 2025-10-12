@@ -1,5 +1,0 @@
-* Sample Org
-** Nested Heading
-Some /italic/ and *bold* text.
-- First bullet
-- Second bullet

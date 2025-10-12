@@ -1,0 +1,9 @@
+# Helios Observatory Shift Log (DJ)
+
+2024-04-11T05:12Z — **Tracker-B** captured unexpected glint at azimuth 31°. Cross-reference: `observatory-log.djot` segment `[02:Telemetry]` and `telemetry-events.jsonl` entry `event_id=JOV-3112`. Notes forwarded to [[mission-operations.creole|Operations Guide]].
+
+2024-04-11T06:48Z — Instrument stack reheated per protocol. See _Resource Worksheet_ (`resource-allocation.tsv`, rows 42-47). Confirmed with `engineering-notes.rst` §3.1.
+
+2024-04-11T07:20Z — Linked bibliographic rationale: {orbital-research.bib}[ellison2045]. Added excerpt to [[stellar-observation.docbook|Observation Handbook]] Appendix.
+
+> Reminder: Align summary text with `explorer-journal.fb2` narrative entry **Day 142** and tag the update in `mission-summary.metamd`.

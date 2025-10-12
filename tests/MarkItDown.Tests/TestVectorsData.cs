@@ -10,7 +10,7 @@ internal static class TestVectorsData
     private static readonly IReadOnlyList<FileTestVector> general = new List<FileTestVector>
     {
         new(
-            FileName: "test.docx",
+            FileName: "autogen-paper.docx",
             MimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             Charset: null,
             Url: null,
@@ -25,7 +25,7 @@ internal static class TestVectorsData
             SupportsStreamGuess: false
         ),
         new(
-            FileName: "test_with_comment.docx",
+            FileName: "autogen-paper-with-comments.docx",
             MimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             Charset: null,
             Url: null,
@@ -38,7 +38,7 @@ internal static class TestVectorsData
             SupportsStreamGuess: false
         ),
         new(
-            FileName: "test.xlsx",
+            FileName: "autogen-forecast.xlsx",
             MimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             Charset: null,
             Url: null,
@@ -53,7 +53,7 @@ internal static class TestVectorsData
             SupportsStreamGuess: false
         ),
         new(
-            FileName: "test.pptx",
+            FileName: "autogen-strategy.pptx",
             MimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             Charset: null,
             Url: null,
@@ -67,7 +67,7 @@ internal static class TestVectorsData
             SupportsStreamGuess: false
         ),
         new(
-            FileName: "test.pdf",
+            FileName: "autogen-trial-transcript.pdf",
             MimeType: "application/pdf",
             Charset: null,
             Url: null,
@@ -80,7 +80,7 @@ internal static class TestVectorsData
             SupportsStreamGuess: false
         ),
         new(
-            FileName: "test_blog.html",
+            FileName: "autogen-blog.html",
             MimeType: "text/html",
             Charset: "utf-8",
             Url: "https://microsoft.github.io/autogen/blog/2023/04/21/LLM-tuning-math",
@@ -93,7 +93,7 @@ internal static class TestVectorsData
             SupportsStreamGuess: false
         ),
         new(
-            FileName: "test_wikipedia.html",
+            FileName: "microsoft-wikipedia.html",
             MimeType: "text/html",
             Charset: "utf-8",
             Url: "https://en.wikipedia.org/wiki/Microsoft",
@@ -118,7 +118,7 @@ internal static class TestVectorsData
             SupportsStreamGuess: false
         ),
         new(
-            FileName: "test_serp.html",
+            FileName: "bing-search-results.html",
             MimeType: "text/html",
             Charset: "utf-8",
             Url: "https://www.bing.com/search?q=microsoft+wikipedia",
@@ -130,7 +130,7 @@ internal static class TestVectorsData
             MustNotInclude: Array.Empty<string>()
         ),
         new(
-            FileName: "test.epub",
+            FileName: "autogen-ebook.epub",
             MimeType: "application/epub+zip",
             Charset: null,
             Url: null,
@@ -140,7 +140,7 @@ internal static class TestVectorsData
             SupportsDataUri: false
         ),
         new(
-            FileName: "test_mskanji.csv",
+            FileName: "kanji-dataset.csv",
             MimeType: "text/csv",
             Charset: "cp932",
             Url: null,
@@ -151,7 +151,7 @@ internal static class TestVectorsData
             MustNotInclude: Array.Empty<string>()
         ),
         new(
-            FileName: "test.json",
+            FileName: "customer-records.json",
             MimeType: "application/json",
             Charset: "ascii",
             Url: null,
@@ -163,7 +163,7 @@ internal static class TestVectorsData
             MustNotInclude: Array.Empty<string>()
         ),
         new(
-            FileName: "test_rss.xml",
+            FileName: "microsoft-blog-feed.xml",
             MimeType: "text/xml",
             Charset: "utf-8",
             Url: null,
@@ -178,7 +178,7 @@ internal static class TestVectorsData
             }
         ),
         new(
-            FileName: "test_notebook.ipynb",
+            FileName: "autogen-notebook.ipynb",
             MimeType: "application/json",
             Charset: "ascii",
             Url: null,
@@ -190,19 +190,19 @@ internal static class TestVectorsData
             MustNotInclude: Array.Empty<string>()
         ),
         new(
-            FileName: "test_files.zip",
+            FileName: "mixed-fixture-archive.zip",
             MimeType: "application/zip",
             Charset: null,
             Url: null,
             MustInclude: new[]
             {
                 "# Content from",
-                "## File: test_blog.html",
+                "## File: autogen-blog.html",
             },
             MustNotInclude: Array.Empty<string>()
         ),
         new(
-            FileName: "test.mp3",
+            FileName: "meeting-audio.mp3",
             MimeType: "audio/mpeg",
             Charset: null,
             Url: null,
@@ -214,7 +214,7 @@ internal static class TestVectorsData
             SupportsStreamGuess: false
         ),
         new(
-            FileName: "test.m4a",
+            FileName: "meeting-audio.m4a",
             MimeType: "audio/mp4",
             Charset: null,
             Url: null,
@@ -226,7 +226,7 @@ internal static class TestVectorsData
             SupportsStreamGuess: false
         ),
         new(
-            FileName: "test.wav",
+            FileName: "meeting-audio.wav",
             MimeType: "audio/x-wav",
             Charset: null,
             Url: null,
@@ -238,7 +238,7 @@ internal static class TestVectorsData
             SupportsStreamGuess: false
         ),
         new(
-            FileName: "test_llm.jpg",
+            FileName: "llm-workflow.jpg",
             MimeType: "image/jpeg",
             Charset: null,
             Url: null,
@@ -249,7 +249,7 @@ internal static class TestVectorsData
             MustNotInclude: Array.Empty<string>()
         ),
         new(
-            FileName: "test.jpg",
+            FileName: "architecture-diagram.jpg",
             MimeType: "image/jpeg",
             Charset: null,
             Url: null,

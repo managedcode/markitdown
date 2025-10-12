@@ -1,0 +1,16 @@
+h1. Helios Crew Handbook (Excerpt)
+
+Each shift lead must ensure the following documents are reviewed:
+
+* "Navigation Log":celestial-navigation-notes.adoc
+* "Operations Guide":mission-operations.creole
+* "Daily Briefing":mission-briefing.dokuwiki
+
+h2. Communication Check
+
+# Confirm topology using "mission-network.dot":mission-network.dot and "mission-network.gv":mission-network.gv.
+# Validate flowchart alignment with "mission-flowchart.mermaid":mission-flowchart.mermaid.
+
+h2. Reference Media
+
+Observe the architecture diagram included in !architecture-diagram.jpg! and verify resource allocations against "resource-allocation.tsv":resource-allocation.tsv.

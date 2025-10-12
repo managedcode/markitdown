@@ -1,0 +1,18 @@
+#set heading(numbering: "1." )
+= Navigation Overview (Typst manuscript)
+
+#let sections = (
+  ("Pre-flight", "celestial-navigation-notes.adoc"),
+  ("Telemetry", "telemetry-events.ndjson"),
+  ("Knowledge", "mission-summary.metamd")
+)
+
+#for (title, link) in sections {
+  == #title
+  The detailed record is mirrored in `#link`. Update summaries in the wiki (`mission-wiki.wiki`) and operations guide (`mission-operations.creole`).
+}
+
+== Cross References
+- Communications diagrams: `mission-network.dot`, `mission-network.gv`
+- Observation logs: `observatory-log.dj`, `observatory-log.djot`
+- Bibliographies: `orbital-research-extended.bibtex` and `mission-citations.csljson`

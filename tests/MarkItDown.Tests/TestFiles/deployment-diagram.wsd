@@ -1,0 +1,9 @@
+title Helios Alert Escalation (WebSequence)
+Crew->Ops: Report telemetry anomaly
+Ops->Telemetry: Query telemetry-events.ndjson
+Telemetry->Ops: Return anomaly packet
+Ops->Engineering: Create ticket (engineering-notes.rst)
+Engineering->Ops: Provide mitigation steps
+Ops->Crew: Update checklist (crew-handbook.textile)
+Ops->Knowledge: Publish summary (mission-summary.metamd)
+Knowledge->Crew: Link in mission-wiki.wiki

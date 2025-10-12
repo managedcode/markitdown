@@ -1,0 +1,37 @@
+digraph HeliosNetwork {
+  rankdir=LR;
+  node [shape=box, style="rounded,filled", fillcolor="#0e1f33", fontcolor="#ffffff"];
+
+  FlightControl [label="Flight Control\n(Tycho Station)"];
+  RelayA [label="Relay A\nL4 Array"];
+  RelayB [label="Relay B\nCallisto Outpost"];
+  Helios [label="Helios Vehicle"];
+  ScienceDeck [label="Science Deck\nSpectrometer"];
+  CrewQuarters [label="Crew Quarters\nComms Terminal"];
+
+  FlightControl -> RelayA [label="X-band", color="#4caf50"];
+  RelayA -> Helios [label="Ka-band", color="#03a9f4"];
+  RelayB -> Helios [label="Laser backup", color="#ff9800"];
+  Helios -> ScienceDeck [label="Telemetry bus", color="#9c27b0"];
+  Helios -> CrewQuarters [label="Alert channel", color="#cddc39"];
+
+  subgraph cluster_ground {
+    label="Ground Segment";
+    color="#455a64";
+    FlightControl;
+  }
+
+  subgraph cluster_space {
+    label="Space Segment";
+    color="#607d8b";
+    RelayA;
+    RelayB;
+    Helios;
+    ScienceDeck;
+    CrewQuarters;
+  }
+
+  // References to documentation for this graph
+  Helios [URL="mission-flowchart.mermaid", tooltip="See mission-flowchart.mermaid for state machine"];
+  RelayA [URL="deployment-diagram.tikz", tooltip="Deployment diagram (TikZ)"];
+}
