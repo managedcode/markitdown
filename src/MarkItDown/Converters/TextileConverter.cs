@@ -70,7 +70,7 @@ public sealed class TextileConverter : IDocumentConverter
             var headingMatch = Heading.Match(trimmed);
             if (headingMatch.Success)
             {
-                var level = int.Parse(headingMatch.Groups["level"].Value, System.Globalization.CultureInfo.InvariantCulture);
+                var level = int.Parse(headingMatch.Groups["level"].Value, CultureInfo.InvariantCulture);
                 builder.AppendLine(new string('#', Math.Clamp(level, 1, 6)) + " " + headingMatch.Groups["text"].Value.Trim());
                 continue;
             }
