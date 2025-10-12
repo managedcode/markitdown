@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Providers.Aws;
 using MarkItDown.Intelligence.Providers.Azure;
 using MarkItDown.Intelligence.Providers.Google;
+using Microsoft.Extensions.Logging;
 
 namespace MarkItDown;
 
 /// <summary>
-/// Configurable options for <see cref="MarkItDown"/> that mirror the flexibility of the Python implementation.
+/// Configurable options for <see cref="MarkItDownClient"/> that mirror the flexibility of the Python implementation.
 /// </summary>
 public sealed record MarkItDownOptions
 {
@@ -93,4 +96,24 @@ public sealed record MarkItDownOptions
     /// Gets or sets a value indicating whether AI-based image enrichment should be enabled when a chat client is present.
     /// </summary>
     public bool EnableAiImageEnrichment { get; init; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether OpenTelemetry instrumentation should be emitted. Defaults to <see langword="true"/>.
+    /// </summary>
+    public bool EnableTelemetry { get; init; } = true;
+
+    /// <summary>
+    /// Optional <see cref="ActivitySource"/> to use when creating telemetry spans. When <see langword="null"/> a shared source is used.
+    /// </summary>
+    public ActivitySource? ActivitySource { get; init; }
+
+    /// <summary>
+    /// Optional <see cref="Meter"/> used to emit metric counters. When <see langword="null"/> a shared meter is used.
+    /// </summary>
+    public Meter? Meter { get; init; }
+
+    /// <summary>
+    /// Optional logger factory used when explicit loggers are not supplied to <see cref="MarkItDownClient"/>.
+    /// </summary>
+    public ILoggerFactory? LoggerFactory { get; init; }
 }

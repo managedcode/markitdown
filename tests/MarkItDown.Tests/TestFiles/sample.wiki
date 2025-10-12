@@ -1,0 +1,6 @@
+= Sample Wiki =
+
+* Bullet
+# Numbered
+
+Link to [[https://example.com|Example]].

@@ -199,7 +199,7 @@ dotnet add package ManagedCode.MarkItDown
 using MarkItDown;
 
 // Create converter instance
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 
 // Convert any file to Markdown
 var result = await markItDown.ConvertAsync("document.pdf");
@@ -218,7 +218,7 @@ using Microsoft.Extensions.Logging;
 // Set up logging to track conversion progress
 using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
 var logger = loggerFactory.CreateLogger<MarkItDown>();
-var markItDown = new MarkItDown(logger: logger);
+var markItDown = new MarkItDownClient(logger: logger);
 
 // Convert documents for vector database ingestion
 string[] documents = { "report.pdf", "data.xlsx", "webpage.html" };
@@ -245,7 +245,7 @@ foreach (var doc in documents)
 ```csharp
 using MarkItDown;
 
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 var emailFolder = @"C:\Emails\Exports";
 var outputFolder = @"C:\ProcessedEmails";
 
@@ -271,7 +271,7 @@ using Microsoft.Extensions.Logging;
 using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
 using var httpClient = new HttpClient();
 
-var markItDown = new MarkItDown(
+var markItDown = new MarkItDownClient(
     logger: loggerFactory.CreateLogger<MarkItDown>(),
     httpClient: httpClient);
 
@@ -310,7 +310,7 @@ foreach (var url in urls)
 using MarkItDown;
 
 // Convert a DOCX file and print the Markdown
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 DocumentConverterResult result = await markItDown.ConvertAsync("report.docx");
 Console.WriteLine(result.Markdown);
 ```
@@ -329,7 +329,7 @@ var streamInfo = new StreamInfo(
     charset: Encoding.UTF8,
     fileName: "invoice.html");
 
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 var result = await markItDown.ConvertAsync(stream, streamInfo);
 Console.WriteLine(result.Title);
 ```
@@ -340,7 +340,7 @@ Console.WriteLine(result.Title);
 using MarkItDown;
 
 // Convert an EML file to Markdown
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 DocumentConverterResult result = await markItDown.ConvertAsync("message.eml");
 
 // The result includes email headers and content
@@ -369,7 +369,7 @@ using Microsoft.Extensions.Logging;
 using var loggerFactory = LoggerFactory.Create(static builder => builder.AddConsole());
 using var httpClient = new HttpClient();
 
-var markItDown = new MarkItDown(
+var markItDown = new MarkItDownClient(
     logger: loggerFactory.CreateLogger<MarkItDown>(),
     httpClient: httpClient);
 
@@ -462,7 +462,7 @@ var options = new MarkItDownOptions
     }
 };
 
-var markItDown = new MarkItDown(options);
+var markItDown = new MarkItDownClient(options);
 
 // Segments are still available programmatically even when annotations are disabled.
 ```
@@ -494,7 +494,7 @@ public sealed class MyCustomConverter : IDocumentConverter
     }
 }
 
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 markItDown.RegisterConverter(new MyCustomConverter());
 ```
 
@@ -546,7 +546,7 @@ public class DocumentProcessor
     public DocumentProcessor(ILogger<DocumentProcessor> logger)
     {
         _logger = logger;
-        _markItDown = new MarkItDown(logger: logger);
+        _markItDown = new MarkItDownClient(logger: logger);
     }
 
     public async Task<List<ProcessedDocument>> ProcessDirectoryAsync(
@@ -611,7 +611,7 @@ public class DocumentIndexer
     public DocumentIndexer(IVectorStore vectorStore)
     {
         _vectorStore = vectorStore;
-        _markItDown = new MarkItDown();
+        _markItDown = new MarkItDownClient();
     }
 
     public async Task IndexDocumentAsync<T>(string filePath) where T : class
@@ -690,7 +690,7 @@ public class DocumentConversionFunction
     public DocumentConversionFunction(ILogger<DocumentConversionFunction> logger)
     {
         _logger = logger;
-        _markItDown = new MarkItDown(logger: logger);
+        _markItDown = new MarkItDownClient(logger: logger);
     }
 
     [Function("ConvertDocument")]
@@ -811,6 +811,8 @@ MarkItDown exposes optional abstractions for running documents through cloud ser
 - `IMediaTranscriptionProvider` – timed transcripts for audio and video inputs.
 
 The `AzureIntelligenceOptions`, `GoogleIntelligenceOptions`, and `AwsIntelligenceOptions` helpers wire the respective cloud Document AI/Vision/Speech stacks without forcing the dependency on consumers. You can still bring your own implementation by assigning the provider interfaces directly on `MarkItDownOptions`.
+
+`MarkItDownClient` emits structured `ILogger` events and OpenTelemetry spans by default. Toggle instrumentation with `MarkItDownOptions.EnableTelemetry`, supply a custom `ActivitySource`/`Meter`, or provide a `LoggerFactory` to integrate with your application's logging pipeline.
 
 #### Azure AI setup (keys and managed identity)
 
@@ -943,7 +945,7 @@ For LLM-style post-processing, assign `MarkItDownOptions.AiModels` with an `IAiM
 ```csharp
 using MarkItDown;
 
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 
 try
 {
@@ -1010,7 +1012,7 @@ using var httpClient = new HttpClient();
 httpClient.Timeout = TimeSpan.FromSeconds(30);
 httpClient.DefaultRequestHeaders.Add("User-Agent", "MarkItDown/1.0");
 
-var markItDown = new MarkItDown(httpClient: httpClient);
+var markItDown = new MarkItDownClient(httpClient: httpClient);
 ```
 
 **Logging for Diagnostics:**
@@ -1021,7 +1023,7 @@ using var loggerFactory = LoggerFactory.Create(builder =>
     builder.AddConsole().SetMinimumLevel(LogLevel.Debug));
 
 var logger = loggerFactory.CreateLogger<MarkItDown>();
-var markItDown = new MarkItDown(logger: logger);
+var markItDown = new MarkItDownClient(logger: logger);
 
 // Now you'll see detailed conversion progress in console output
 ```
@@ -1034,7 +1036,7 @@ If you're familiar with the original Python library, here are the key difference
 
 | Python | C#/.NET | Notes |
 |---------|---------|--------|
-| `MarkItDown()` | `new MarkItDown()` | Similar constructor |
+| `MarkItDownClient()` | `new MarkItDownClient()` | Similar constructor |
 | `markitdown.convert("file.pdf")` | `await markItDown.ConvertAsync("file.pdf")` | Async pattern |
 | `markitdown.convert(stream, file_extension=".pdf")` | `await markItDown.ConvertAsync(stream, streamInfo)` | StreamInfo object |
 | `markitdown.convert_url("https://...")` | `await markItDown.ConvertFromUrlAsync("https://...")` | Async URL conversion |
@@ -1046,7 +1048,7 @@ If you're familiar with the original Python library, here are the key difference
 ```python
 # Python version
 import markitdown
-md = markitdown.MarkItDown()
+md = markitdown.MarkItDownClient()
 result = md.convert("document.pdf")
 print(result.text_content)
 ```
@@ -1054,7 +1056,7 @@ print(result.text_content)
 ```csharp
 // C# version  
 using MarkItDown;
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 var result = await markItDown.ConvertAsync("document.pdf");
 Console.WriteLine(result.Markdown);
 ```
@@ -1170,7 +1172,7 @@ Performance will vary based on your specific documents and environment. For prod
 
 ```csharp
 // 1. Reuse MarkItDown instances (they're thread-safe)
-var markItDown = new MarkItDown();
+var markItDown = new MarkItDownClient();
 await Task.WhenAll(
     markItDown.ConvertAsync("file1.pdf"),
     markItDown.ConvertAsync("file2.docx"),
@@ -1183,7 +1185,7 @@ var result = await markItDown.ConvertAsync("large-file.pdf", cancellationToken: 
 
 // 3. Configure HttpClient for web content (reuse connections)
 using var httpClient = new HttpClient();
-var markItDown = new MarkItDown(httpClient: httpClient);
+var markItDown = new MarkItDownClient(httpClient: httpClient);
 
 // 4. Pre-specify StreamInfo to skip format detection
 var streamInfo = new StreamInfo(mimeType: "application/pdf", extension: ".pdf");
@@ -1202,7 +1204,7 @@ var options = new MarkItDownOptions
     ExifToolPath = "/usr/local/bin/exiftool"  // Path to exiftool binary (optional)
 };
 
-var markItDown = new MarkItDown(options);
+var markItDown = new MarkItDownClient(options);
 ```
 
 ### Advanced AI Integration
@@ -1233,7 +1235,7 @@ var options = new MarkItDownOptions
     }
 };
 
-var markItDown = new MarkItDown(options);
+var markItDown = new MarkItDownClient(options);
 ```
 
 ### Conversion Middleware & Raw Artifacts
@@ -1250,7 +1252,7 @@ var options = new MarkItDownOptions
     }
 };
 
-var markItDown = new MarkItDown(options);
+var markItDown = new MarkItDownClient(options);
 var result = await markItDown.ConvertAsync("docs/diagram.docx");
 
 foreach (var image in result.Artifacts.Images)
@@ -1294,7 +1296,7 @@ var options = new MarkItDownOptions
     }
 };
 
-var markItDown = new MarkItDown(options, logger, httpClientFactory.CreateClient());
+var markItDown = new MarkItDownClient(options, logger, httpClientFactory.CreateClient());
 ```
 
 ## 📄 License

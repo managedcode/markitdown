@@ -47,6 +47,11 @@ internal static class MimeTypeUtilities
             return false;
         }
 
+        if (string.Equals(candidate, OctetStream, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         foreach (var prefix in acceptedPrefixes)
         {
             if (candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))

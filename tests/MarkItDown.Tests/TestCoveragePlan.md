@@ -79,6 +79,7 @@ To reach ≥90% line coverage without shipping native/tooling dependencies, intr
 - Copied upstream fixtures into `tests/MarkItDown.Tests/TestFiles/`.
 - Added dependency seams plus targeted unit tests for Audio and PDF converters.
 - Raised overall line coverage to ~44% (from ~41%).
+- Landed fixtures and regression tests for DocBook, JATS, OPML, FB2, ODT, citation formats (BibTeX/RIS/EndNote/CSL JSON), plain-text markups (LaTeX/rST/AsciiDoc/Org/Djot/Typst/Textile/Wiki), diagram syntaxes (Mermaid/Graphviz/PlantUML/TikZ), TSV tables, and the MetaMD profile.
 
 ## 6. Next Deliverables
 

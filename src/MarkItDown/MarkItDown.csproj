@@ -16,7 +16,7 @@
     <PackageReference Include="Google.Cloud.DocumentAI.V1" Version="3.21.0" />
     <PackageReference Include="Google.Cloud.Speech.V1" Version="3.8.0" />
     <PackageReference Include="Google.Cloud.Vision.V1" Version="3.7.0" />
-    <PackageReference Include="ManagedCode.MimeTypes" Version="1.0.3" />
+    <PackageReference Include="ManagedCode.MimeTypes" Version="1.0.4" />
     <PackageReference Include="Sep" Version="0.11.1" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="9.9.1" />
     <PackageReference Include="Azure.AI.FormRecognizer" Version="4.1.0" />
