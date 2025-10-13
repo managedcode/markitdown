@@ -8,39 +8,38 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AngleSharp" Version="1.3.0" />
-    <PackageReference Include="AWSSDK.Rekognition" Version="4.0.2.6" />
-    <PackageReference Include="AWSSDK.S3" Version="4.0.7.7" />
-    <PackageReference Include="AWSSDK.Textract" Version="4.0.2.6" />
-    <PackageReference Include="AWSSDK.TranscribeService" Version="4.0.3.9" />
-    <PackageReference Include="Google.Cloud.DocumentAI.V1" Version="3.21.0" />
-    <PackageReference Include="Google.Cloud.Speech.V1" Version="3.8.0" />
-    <PackageReference Include="Google.Cloud.Vision.V1" Version="3.7.0" />
-    <PackageReference Include="ManagedCode.MimeTypes" Version="1.0.4" />
-    <PackageReference Include="Sep" Version="0.11.1" />
-    <PackageReference Include="Microsoft.Extensions.AI" Version="9.9.1" />
-    <PackageReference Include="Azure.AI.FormRecognizer" Version="4.1.0" />
-    <PackageReference Include="Azure.AI.Vision.ImageAnalysis" Version="1.0.0" />
-    <PackageReference Include="Azure.Identity" Version="1.12.0" />
-
-    <PackageReference Include="System.Text.Json" Version="9.0.9" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.9" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.9" />
-    <PackageReference Include="System.Text.Encoding.CodePages" Version="9.0.9" />
+    <PackageReference Include="AngleSharp" />
+    <PackageReference Include="AWSSDK.Rekognition" />
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="AWSSDK.Textract" />
+    <PackageReference Include="AWSSDK.TranscribeService" />
+    <PackageReference Include="Google.Cloud.DocumentAI.V1" />
+    <PackageReference Include="Google.Cloud.Speech.V1" />
+    <PackageReference Include="Google.Cloud.Vision.V1" />
+    <PackageReference Include="ManagedCode.MimeTypes" />
+    <PackageReference Include="Sep" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Azure.AI.FormRecognizer" />
+    <PackageReference Include="Azure.AI.Vision.ImageAnalysis" />
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="System.Text.Json" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="System.Text.Encoding.CodePages" />
 
       <!-- PDF Support -->
-    <PackageReference Include="PdfPig" Version="0.1.11" />
-    <PackageReference Include="PDFtoImage" Version="5.1.1" />
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="PDFtoImage" />
     
     <!-- Office Documents Support -->
-    <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
+    <PackageReference Include="DocumentFormat.OpenXml" />
     
     <!-- Image processing support -->
-    <PackageReference Include="SkiaSharp" Version="3.119.1" />
+    <PackageReference Include="SkiaSharp" />
     
     <!-- Email support -->
-    <PackageReference Include="MimeKit" Version="4.14.0" />
-    <PackageReference Include="YoutubeExplode" Version="6.5.5" />
+    <PackageReference Include="MimeKit" />
+    <PackageReference Include="YoutubeExplode" />
   </ItemGroup>
 
   <ItemGroup>
