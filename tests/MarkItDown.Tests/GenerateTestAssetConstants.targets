@@ -224,9 +224,14 @@ return true;
   </UsingTask>
 
   <Target Name="GenerateTestAssetCatalog"
-          BeforeTargets="BeforeBuild">
+          BeforeTargets="CoreCompile">
     <GenerateTestAssetProperties
       ProjectDirectory="$(MSBuildProjectDirectory)"
       OutputFile="Generated/TestAssetCatalog.g.cs" />
+
+    <ItemGroup Condition="Exists('Generated/TestAssetCatalog.g.cs')">
+      <Compile Remove="Generated/TestAssetCatalog.g.cs" />
+      <Compile Include="Generated/TestAssetCatalog.g.cs" />
+    </ItemGroup>
   </Target>
 </Project>
