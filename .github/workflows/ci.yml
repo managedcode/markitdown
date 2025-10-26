@@ -59,6 +59,9 @@ jobs:
       - name: Restore
         run: dotnet restore ${{ env.SOLUTION_PATH }}
 
+      - name: Build library
+        run: dotnet build ${{ env.LIB_PROJECT }} --configuration Release --no-restore
+
       - name: Pack library
         run: dotnet pack ${{ env.LIB_PROJECT }} --configuration Release --no-build -o artifacts/nuget
 
