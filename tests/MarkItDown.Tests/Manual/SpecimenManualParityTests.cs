@@ -197,7 +197,7 @@ public class SpecimenManualParityTests(ITestOutputHelper output)
 
                 if (tableComments.TryGetValue(index, out var comment))
                 {
-                    metadata["table.comment"] = comment;
+                    metadata[MetadataKeys.TableComment] = comment;
                 }
 
                 return new DocumentTableResult(

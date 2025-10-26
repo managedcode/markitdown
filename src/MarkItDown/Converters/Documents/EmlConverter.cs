@@ -97,7 +97,7 @@ public sealed class EmlConverter : DocumentPipelineConverterBase
                 [MetadataKeys.DocumentPages] = extraction.Segments.Count.ToString(CultureInfo.InvariantCulture),
                 [MetadataKeys.DocumentImages] = extraction.Artifacts.Images.Count.ToString(CultureInfo.InvariantCulture),
                 [MetadataKeys.DocumentTables] = extraction.Artifacts.Tables.Count.ToString(CultureInfo.InvariantCulture),
-                ["email.attachments.count"] = conversion.Attachments.Count.ToString(CultureInfo.InvariantCulture),
+                [MetadataKeys.EmailAttachmentsCount] = conversion.Attachments.Count.ToString(CultureInfo.InvariantCulture),
                 [MetadataKeys.WorkspaceDirectory] = workspace.DirectoryPath
             };
 
@@ -108,7 +108,7 @@ public sealed class EmlConverter : DocumentPipelineConverterBase
 
             if (conversion.Attachments.Count > 0)
             {
-                metadata["email.attachments"] = string.Join("; ", conversion.Attachments.Select(static attachment => attachment.Name));
+                metadata[MetadataKeys.EmailAttachments] = string.Join("; ", conversion.Attachments.Select(static attachment => attachment.Name));
             }
 
             foreach (var pair in extraction.Artifacts.Metadata)
@@ -357,8 +357,8 @@ public sealed class EmlConverter : DocumentPipelineConverterBase
 
         if (attachments.Count > 0)
         {
-            artifacts.Metadata["email.attachments.count"] = attachments.Count.ToString(CultureInfo.InvariantCulture);
-            artifacts.Metadata["email.attachments"] = string.Join("; ", attachments.Select(static attachment => attachment.Name));
+            artifacts.Metadata[MetadataKeys.EmailAttachmentsCount] = attachments.Count.ToString(CultureInfo.InvariantCulture);
+            artifacts.Metadata[MetadataKeys.EmailAttachments] = string.Join("; ", attachments.Select(static attachment => attachment.Name));
         }
 
         return new EmlExtractionResult(segments, artifacts);

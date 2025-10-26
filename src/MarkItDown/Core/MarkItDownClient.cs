@@ -1527,7 +1527,7 @@ public sealed class MarkItDownClient : IMarkItDownClient
     {
         var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["converter.durationMs"] = Math.Round(elapsed.TotalMilliseconds).ToString(CultureInfo.InvariantCulture)
+            [MetadataKeys.ConverterDurationMs] = Math.Round(elapsed.TotalMilliseconds).ToString(CultureInfo.InvariantCulture)
         };
 
         if (!usage.IsEmpty)

@@ -23,7 +23,6 @@ namespace MarkItDown.Converters;
 /// </summary>
 public sealed class PdfConverter : DocumentPipelineConverterBase
 {
-    private const string TableCommentMetadataKey = "table.comment";
     private static readonly HashSet<string> AcceptedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".pdf"
@@ -390,7 +389,7 @@ public sealed class PdfConverter : DocumentPipelineConverterBase
                 }
 
                 string? tableComment = null;
-                if (table.Metadata.TryGetValue(TableCommentMetadataKey, out var storedComment) && !string.IsNullOrWhiteSpace(storedComment))
+                if (table.Metadata.TryGetValue(MetadataKeys.TableComment, out var storedComment) && !string.IsNullOrWhiteSpace(storedComment))
                 {
                     tableComment = storedComment;
                 }

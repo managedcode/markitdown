@@ -269,13 +269,13 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
         }
 
         var manager = BuildNamespaceManager(document);
-        metadata["title"] = GetFirstTextContent(document, "//opf:metadata/dc:title", manager);
-        metadata["author"] = string.Join(", ", GetAllTextContents(document, "//opf:metadata/dc:creator", manager));
-        metadata["language"] = GetFirstTextContent(document, "//opf:metadata/dc:language", manager);
-        metadata["publisher"] = GetFirstTextContent(document, "//opf:metadata/dc:publisher", manager);
-        metadata["date"] = GetFirstTextContent(document, "//opf:metadata/dc:date", manager);
-        metadata["description"] = GetFirstTextContent(document, "//opf:metadata/dc:description", manager);
-        metadata["identifier"] = GetFirstTextContent(document, "//opf:metadata/dc:identifier", manager);
+        metadata[MetadataKeys.EpubTitle] = GetFirstTextContent(document, "//opf:metadata/dc:title", manager);
+        metadata[MetadataKeys.EpubAuthor] = string.Join(", ", GetAllTextContents(document, "//opf:metadata/dc:creator", manager));
+        metadata[MetadataKeys.EpubLanguage] = GetFirstTextContent(document, "//opf:metadata/dc:language", manager);
+        metadata[MetadataKeys.EpubPublisher] = GetFirstTextContent(document, "//opf:metadata/dc:publisher", manager);
+        metadata[MetadataKeys.EpubDate] = GetFirstTextContent(document, "//opf:metadata/dc:date", manager);
+        metadata[MetadataKeys.EpubDescription] = GetFirstTextContent(document, "//opf:metadata/dc:description", manager);
+        metadata[MetadataKeys.EpubIdentifier] = GetFirstTextContent(document, "//opf:metadata/dc:identifier", manager);
 
         return metadata;
     }
@@ -461,7 +461,7 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
             var metadata = new Dictionary<string, string>
             {
                 [MetadataKeys.Page] = pageNumber.ToString(CultureInfo.InvariantCulture),
-                ["epub.section"] = section.Label
+                [MetadataKeys.EpubSection] = section.Label
             };
 
             var segment = new DocumentSegment(

@@ -31,6 +31,7 @@ If I tell you to remember something, you do the same, update
 - Image placeholders must emit Markdown image links (`![alt](file.png)`) that reference persisted artifacts; only fall back to bold text when no file is available.
 - If AI image enrichment yields no insight, log and continue instead of throwing—treat empty payloads as a soft failure.
 - When executing tests, always include the `ManualConversionDebugTests` suite; treat its failures as blocking.
+- Always run the full test suite after making changes and share the results with the user.
 - Telemetry work: instrument both overall document processing time and per-page duration with real metrics alongside traces—include histogram/counter coverage so latency is observable at both levels.
 - For large converters, structure them as partial classes and split related files into a dedicated subfolder.
 - Markdown hygiene: strip non-breaking, zero-width, or other non-printable spaces; replace them with regular ASCII spaces so output never contains invisible characters like the long space before `Add`.

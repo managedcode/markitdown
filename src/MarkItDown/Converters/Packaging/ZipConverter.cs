@@ -294,18 +294,18 @@ public sealed class ZipConverter : DocumentConverterBase
     {
         var metadata = new Dictionary<string, string>
         {
-            ["entry"] = entry.FullName,
-            ["sizeBytes"] = entry.Length.ToString(CultureInfo.InvariantCulture)
+            [MetadataKeys.ArchiveEntry] = entry.FullName,
+            [MetadataKeys.ArchiveSizeBytes] = entry.Length.ToString(CultureInfo.InvariantCulture)
         };
 
         if (!string.IsNullOrEmpty(archiveName))
         {
-            metadata["archive"] = archiveName;
+            metadata[MetadataKeys.ArchiveName] = archiveName;
         }
 
         if (entry.LastWriteTime != DateTimeOffset.MinValue)
         {
-            metadata["lastModifiedUtc"] = entry.LastWriteTime.UtcDateTime.ToString("o", CultureInfo.InvariantCulture);
+            metadata[MetadataKeys.ArchiveLastModifiedUtc] = entry.LastWriteTime.UtcDateTime.ToString("o", CultureInfo.InvariantCulture);
         }
 
         return metadata;
@@ -314,7 +314,7 @@ public sealed class ZipConverter : DocumentConverterBase
     private static DocumentSegment CreateEntryContentSegment(string content, ZipArchiveEntry entry, string archiveName, SegmentType type = SegmentType.Unknown)
     {
         var metadata = CreateEntryMetadata(entry, archiveName);
-        metadata["contentRole"] = type.ToString();
+        metadata[MetadataKeys.ArchiveContentRole] = type.ToString();
 
         return new DocumentSegment(
             markdown: content.TrimEnd(),
@@ -332,15 +332,15 @@ public sealed class ZipConverter : DocumentConverterBase
                 ? new Dictionary<string, string>(segment.AdditionalMetadata, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            metadata["entry"] = entry.FullName;
+            metadata[MetadataKeys.ArchiveEntry] = entry.FullName;
             if (!string.IsNullOrEmpty(archiveName))
             {
-                metadata["archive"] = archiveName;
+                metadata[MetadataKeys.ArchiveName] = archiveName;
             }
 
             if (!string.IsNullOrWhiteSpace(segment.Source))
             {
-                metadata["originalSource"] = segment.Source!;
+                metadata[MetadataKeys.ArchiveOriginalSource] = segment.Source!;
             }
 
             yield return new DocumentSegment(

@@ -136,7 +136,6 @@ internal sealed class InteractiveCli
         var summary = await RunWithProgressAsync(progress => conversionService.ConvertFilesAsync(files, outputDir, options, progress), files.Count);
         RenderSummary(summary);
         PromptToOpenDirectory(outputDir, summary);
-        PromptToOpenDirectory(outputDir, summary);
     }
 
     private async Task ConvertUrlAsync()
@@ -378,6 +377,8 @@ internal sealed class InteractiveCli
     {
         var table = new Table().Border(TableBorder.Rounded).Title("Conversion Summary");
         table.AddColumn("Input");
+        table.AddColumn("Title");
+        table.AddColumn("Highlights");
         table.AddColumn("Output");
         table.AddColumn("Segments");
         table.AddColumn("Status");
@@ -387,6 +388,8 @@ internal sealed class InteractiveCli
             var status = result.Success ? "[green]Success[/]" : $"[red]{Markup.Escape(result.Error ?? "Failed")}[/]";
             table.AddRow(
                 Markup.Escape(result.Input),
+                string.IsNullOrWhiteSpace(result.Title) ? "-" : Markup.Escape(result.Title),
+                FormatHighlights(result),
                 result.Output is null ? "-" : Markup.Escape(result.Output),
                 result.SegmentCount.ToString(),
                 status);
@@ -396,6 +399,62 @@ internal sealed class InteractiveCli
         var total = summary.Results.Count;
         var successPercent = total == 0 ? 0 : (double)summary.SuccessCount / total * 100d;
         AnsiConsole.MarkupLine($"[green]Completed[/]: {summary.SuccessCount}/{total} succeeded ({successPercent:0.##}%), [red]{summary.FailureCount} failed[/].");
+
+        var totals = BuildTotalsSummary(summary);
+        if (!string.IsNullOrWhiteSpace(totals))
+        {
+            AnsiConsole.MarkupLine(totals);
+        }
+    }
+
+    private static string FormatHighlights(ConversionResult result)
+    {
+        var parts = new List<string>();
+        if (result.PageCount > 0)
+        {
+            parts.Add($"Pages: {result.PageCount}");
+        }
+        if (result.ImageCount > 0)
+        {
+            parts.Add($"Images: {result.ImageCount}");
+        }
+        if (result.TableCount > 0)
+        {
+            parts.Add($"Tables: {result.TableCount}");
+        }
+        if (result.AttachmentCount > 0)
+        {
+            parts.Add($"Attachments: {result.AttachmentCount}");
+        }
+
+        return parts.Count == 0
+            ? "-"
+            : Markup.Escape(string.Join(", ", parts));
+    }
+
+    private static string? BuildTotalsSummary(ConversionSummary summary)
+    {
+        var aggregate = new List<string>();
+        if (summary.TotalPages > 0)
+        {
+            aggregate.Add($"pages: {summary.TotalPages}");
+        }
+        if (summary.TotalImages > 0)
+        {
+            aggregate.Add($"images: {summary.TotalImages}");
+        }
+        if (summary.TotalTables > 0)
+        {
+            aggregate.Add($"tables: {summary.TotalTables}");
+        }
+        if (summary.TotalAttachments > 0)
+        {
+            aggregate.Add($"attachments: {summary.TotalAttachments}");
+        }
+
+        return aggregate.Count == 0
+            ? null
+            : $"[grey]Aggregate[/]: {string.Join(", ", aggregate)}.";
     }
 
     private void PreviewFile()

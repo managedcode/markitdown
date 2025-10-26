@@ -266,6 +266,30 @@ Console.WriteLine(result.Markdown.Length);
 - `DocumentConverterResult` exposes `Markdown`, `Title`, `Segments`, `Artifacts`, and `Metadata` for downstream processing.
 - Apply custom behaviour through `MarkItDownOptions` (segment settings, AI providers, middleware) when constructing the client.
 
+### Metadata Keys
+
+The `MetadataKeys` static class centralises every metadata field the converters emit so you never have to guess string names. Use these constants when inspecting `DocumentConverterResult.Metadata`, per-segment metadata, or artifact metadata:
+
+```csharp
+await using var client = new MarkItDownClient();
+var result = await client.ConvertAsync(path);
+
+if (result.Metadata.TryGetValue(MetadataKeys.DocumentTitle, out var title))
+{
+    Console.WriteLine($"Detected title: {title}");
+}
+
+foreach (var table in result.Artifacts.Tables)
+{
+    if (table.Metadata.TryGetValue(MetadataKeys.TableComment, out var comment))
+    {
+        Console.WriteLine(comment);
+    }
+}
+```
+
+Notable keys include `MetadataKeys.TableComment` (table span hints), `MetadataKeys.EmailAttachments` (EML attachment summary), `MetadataKeys.NotebookCellsCount` (Jupyter statistics), and `MetadataKeys.ArchiveEntry` (ZIP entry provenance). Refer to `src/MarkItDown/Utilities/MetadataKeys.cs` for the full catalog; new format handlers add their metadata there so downstream consumers can rely on stable identifiers.
+
 ### CLI
 
 Prefer a guided experience? Run the bundled CLI to batch files or URLs:
@@ -275,6 +299,18 @@ dotnet run --project src/MarkItDown.Cli -- path/to/input
 ```
 
 Use `dotnet publish` with your preferred runtime identifier if you need a self-contained binary.
+
+Each run now surfaces the document title plus quick stats (pages, images, tables, attachments) in the conversion summary. These numbers come straight from `MetadataKeys` so the CLI mirrors what you see when processing results programmatically.
+
+#### Cloud Provider Configuration Prompts
+
+Choose **Configure cloud providers** in the CLI to register AI integrations without writing code. The prompts map directly to the corresponding option objects:
+
+- **Azure** → `AzureIntelligenceOptions` (`DocumentIntelligence`, `Vision`, `Media`) and supports endpoints, API keys/tokens, and Video Indexer account metadata.
+- **Google** → `GoogleIntelligenceOptions` with credentials for Vertex AI or Speech services.
+- **AWS** → `AwsIntelligenceOptions` for Rekognition/Transcribe style integrations.
+
+You can leave a prompt blank to keep the current value, or enter `-` to clear it. The saved settings are applied to every subsequent conversion until you change them or use **Clear all**. Combine these prompts with the metadata counts above to validate that enrichment providers are wired up correctly.
 
 ## 🏗️ Architecture
 

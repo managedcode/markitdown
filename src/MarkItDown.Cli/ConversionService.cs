@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -30,13 +31,14 @@ internal sealed class ConversionService
 
             try
             {
-                var conversion = await markItDown.ConvertAsync(file, cancellationToken).ConfigureAwait(false);
-                var outputPath = await WriteMarkdownAsync(conversion.Markdown, file, outputDirectory, cancellationToken).ConfigureAwait(false);
-                results.Add(new ConversionResult(file, outputPath, true, null, conversion.Segments.Count));
+                await using var conversion = await markItDown.ConvertAsync(file, cancellationToken).ConfigureAwait(false);
+                var markdown = conversion.Markdown;
+                var outputPath = await WriteMarkdownAsync(markdown, file, outputDirectory, cancellationToken).ConfigureAwait(false);
+                results.Add(CreateSuccessResult(conversion, file, outputPath));
             }
             catch (Exception ex)
             {
-                results.Add(new ConversionResult(file, null, false, ex.Message, 0));
+                results.Add(new ConversionResult(file, null, false, ex.Message, 0, null, 0, 0, 0, 0, null));
             }
 
             progress?.Report(new ConversionProgress(index + 1, files.Count, file));
@@ -54,9 +56,11 @@ internal sealed class ConversionService
 
         Directory.CreateDirectory(outputDirectory);
         var markItDown = new MarkItDownClient(options);
-        var conversion = await markItDown.ConvertFromUrlAsync(url, cancellationToken: cancellationToken).ConfigureAwait(false);
-        var outputPath = await WriteMarkdownAsync(conversion.Markdown, DeriveFileNameFromUrl(url, conversion.Title), outputDirectory, cancellationToken).ConfigureAwait(false);
-        var result = new ConversionResult(url, outputPath, true, null, conversion.Segments.Count);
+        await using var conversion = await markItDown.ConvertFromUrlAsync(url, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var markdown = conversion.Markdown;
+        var fileName = DeriveFileNameFromUrl(url, ResolveTitle(conversion));
+        var outputPath = await WriteMarkdownAsync(markdown, fileName, outputDirectory, cancellationToken).ConfigureAwait(false);
+        var result = CreateSuccessResult(conversion, url, outputPath);
         return new ConversionSummary(new[] { result });
     }
 
@@ -92,4 +96,58 @@ internal sealed class ConversionService
         await File.WriteAllTextAsync(path, markdown ?? string.Empty, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
         return path;
     }
+
+    private static ConversionResult CreateSuccessResult(DocumentConverterResult conversion, string input, string outputPath)
+    {
+        var metadata = conversion.Metadata ?? new Dictionary<string, string>();
+        var title = ResolveTitle(conversion);
+        var pageCount = ParseCount(metadata, MetadataKeys.DocumentPages);
+        var imageCount = conversion.Artifacts?.Images?.Count ?? 0;
+        var tableCount = conversion.Artifacts?.Tables?.Count ?? 0;
+        var attachmentCount = ParseCount(metadata, MetadataKeys.EmailAttachmentsCount);
+        var attachmentSummary = TryGetValue(metadata, MetadataKeys.EmailAttachments);
+
+        return new ConversionResult(
+            input,
+            outputPath,
+            true,
+            null,
+            conversion.Segments.Count,
+            title,
+            pageCount,
+            imageCount,
+            tableCount,
+            attachmentCount,
+            string.IsNullOrWhiteSpace(attachmentSummary) ? null : attachmentSummary);
+    }
+
+    private static string? ResolveTitle(DocumentConverterResult conversion)
+    {
+        if (!string.IsNullOrWhiteSpace(conversion.Title))
+        {
+            return conversion.Title;
+        }
+
+        if (conversion.Metadata.TryGetValue(MetadataKeys.DocumentTitle, out var title) && !string.IsNullOrWhiteSpace(title))
+        {
+            return title;
+        }
+
+        return null;
+    }
+
+    private static int ParseCount(IReadOnlyDictionary<string, string> metadata, string key)
+    {
+        if (metadata.TryGetValue(key, out var value) &&
+            int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) &&
+            parsed >= 0)
+        {
+            return parsed;
+        }
+
+        return 0;
+    }
+
+    private static string? TryGetValue(IReadOnlyDictionary<string, string> metadata, string key)
+        => metadata.TryGetValue(key, out var value) ? value : null;
 }

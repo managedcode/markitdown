@@ -195,10 +195,10 @@ public sealed class JupyterNotebookConverter : DocumentPipelineConverterBase
                     }
                 }
 
-                metadataEntries["notebook.cells.count"] = (markdownCount + codeCount + rawCount).ToString(CultureInfo.InvariantCulture);
-                metadataEntries["notebook.cells.markdown"] = markdownCount.ToString(CultureInfo.InvariantCulture);
-                metadataEntries["notebook.cells.code"] = codeCount.ToString(CultureInfo.InvariantCulture);
-                metadataEntries["notebook.cells.raw"] = rawCount.ToString(CultureInfo.InvariantCulture);
+                metadataEntries[MetadataKeys.NotebookCellsCount] = (markdownCount + codeCount + rawCount).ToString(CultureInfo.InvariantCulture);
+                metadataEntries[MetadataKeys.NotebookCellsMarkdown] = markdownCount.ToString(CultureInfo.InvariantCulture);
+                metadataEntries[MetadataKeys.NotebookCellsCode] = codeCount.ToString(CultureInfo.InvariantCulture);
+                metadataEntries[MetadataKeys.NotebookCellsRaw] = rawCount.ToString(CultureInfo.InvariantCulture);
             }
 
             var extraction = BuildExtraction(sections, streamInfo);
@@ -293,7 +293,7 @@ public sealed class JupyterNotebookConverter : DocumentPipelineConverterBase
         {
             var value = title.GetString();
             markdown.AppendLine($"**Title:** {value}");
-            metadataEntries["notebook.metadata.title"] = value ?? string.Empty;
+            metadataEntries[MetadataKeys.NotebookMetadataTitle] = value ?? string.Empty;
         }
 
         if (metadata.TryGetProperty("authors", out var authors))
@@ -302,7 +302,7 @@ public sealed class JupyterNotebookConverter : DocumentPipelineConverterBase
             if (!string.IsNullOrWhiteSpace(authorList))
             {
                 markdown.AppendLine($"**Authors:** {authorList}");
-                metadataEntries["notebook.metadata.authors"] = authorList;
+                metadataEntries[MetadataKeys.NotebookMetadataAuthors] = authorList;
             }
         }
 
@@ -312,7 +312,7 @@ public sealed class JupyterNotebookConverter : DocumentPipelineConverterBase
         {
             var value = kernelName.GetString();
             markdown.AppendLine($"**Kernel:** {value}");
-            metadataEntries["notebook.metadata.kernel"] = value ?? string.Empty;
+            metadataEntries[MetadataKeys.NotebookMetadataKernel] = value ?? string.Empty;
         }
 
         if (metadata.TryGetProperty("language_info", out var languageInfo) &&
@@ -321,7 +321,7 @@ public sealed class JupyterNotebookConverter : DocumentPipelineConverterBase
         {
             var value = language.GetString();
             markdown.AppendLine($"**Language:** {value}");
-            metadataEntries["notebook.metadata.language"] = value ?? string.Empty;
+            metadataEntries[MetadataKeys.NotebookMetadataLanguage] = value ?? string.Empty;
         }
 
         return markdown.ToString().TrimEnd();
@@ -610,9 +610,9 @@ public sealed class JupyterNotebookConverter : DocumentPipelineConverterBase
             var pageNumber = ++index;
             var metadata = new Dictionary<string, string>
             {
-                ["notebook.cell.index"] = pageNumber.ToString(CultureInfo.InvariantCulture),
-                ["notebook.cell.label"] = cell.Label,
-                ["notebook.cell.type"] = cell.CellType
+            [MetadataKeys.NotebookCellIndex] = pageNumber.ToString(CultureInfo.InvariantCulture),
+            [MetadataKeys.NotebookCellLabel] = cell.Label,
+            [MetadataKeys.NotebookCellType] = cell.CellType
             };
 
             var segment = new DocumentSegment(
