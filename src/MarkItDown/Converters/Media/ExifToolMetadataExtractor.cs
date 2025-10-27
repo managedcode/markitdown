@@ -75,7 +75,8 @@ internal static class ExifToolMetadataExtractor
     {
         var ext = string.IsNullOrWhiteSpace(extension) ? ".tmp" : (extension.StartsWith('.') ? extension : "." + extension);
         var fileName = $"markitdown-{Guid.NewGuid():N}{ext}";
-        return Path.Combine(Path.GetTempPath(), fileName);
+        var directory = MarkItDownPathResolver.Ensure("tmp");
+        return Path.Combine(directory, fileName);
     }
 
     private static async Task<string> RunProcessAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken cancellationToken)

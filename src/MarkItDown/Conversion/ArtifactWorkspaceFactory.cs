@@ -34,7 +34,7 @@ internal static class ArtifactWorkspaceFactory
         var workspaceName = GenerateWorkspaceName(streamInfo, storageOptions);
         var storageDirectory = NormalizeStoragePath(workspaceName);
         var directoryPath = storageOptions.WorkspacePathFormatter?.Invoke(workspaceName)
-            ?? Path.Combine(Path.GetTempPath(), "markitdown", "artifacts", workspaceName);
+            ?? MarkItDownPathResolver.Combine("artifacts", workspaceName);
         var deleteOnDisposeStorage = storageOptions.DeleteOnDispose && !segmentOptions.Image.KeepArtifactDirectory;
         var ownsStorage = storageOptions.DisposeStorage;
         var ensureCreated = IsLocalPath(directoryPath);
@@ -59,13 +59,13 @@ internal static class ArtifactWorkspaceFactory
     {
         var scope = streamInfo.FileName ?? streamInfo.LocalPath ?? streamInfo.Url ?? "document";
         var sanitized = Sanitize(Path.GetFileNameWithoutExtension(scope));
-
         if (imageOptions.KeepArtifactDirectory)
         {
-            return Path.Combine(Path.GetTempPath(), "markitdown", "artifacts", sanitized, Guid.NewGuid().ToString("N"));
+            return MarkItDownPathResolver.Ensure("artifacts", sanitized, Guid.NewGuid().ToString("N"));
         }
 
-        return Path.Combine(Path.GetTempPath(), "markitdown", "artifacts", sanitized, Path.GetRandomFileName());
+        var artifactsRoot = MarkItDownPathResolver.Ensure("artifacts", sanitized);
+        return Path.Combine(artifactsRoot, Path.GetRandomFileName());
     }
 
     private static string GenerateWorkspaceName(StreamInfo streamInfo, ArtifactStorageOptions storageOptions)

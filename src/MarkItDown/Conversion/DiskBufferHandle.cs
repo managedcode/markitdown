@@ -242,8 +242,7 @@ internal sealed class DiskBufferHandle : IAsyncDisposable
 
     private static (string Directory, string Path) CreateWorkspace(string? extensionHint)
     {
-        var root = Path.Combine(Path.GetTempPath(), "markitdown", "buffers", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
+        var root = MarkItDownPathResolver.Ensure("buffers", Guid.NewGuid().ToString("N"));
 
         var extension = NormalizeExtension(extensionHint);
         var filePath = Path.Combine(root, $"payload{extension}");

@@ -10,8 +10,6 @@ namespace MarkItDown.Converters;
 /// </summary>
 public abstract class DocumentPipelineConverterBase : DocumentConverterBase
 {
-    private const string WorkspaceRootFolder = "markitdown";
-
     protected DocumentPipelineConverterBase(int priority)
         : base(priority)
     {
@@ -138,7 +136,7 @@ public abstract class DocumentPipelineConverterBase : DocumentConverterBase
 
     private static string CreateWorkspaceRoot()
     {
-        var baseRoot = Path.Combine(Path.GetTempPath(), WorkspaceRootFolder, "workspace");
+        var baseRoot = MarkItDownPathResolver.Ensure("workspace");
         var unique = Guid.NewGuid().ToString("N");
         return Path.Combine(baseRoot, unique);
     }

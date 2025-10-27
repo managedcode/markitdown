@@ -687,6 +687,8 @@ The command emits standard test results plus a Cobertura coverage report at
 [ReportGenerator](https://github.com/danielpalme/ReportGenerator) can turn this into
 HTML or Markdown dashboards.
 
+> 🐳 Several storage regression tests spin up [Azurite](https://learn.microsoft.com/azure/storage/common/storage-use-azurite) via Testcontainers; ensure Docker is available locally or the suite will skip those checks.
+
 > ✅ The regression suite now exercises DOCX and PPTX conversions with embedded imagery, ensuring conversion middleware runs and enriched descriptions remain attached to the composed Markdown.
 >
 > ✅ Additional image-placement regressions verify that AI-generated captions are injected immediately after each source placeholder for DOCX, PPTX, and PDF outputs.
@@ -793,6 +795,39 @@ var options = new MarkItDownOptions
 
 var markItDown = new MarkItDownClient(options);
 ```
+
+### Workspace Storage & Privacy
+
+By default every conversion writes to a unique folder under `.markitdown/` in the current working directory (for example `/app/.markitdown/...`). Those workspaces hold the copied source file, extracted artifacts, and emitted Markdown until the `DocumentConverterResult` is disposed, at which point the directory is deleted. This keeps conversions isolated without leaking data into global temp folders.
+
+You can redirect the workspace to another location—such as the OS temp directory—and opt to keep it after conversion by supplying custom storage options:
+
+```csharp
+var workspaceRoot = Path.Combine(Path.GetTempPath(), "markitdown", "workspaces");
+
+var options = new MarkItDownOptions
+{
+    ArtifactStorage = ArtifactStorageOptions.Default with
+    {
+        WorkspacePathFormatter = name => Path.Combine(workspaceRoot, name),
+        DeleteOnDispose = false    // keep the workspace directory after conversion
+    },
+    SegmentOptions = SegmentOptions.Default with
+    {
+        Image = SegmentOptions.Default.Image with
+        {
+            KeepArtifactDirectory = true
+        }
+    }
+};
+
+Directory.CreateDirectory(workspaceRoot);
+
+await using var client = new MarkItDownClient(options);
+await using var result = await client.ConvertAsync("policy.pdf");
+```
+
+When you override the workspace root, ensure you manage retention (for example rotate or clean the custom directory) to avoid unbounded growth.
 
 ### Advanced AI Integration
 

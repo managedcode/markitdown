@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace MarkItDown;
 
@@ -11,6 +12,11 @@ internal readonly record struct MetaMarkdown(string Markdown, string? Title);
 
 internal static class SegmentMarkdownComposer
 {
+    private const int MaxTitleLength = 160;
+    private static readonly Regex OrderedListMarkerPattern = new("\\s[0-9]{1,2}[.)]\\s", RegexOptions.Compiled);
+    private static readonly char[] BulletMarkers = ['•', '▪', '‣', '●', '○', '◦'];
+    private static readonly char[] SentenceTerminators = ['.', '!', '?'];
+
     public static MetaMarkdown Compose(
         IReadOnlyList<DocumentSegment> segments,
         ConversionArtifacts? artifacts,
@@ -24,8 +30,8 @@ internal static class SegmentMarkdownComposer
         var generatedTimestamp = generatedAtUtc ?? DateTime.UtcNow;
 
         var finalTitle = NormalizeTitle(titleHint)
-            ?? ExtractTitleFromSegments(segments)
-            ?? GuessTitleFromStreamInfo(streamInfo);
+            ?? NormalizeTitle(ExtractTitleFromSegments(segments))
+            ?? NormalizeTitle(GuessTitleFromStreamInfo(streamInfo));
 
         var builder = new StringBuilder();
         AppendFrontMatter(builder, finalTitle, streamInfo, effectiveArtifacts, segments, generatedTimestamp);
@@ -166,6 +172,17 @@ internal static class SegmentMarkdownComposer
         }
 
         var normalized = value.ReplaceLineEndings(" ").Trim();
+        if (normalized.Length == 0)
+        {
+            return null;
+        }
+
+        normalized = CollapseWhitespace(normalized);
+        normalized = TrimAtListMarkers(normalized);
+        normalized = TrimAtSentenceBoundary(normalized);
+        normalized = TruncateAtMaxLength(normalized, MaxTitleLength);
+        normalized = TrimTrailingPunctuation(normalized);
+
         return normalized.Length == 0 ? null : normalized;
     }
 
@@ -393,5 +410,152 @@ internal static class SegmentMarkdownComposer
         }
 
         return builder.ToString();
+    }
+
+    private static string CollapseWhitespace(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        var sawWhitespace = false;
+
+        foreach (var ch in value)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                if (sawWhitespace)
+                {
+                    continue;
+                }
+
+                builder.Append(' ');
+                sawWhitespace = true;
+                continue;
+            }
+
+            builder.Append(ch);
+            sawWhitespace = false;
+        }
+
+        return builder.ToString().Trim();
+    }
+
+    private static string TrimAtListMarkers(string value)
+    {
+        foreach (var marker in BulletMarkers)
+        {
+            var index = value.IndexOf(marker);
+            if (index > 0)
+            {
+                return value[..index].TrimEnd();
+            }
+        }
+
+        var orderedMatch = OrderedListMarkerPattern.Match(value);
+        if (orderedMatch.Success && orderedMatch.Index > 0)
+        {
+            return value[..orderedMatch.Index].TrimEnd();
+        }
+
+        return value;
+    }
+
+    private static string TrimAtSentenceBoundary(string value)
+    {
+        var index = value.IndexOfAny(SentenceTerminators);
+        if (index < 0 || index + 1 >= value.Length)
+        {
+            return value;
+        }
+
+        var remainder = value[(index + 1)..].TrimStart();
+        if (remainder.Length == 0)
+        {
+            return value[..(index + 1)].TrimEnd();
+        }
+
+        if (remainder.Length > 60 || StartsWithListMarker(remainder))
+        {
+            return value[..(index + 1)].TrimEnd();
+        }
+
+        return value;
+    }
+
+    private static string TruncateAtMaxLength(string value, int maxLength)
+    {
+        if (value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        var span = value.AsSpan(0, maxLength);
+        var lastSpace = span.LastIndexOf(' ');
+        if (lastSpace > maxLength / 2)
+        {
+            return value[..lastSpace].TrimEnd();
+        }
+
+        return span.ToString().TrimEnd();
+    }
+
+    private static string TrimTrailingPunctuation(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        var trimmed = value.TrimEnd(' ', '\t');
+        while (trimmed.Length > 0)
+        {
+            var last = trimmed[^1];
+            if (last is '.' or '!' or '?')
+            {
+                trimmed = trimmed[..^1].TrimEnd();
+                continue;
+            }
+
+            break;
+        }
+
+        return trimmed.Length == 0 ? value.Trim() : trimmed;
+    }
+
+    private static bool StartsWithListMarker(ReadOnlySpan<char> value)
+    {
+        if (value.IsEmpty)
+        {
+            return false;
+        }
+
+        var first = value[0];
+        if (first is '•' or '-' or '*' or '▪' or '‣' or '●' or '○' or '◦')
+        {
+            return true;
+        }
+
+        if (!char.IsDigit(first))
+        {
+            return false;
+        }
+
+        var index = 1;
+        while (index < value.Length && char.IsDigit(value[index]))
+        {
+            index++;
+        }
+
+        if (index >= value.Length)
+        {
+            return false;
+        }
+
+        var marker = value[index];
+        if (marker is '.' or ')')
+        {
+            var trailing = value[(index + 1)..];
+            return trailing.Length == 0 || char.IsWhiteSpace(trailing[0]);
+        }
+
+        return false;
     }
 }

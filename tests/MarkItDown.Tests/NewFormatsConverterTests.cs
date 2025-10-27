@@ -65,7 +65,9 @@ public sealed class NewFormatsConverterTests
     {
         var markItDown = new MarkItDownClient();
         var bytes = Convert.FromBase64String(SampleOdtBase64);
-        var tempPath = Path.Combine(Path.GetTempPath(), $"markitdown-{Guid.NewGuid():N}.odt");
+        var tempRoot = Path.Combine(Environment.CurrentDirectory, ".markitdown-tests");
+        Directory.CreateDirectory(tempRoot);
+        var tempPath = Path.Combine(tempRoot, $"markitdown-{Guid.NewGuid():N}.odt");
         await File.WriteAllBytesAsync(tempPath, bytes);
 
         try

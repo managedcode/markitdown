@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -59,7 +60,9 @@ public class SpecimenManualParityTests(ITestOutputHelper output)
             if (!string.Equals(actual, expected, StringComparison.Ordinal))
             {
                 output.WriteLine($"Lengths -> expected: {expected.Length}, actual: {actual.Length}");
-                var prefix = Path.Combine(Path.GetTempPath(), $"specimen_parity_page_{i + 1}");
+                var dumpRoot = Path.Combine(Environment.CurrentDirectory, ".markitdown-tests");
+                Directory.CreateDirectory(dumpRoot);
+                var prefix = Path.Combine(dumpRoot, $"specimen_parity_page_{i + 1}");
                 File.WriteAllText(prefix + "_expected.txt", expected);
                 File.WriteAllText(prefix + "_actual.txt", actual);
             }

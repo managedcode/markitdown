@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using ManagedCode.Communication;
+using ManagedCode.MimeTypes;
 using ManagedCode.Storage.Core;
 using ManagedCode.Storage.Core.Models;
 
@@ -75,10 +76,12 @@ internal sealed class ArtifactWorkspace : IDisposable, IAsyncDisposable
     /// <summary>
     /// Persist binary data into the workspace and return the absolute path on disk.
     /// </summary>
-    public string PersistBinary(string fileName, byte[] data, string? mimeType, CancellationToken cancellationToken)
+    public string PersistBinary(string fileName, byte[] data, string? mimeType = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(fileName);
         ArgumentNullException.ThrowIfNull(data);
+
+        var effectiveMime = ResolveMimeType(fileName, mimeType, MimeHelper.BIN);
 
         if (storage is null)
         {
@@ -92,7 +95,7 @@ internal sealed class ArtifactWorkspace : IDisposable, IAsyncDisposable
         {
             options.Directory = storageDirectory;
             options.FileName = fileName;
-            options.MimeType = mimeType;
+            options.MimeType = effectiveMime;
         }, cancellationToken).GetAwaiter().GetResult();
 
         var metadata = EnsureSuccess(result, "persist artifact");
@@ -103,9 +106,11 @@ internal sealed class ArtifactWorkspace : IDisposable, IAsyncDisposable
     /// <summary>
     /// Persist text content into the workspace and return the absolute path on disk.
     /// </summary>
-    public string PersistText(string fileName, string content, string? mimeType, CancellationToken cancellationToken)
+    public string PersistText(string fileName, string content, string? mimeType = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(fileName);
+
+        var effectiveMime = ResolveMimeType(fileName, mimeType, MimeHelper.TEXT);
 
         if (storage is null)
         {
@@ -120,7 +125,7 @@ internal sealed class ArtifactWorkspace : IDisposable, IAsyncDisposable
         {
             options.Directory = storageDirectory;
             options.FileName = fileName;
-            options.MimeType = mimeType ?? "text/plain";
+            options.MimeType = effectiveMime;
         }, cancellationToken).GetAwaiter().GetResult();
 
         var metadata = EnsureSuccess(result, "persist text artifact");
@@ -131,10 +136,12 @@ internal sealed class ArtifactWorkspace : IDisposable, IAsyncDisposable
     /// <summary>
     /// Copy an existing file into the workspace and return the absolute path on disk.
     /// </summary>
-    public string PersistFile(string fileName, string sourcePath, string? mimeType, CancellationToken cancellationToken)
+    public string PersistFile(string fileName, string sourcePath, string? mimeType = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(fileName);
         ArgumentException.ThrowIfNullOrEmpty(sourcePath);
+
+        var effectiveMime = ResolveMimeType(fileName, mimeType, MimeHelper.BIN);
 
         if (storage is null)
         {
@@ -149,7 +156,7 @@ internal sealed class ArtifactWorkspace : IDisposable, IAsyncDisposable
         {
             options.Directory = storageDirectory;
             options.FileName = fileName;
-            options.MimeType = mimeType;
+            options.MimeType = effectiveMime;
         }, cancellationToken).GetAwaiter().GetResult();
 
         var metadata = EnsureSuccess(result, "persist source file");
@@ -179,30 +186,28 @@ internal sealed class ArtifactWorkspace : IDisposable, IAsyncDisposable
 
         try
         {
-            if (storage is not null)
+            if (storage is not null && deleteOnDispose && !string.IsNullOrWhiteSpace(storageDirectory))
             {
-                if (deleteOnDispose && !string.IsNullOrWhiteSpace(storageDirectory))
+                try
                 {
-                    try
+                    var deletion = storage.DeleteDirectoryAsync(storageDirectory!, CancellationToken.None).GetAwaiter().GetResult();
+                    if (!deletion.IsSuccess && deletion.Problem is not null)
                     {
-                        var deletion = storage.DeleteDirectoryAsync(storageDirectory!, CancellationToken.None).GetAwaiter().GetResult();
-                        if (!deletion.IsSuccess && deletion.Problem is not null)
-                        {
-                            _ = deletion.Problem.ToException();
-                        }
-                    }
-                    catch
-                    {
+                        _ = deletion.Problem.ToException();
                     }
                 }
-            }
-            else if (deleteOnDispose)
-            {
-                TryDeleteDirectory(DirectoryPath);
+                catch
+                {
+                }
             }
         }
         finally
         {
+            if (deleteOnDispose)
+            {
+                TryDeleteDirectory(DirectoryPath);
+            }
+
             if (ownsStorage)
             {
                 try
@@ -373,5 +378,21 @@ internal sealed class ArtifactWorkspace : IDisposable, IAsyncDisposable
         }
 
         return $"{basePath}/{relative}";
+    }
+
+    private static string ResolveMimeType(string fileName, string? candidate, string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(candidate))
+        {
+            return candidate;
+        }
+
+        var inferred = MimeHelper.GetMimeType(fileName);
+        if (!string.IsNullOrWhiteSpace(inferred))
+        {
+            return inferred!;
+        }
+
+        return fallback;
     }
 }

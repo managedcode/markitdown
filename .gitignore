@@ -87,6 +87,10 @@ src/.DS_Store
 .DS_Store
 .cursorrules
 
+# MarkItDown work directories
+.markitdown/
+.markitdown-tests/
+
 # .NET / C# Build results
 [Dd]ebug/
 [Dd]ebugPublic/

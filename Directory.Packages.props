@@ -8,6 +8,7 @@
     <PackageVersion Include="Azure.AI.FormRecognizer" Version="4.1.0" />
     <PackageVersion Include="Azure.AI.OpenAI" Version="2.1.0" />
     <PackageVersion Include="Azure.AI.Vision.ImageAnalysis" Version="1.0.0" />
+    <PackageVersion Include="Azure.Storage.Blobs" Version="12.25.0" />
     <PackageVersion Include="Azure.Identity" Version="1.17.0" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.3.0" />
@@ -33,6 +34,7 @@
     <PackageVersion Include="PDFtoImage" Version="5.1.1" />
     <PackageVersion Include="Sep" Version="0.11.2" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <PackageVersion Include="Testcontainers.Azurite" Version="4.7.0" />
     <PackageVersion Include="SkiaSharp" Version="3.119.1" />
     <PackageVersion Include="Spectre.Console" Version="0.51.1" />
     <PackageVersion Include="System.Text.Encoding.CodePages" Version="9.0.10" />

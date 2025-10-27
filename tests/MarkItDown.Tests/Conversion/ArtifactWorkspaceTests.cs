@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -70,7 +71,7 @@ public class ArtifactWorkspaceTests
 
     private static string CreateTempDirectory()
     {
-        var path = Path.Combine(Path.GetTempPath(), "markitdown-tests", Path.GetRandomFileName());
+        var path = Path.Combine(Environment.CurrentDirectory, ".markitdown-tests", Path.GetRandomFileName());
         Directory.CreateDirectory(path);
         return path;
     }

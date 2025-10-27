@@ -12,9 +12,9 @@ public class ConversionServiceTests
     [Fact]
     public async Task ConvertFilesAsync_WritesMarkdownOutput()
     {
-        var tempRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var tempRoot = Path.Combine(Environment.CurrentDirectory, ".markitdown-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempRoot);
-        try
+        try 
         {
             var inputFile = Path.Combine(tempRoot, "sample.txt");
             await File.WriteAllTextAsync(inputFile, "Hello from MarkItDown");
