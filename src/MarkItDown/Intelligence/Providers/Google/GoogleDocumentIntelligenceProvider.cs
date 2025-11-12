@@ -54,17 +54,15 @@ public sealed class GoogleDocumentIntelligenceProvider : IDocumentIntelligencePr
                 Endpoint = $"{options.Location}-documentai.googleapis.com"
             };
 
-            if (options.Credential is not null)
+            var credential = GoogleCredentialResolver.Resolve(
+                options.Credential,
+                options.JsonCredentials,
+                options.CredentialsPath,
+                DocumentProcessorServiceClient.DefaultScopes);
+
+            if (credential is not null)
             {
-                builder.Credential = options.Credential;
-            }
-            else if (!string.IsNullOrWhiteSpace(options.JsonCredentials))
-            {
-                builder.JsonCredentials = options.JsonCredentials;
-            }
-            else if (!string.IsNullOrWhiteSpace(options.CredentialsPath))
-            {
-                builder.CredentialsPath = options.CredentialsPath;
+                builder.Credential = credential;
             }
 
             _client = builder.Build();
@@ -163,17 +161,15 @@ public sealed class GoogleDocumentIntelligenceProvider : IDocumentIntelligencePr
             Endpoint = overrides.Endpoint
         };
 
-        if (_options.Credential is not null)
+        var credential = GoogleCredentialResolver.Resolve(
+            _options.Credential,
+            _options.JsonCredentials,
+            _options.CredentialsPath,
+            DocumentProcessorServiceClient.DefaultScopes);
+
+        if (credential is not null)
         {
-            builder.Credential = _options.Credential;
-        }
-        else if (!string.IsNullOrWhiteSpace(_options.JsonCredentials))
-        {
-            builder.JsonCredentials = _options.JsonCredentials;
-        }
-        else if (!string.IsNullOrWhiteSpace(_options.CredentialsPath))
-        {
-            builder.CredentialsPath = _options.CredentialsPath;
+            builder.Credential = credential;
         }
 
         return builder.Build();

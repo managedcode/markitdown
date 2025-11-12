@@ -32,17 +32,15 @@ public sealed class GoogleImageUnderstandingProvider : IImageUnderstandingProvid
         {
             var builder = new ImageAnnotatorClientBuilder();
 
-            if (options.Credential is not null)
+            var credential = GoogleCredentialResolver.Resolve(
+                options.Credential,
+                options.JsonCredentials,
+                options.CredentialsPath,
+                ImageAnnotatorClient.DefaultScopes);
+
+            if (credential is not null)
             {
-                builder.Credential = options.Credential;
-            }
-            else if (!string.IsNullOrWhiteSpace(options.JsonCredentials))
-            {
-                builder.JsonCredentials = options.JsonCredentials;
-            }
-            else if (!string.IsNullOrWhiteSpace(options.CredentialsPath))
-            {
-                builder.CredentialsPath = options.CredentialsPath;
+                builder.Credential = credential;
             }
 
             _client = builder.Build();

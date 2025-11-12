@@ -27,11 +27,9 @@
     <PackageReference Include="Azure.AI.FormRecognizer" />
     <PackageReference Include="Azure.AI.Vision.ImageAnalysis" />
     <PackageReference Include="Azure.Identity" />
-    <PackageReference Include="System.Text.Json" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
-    <PackageReference Include="System.Text.Encoding.CodePages" />
 
       <!-- PDF Support -->
     <PackageReference Include="PdfPig" />
