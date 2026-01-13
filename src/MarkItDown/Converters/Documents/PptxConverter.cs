@@ -245,9 +245,10 @@ public sealed class PptxConverter : DocumentConverterBase
         markdown.AppendLine();
         text.AppendLine($"Slide {slideNumber}");
 
-        if (slide.CommonSlideData?.ShapeTree is not null)
+        if (slide?.CommonSlideData?.ShapeTree is not null)
         {
-            foreach (var element in slide.CommonSlideData.ShapeTree.Elements())
+            var shapeTree = slide.CommonSlideData.ShapeTree;
+            foreach (var element in shapeTree.Elements())
             {
                 cancellationToken.ThrowIfCancellationRequested();
 

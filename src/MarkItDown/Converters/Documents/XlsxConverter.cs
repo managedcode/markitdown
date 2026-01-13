@@ -240,14 +240,19 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
 
     private static string ConvertWorksheetToMarkdown(WorksheetPart worksheetPart, string sheetName, WorkbookPart workbookPart)
     {
-        var worksheet = worksheetPart.Worksheet;
-        var sheetData = worksheet.Elements<SheetData>().FirstOrDefault();
-
         var result = new StringBuilder();
         result.AppendLine($"## {sheetName}");
         result.AppendLine();
 
-        if (sheetData == null)
+        var worksheet = worksheetPart.Worksheet;
+        if (worksheet is null)
+        {
+            result.AppendLine("*No data found*");
+            return result.ToString().TrimEnd();
+        }
+
+        var sheetData = worksheet.Elements<SheetData>().FirstOrDefault();
+        if (sheetData is null)
         {
             result.AppendLine("*No data found*");
             return result.ToString().TrimEnd();

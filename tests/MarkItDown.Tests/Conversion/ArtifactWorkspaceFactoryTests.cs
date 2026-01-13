@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using ManagedCode.MimeTypes;
 using ManagedCode.Storage.Azure;
 using ManagedCode.Storage.Azure.Options;
@@ -70,11 +71,12 @@ public sealed class ArtifactWorkspaceFactoryTests
 
 public sealed class ArtifactWorkspaceFactoryAzureTests : IAsyncLifetime
 {
+    private const string AzuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.28.0";
     private readonly AzuriteContainer azurite;
 
     public ArtifactWorkspaceFactoryAzureTests()
     {
-        azurite = new AzuriteBuilder().Build();
+        azurite = new AzuriteBuilder(AzuriteImage).Build();
     }
 
     public async Task InitializeAsync()
@@ -131,7 +133,7 @@ public sealed class ArtifactWorkspaceFactoryAzureTests : IAsyncLifetime
             var clientOptions = new BlobClientOptions(BlobClientOptions.ServiceVersion.V2023_11_03);
             var blobClient = new BlobContainerClient(connectionString, containerName, clientOptions);
             var remaining = 0;
-            await foreach (var _ in blobClient.GetBlobsAsync(prefix: storageDirectory))
+            await foreach (var _ in blobClient.GetBlobsAsync(BlobTraits.None, BlobStates.None, storageDirectory, CancellationToken.None))
             {
                 remaining++;
             }
