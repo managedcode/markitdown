@@ -48,6 +48,17 @@ public sealed class MarkItDownServiceBuilder
     }
 
     /// <summary>
+    /// Sets the root directory for MarkItDown disk workspaces and buffers.
+    /// Call this in <c>Program.cs</c> for read-only environments like Azure Functions.
+    /// </summary>
+    public MarkItDownServiceBuilder UseRootPath(string rootPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
+        Services.Configure<MarkItDownOptions>(o => o.RootPath = rootPath);
+        return this;
+    }
+
+    /// <summary>
     /// Registers a conversion middleware component that will be included in the pipeline.
     /// </summary>
     public MarkItDownServiceBuilder AddMiddleware<TMiddleware>() where TMiddleware : class, IConversionMiddleware
