@@ -17,6 +17,13 @@ namespace MarkItDown;
 public sealed record MarkItDownOptions
 {
     /// <summary>
+    /// Optional root directory for all MarkItDown workspaces and buffers.
+    /// Defaults to <c>.markitdown</c> under <see cref="Environment.CurrentDirectory"/>.
+    /// Set to a writable path in read-only environments (e.g. Azure Functions temp).
+    /// </summary>
+    public string? RootPath { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether built-in converters should be registered. Defaults to <see langword="true"/>.
     /// </summary>
     public bool EnableBuiltins { get; set; } = true;

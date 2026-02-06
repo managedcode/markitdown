@@ -66,6 +66,13 @@ public sealed class MarkItDownClient : IMarkItDownClient
     public MarkItDownClient(MarkItDownOptions? options, ILogger? logger = null, HttpClient? httpClient = null)
     {
         _options = options ?? new MarkItDownOptions();
+
+        // Configure path resolver before anything materialises the root.
+        if (!string.IsNullOrWhiteSpace(_options.RootPath))
+        {
+            MarkItDownPathResolver.Configure(_options.RootPath);
+        }
+
         _logger = logger ?? _options.LoggerFactory?.CreateLogger<MarkItDownClient>();
         _httpClient = httpClient;
         _converters = [];
