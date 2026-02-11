@@ -46,6 +46,7 @@ If I tell you to remember something, you do the same, update
 - Multi-page tables must emit `<!-- Table spans pages X-Y -->` comments, continuation markers for each affected page, and populate `table.pageStart`, `table.pageEnd`, and `table.pageRange` metadata so downstream systems can align tables with their source pages.
 - PDF converters must honour `SegmentOptions.Pdf.TreatPagesAsImages`, rendering each page to PNG, running OCR/vision enrichment, and composing page segments with image placeholders plus recognized text whenever the option is enabled.
 - Persist conversion workspaces through `ManagedCode.Storage` by allocating a unique, sanitized folder per document, copy the source file, store every extracted artifact via `IStorage`, and emit the final Markdown into the same folder.
+- Root path configurability: `MarkItDownPathResolver` must support a configurable root via `MarkItDownOptions.RootPath` (non-DI) or `MarkItDownServiceBuilder.UseRootPath()` (DI); the resolver uses a lock-guarded double-check (not `Lazy<string>`) so `Configure()` and first access are atomic, and conflicting paths throw `InvalidOperationException` instead of being silently ignored.
 
 # Repository Guidelines
 
