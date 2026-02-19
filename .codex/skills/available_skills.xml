@@ -1,0 +1,67 @@
+<available_skills>
+  <skill>
+    <name>cloc</name>
+    <description>Count lines of code, analyze codebase size and composition, compare code between versions. Use when the user asks about lines of code, codebase size, language breakdown, or code statistics.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/cloc/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>dotnet-strict</name>
+    <description>Apply strict .NET/C# coding standards to a project or solution. Adds Roslynator and Meziantou analyzers, a comprehensive .editorconfig with 80+ diagnostic rules, naming conventions, and performance warnings. Use when the user wants to enforce strict code quality, set up analyzers, or add an .editorconfig to a .NET project.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/dotnet-strict/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>frontend-design</name>
+    <description>Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, or applications. Generates creative, polished code that avoids generic AI aesthetics.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/frontend-design/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>mcaf-adr-writing</name>
+    <description>Create or update an ADR under `docs/ADR/` using `docs/templates/ADR-Template.md`, capturing context, decision, alternatives, consequences, rollout, and verification. Use when changing architecture, boundaries, dependencies, data model, or cross-cutting patterns; ensure the ADR is self-contained, has a Mermaid diagram, and defines testable invariants.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/mcaf-adr-writing/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>mcaf-architecture-overview</name>
+    <description>Create or update `docs/Architecture/Overview.md` for a repository: map modules and boundaries, add a Mermaid module diagram, document dependency rules, and link to ADRs/features. Use when onboarding, refactoring, adding modules, or when the repo lacks a clear global architecture map.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/mcaf-architecture-overview/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>mcaf-feature-spec</name>
+    <description>Create or update a feature document under `docs/Features/` using `docs/templates/Feature-Template.md`, including business rules, user flows, system behaviour, Mermaid diagram, verification plan, and Definition of Done. Use before implementing a non-trivial feature or when behaviour changes; make the spec executable (test flows + traceability to tests).</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/mcaf-feature-spec/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>mcaf-formatting</name>
+    <description>Format code and keep style consistent using the repository’s canonical formatting/lint commands from AGENTS.md. Use after implementing changes or when formatting drift causes noisy diffs; keep formatting changes intentional and verified with build/tests.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/mcaf-formatting/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>mcaf-skill-curation</name>
+    <description>Create, update, and validate repository skills under your agent’s skills directory (Codex: `.codex/skills/`, Claude: `.claude/skills/`) so they match the real codebase and `AGENTS.md` rules; tune YAML `description` triggers, apply feedback, and generate `&lt;available_skills&gt;` metadata blocks.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/mcaf-skill-curation/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>mcaf-testing</name>
+    <description>Add or update automated tests for a change (bugfix, feature, refactor) using the repository’s testing rules in AGENTS.md. Use TDD (test fails → implement → pass) where applicable; derive scenarios from docs/Features/* and ADR invariants; prefer stable integration/API/UI tests, run build before tests, collect coverage, and verify meaningful assertions for happy/negative/edge cases.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/mcaf-testing/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>pre-pr</name>
+    <description>Run mandatory pre-PR quality checks for .NET projects before creating a pull request. Use before creating any PR, or when the user says &quot;prepare for PR&quot;, &quot;pre-PR checks&quot;, or &quot;quality gate&quot;.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/pre-pr/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>profile</name>
+    <description>Profile .NET applications for CPU performance, memory allocations, lock contention, exceptions, heap analysis, and JIT inlining. Use when the user asks about performance bottlenecks, memory leaks, high CPU, slow code, lock contention, excessive exceptions, GC pressure, heap growth, or JIT compilation in .NET projects.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/profile/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>quickdup</name>
+    <description>Find and reduce code duplication, clean up redundant code, detect code clones, reduce codebase size, DRY violations, copy-paste detection. Use when the user asks about duplicate code, code cleanup, reducing code size, DRY principles, or finding copy-pasted code.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/quickdup/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>roslynator</name>
+    <description>Run C# static analysis, auto-fix code issues, format code, find unused code, and enforce coding standards in .NET projects. Use when the user asks about code quality, linting, static analysis, code cleanup, unused code, or formatting in C# / .NET projects.</description>
+    <location>/Users/ksemenenko/Developer/markitdown/.codex/skills/roslynator/SKILL.md</location>
+  </skill>
+</available_skills>
