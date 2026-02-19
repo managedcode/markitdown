@@ -13,6 +13,7 @@ internal static class MarkItDownDiagnostics
     public const string ActivityNameConvertFile = "markitdown.convert.file";
     public const string ActivityNameConvertUrl = "markitdown.convert.url";
     public const string ActivityNameDownload = "markitdown.download";
+    public const string ActivityNameMediaTranscription = "markitdown.media.transcription";
 
     internal static class ActivityTagNames
     {

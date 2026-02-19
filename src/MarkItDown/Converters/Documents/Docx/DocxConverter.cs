@@ -215,7 +215,7 @@ public sealed partial class DocxConverter : WordprocessingDocumentConverterBase
     private SegmentOptions ResolveSegmentOptions()
         => ConversionContextAccessor.Current?.Segments ?? segmentOptions;
 
-    private ArtifactStorageOptions ResolveStorageOptions()
+    private static ArtifactStorageOptions ResolveStorageOptions()
         => ConversionContextAccessor.Current?.Storage ?? ArtifactStorageOptions.Default;
 
     private static int GetGridSpan(TableCell cell)

@@ -102,7 +102,7 @@ internal sealed class InteractiveCli
         }
 
         var options = state.BuildOptions();
-        var summary = await RunWithProgressAsync(progress => conversionService.ConvertFilesAsync(new[] { path }, outputDir, options, progress), 1);
+        var summary = await RunWithProgressAsync(progress => ConversionService.ConvertFilesAsync(new[] { path }, outputDir, options, progress), 1);
         RenderSummary(summary);
         PromptToOpenDirectory(outputDir, summary);
     }
@@ -133,7 +133,7 @@ internal sealed class InteractiveCli
         RenderRadar(files);
 
         var options = state.BuildOptions();
-        var summary = await RunWithProgressAsync(progress => conversionService.ConvertFilesAsync(files, outputDir, options, progress), files.Count);
+        var summary = await RunWithProgressAsync(progress => ConversionService.ConvertFilesAsync(files, outputDir, options, progress), files.Count);
         RenderSummary(summary);
         PromptToOpenDirectory(outputDir, summary);
     }
@@ -161,7 +161,7 @@ internal sealed class InteractiveCli
                 .Spinner(Spinner.Known.Dots)
                 .StartAsync("Fetching URL", async _ =>
                 {
-                    summary = await conversionService.ConvertUrlAsync(url, outputDir, options);
+                    summary = await ConversionService.ConvertUrlAsync(url, outputDir, options);
                 });
 
             if (summary is not null)
@@ -176,7 +176,7 @@ internal sealed class InteractiveCli
         }
     }
 
-    private async Task<ConversionSummary> RunWithProgressAsync(Func<IProgress<ConversionProgress>, Task<ConversionSummary>> operation, int totalItems)
+    private static async Task<ConversionSummary> RunWithProgressAsync(Func<IProgress<ConversionProgress>, Task<ConversionSummary>> operation, int totalItems)
     {
         ConversionSummary? summary = null;
         await AnsiConsole.Progress()
@@ -219,7 +219,7 @@ internal sealed class InteractiveCli
         return summary ?? new ConversionSummary(Array.Empty<ConversionResult>());
     }
 
-    private void PromptToOpenDirectory(string outputDir, ConversionSummary summary)
+    private static void PromptToOpenDirectory(string outputDir, ConversionSummary summary)
     {
         if (summary.SuccessCount > 0 && AnsiConsole.Confirm("Open output directory?", false))
         {
@@ -227,7 +227,7 @@ internal sealed class InteractiveCli
         }
     }
 
-    private string? PromptOutputDirectory()
+    private static string? PromptOutputDirectory()
     {
         var path = AnsiConsole.Ask<string>("Output directory", Path.Combine(Environment.CurrentDirectory, "output"));
         if (string.IsNullOrWhiteSpace(path))
@@ -373,7 +373,7 @@ internal sealed class InteractiveCli
         AnsiConsole.Write(table);
     }
 
-    private void RenderSummary(ConversionSummary summary)
+    private static void RenderSummary(ConversionSummary summary)
     {
         var table = new Table().Border(TableBorder.Rounded).Title("Conversion Summary");
         table.AddColumn("Input");
@@ -457,7 +457,7 @@ internal sealed class InteractiveCli
             : $"[grey]Aggregate[/]: {string.Join(", ", aggregate)}.";
     }
 
-    private void PreviewFile()
+    private static void PreviewFile()
     {
         var path = PromptExistingFilePath("Select file to preview (metadata only)");
         if (path is null)

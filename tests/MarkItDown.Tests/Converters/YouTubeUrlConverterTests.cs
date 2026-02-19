@@ -48,6 +48,19 @@ public class YouTubeUrlConverterTests
         result.Segments.Count.ShouldBe(0);
     }
 
+    [Fact]
+    public async Task ConvertAsync_WatchUrlWithAdditionalQueryParams_ExtractsVideoId()
+    {
+        var provider = new StubYouTubeMetadataProvider();
+        var converter = new YouTubeUrlConverter(provider);
+        var streamInfo = new StreamInfo(url: "https://www.youtube.com/watch?si=abc123&v=abcdefghijk&feature=share");
+
+        var result = await converter.ConvertAsync(Stream.Null, streamInfo);
+
+        var metadataSegment = result.Segments.First(segment => segment.Type == SegmentType.Metadata);
+        metadataSegment.AdditionalMetadata[MetadataKeys.VideoId].ShouldBe("abcdefghijk");
+    }
+
     private sealed class NullYouTubeMetadataProvider : IYouTubeMetadataProvider
     {
         public Task<YouTubeMetadata?> GetVideoAsync(string videoId, CancellationToken cancellationToken = default)
@@ -127,6 +140,8 @@ public class YouTubeUrlConverterTests
 
     private sealed class StubYouTubeMetadataProvider : IYouTubeMetadataProvider
     {
+        private static readonly string[] Tags = new[] { "test", "video" };
+
         public Task<YouTubeMetadata?> GetVideoAsync(string videoId, CancellationToken cancellationToken = default)
         {
             var metadata = new YouTubeMetadata(
@@ -139,7 +154,7 @@ public class YouTubeUrlConverterTests
                 UploadDate: new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),
                 ViewCount: 12345,
                 LikeCount: 678,
-                Tags: new[] { "test", "video" },
+                Tags: Tags,
                 Description: "Sample description",
                 Thumbnails: new[] { new Uri($"https://img.youtube.com/vi/{videoId}/0.jpg") },
                 Captions: new[]

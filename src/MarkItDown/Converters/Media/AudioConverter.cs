@@ -22,13 +22,11 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
         ".wav",
         ".mp3",
         ".m4a",
-        ".mp4",
     ];
 
     private static readonly HashSet<string> AcceptedMimePrefixes =
     [
         "audio/",
-        "video/mp4",
     ];
 
     private static readonly string[] MetadataFields =
@@ -53,6 +51,7 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
     private readonly IAudioTranscriber transcriber;
     private readonly SegmentOptions segmentOptions;
     private readonly IMediaTranscriptionProvider? mediaProvider;
+    private static readonly string[] prefixes = new[] { "video/" };
 
     public AudioConverter(
         string? exifToolPath = null,
@@ -97,24 +96,37 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
         ArgumentNullException.ThrowIfNull(stream);
         ArgumentNullException.ThrowIfNull(streamInfo);
 
+        var context = ConversionContextAccessor.Current;
+        var mediaRequest = context?.Request.Intelligence.Media;
+        var isVideoInput = IsVideoInput(streamInfo);
+
         await using var source = await MaterializeSourceAsync(stream, streamInfo, ResolveDefaultExtension(streamInfo), cancellationToken).ConfigureAwait(false);
         var filePath = source.FilePath;
 
         var bytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
 
         var metadata = await metadataExtractor.ExtractAsync(bytes, streamInfo, cancellationToken).ConfigureAwait(false);
-        var transcript = await TryTranscribeAsync(bytes, streamInfo, cancellationToken).ConfigureAwait(false);
-        var providerTranscript = await TryTranscribeWithProviderAsync(filePath, streamInfo, cancellationToken).ConfigureAwait(false);
+        var transcript = isVideoInput
+            ? null
+            : await TryTranscribeAsync(bytes, streamInfo, cancellationToken).ConfigureAwait(false);
+        var providerTranscript = await TryTranscribeWithProviderAsync(filePath, streamInfo, mediaRequest, cancellationToken).ConfigureAwait(false);
 
-        var transcriptText = !string.IsNullOrWhiteSpace(transcript)
-            ? transcript
-            : providerTranscript?.GetFullTranscript();
+        var transcriptText = isVideoInput
+            ? providerTranscript?.GetFullTranscript()
+            : !string.IsNullOrWhiteSpace(transcript)
+                ? transcript
+                : providerTranscript?.GetFullTranscript();
 
         var titleHint = metadata.TryGetValue("Title", out var rawTitle) && !string.IsNullOrWhiteSpace(rawTitle)
             ? rawTitle.Trim()
             : null;
 
         var segments = BuildSegments(metadata, transcriptText, streamInfo, providerTranscript).ToList();
+        if (IsMediaTranscriptRequired(streamInfo, mediaRequest) && !segments.Any(static segment => segment.Type == SegmentType.Audio))
+        {
+            throw new FileConversionException($"Media transcription did not produce transcript segments for '{DescribeInput(streamInfo)}'.");
+        }
+
         if (segments.Count == 0)
         {
             segments.Add(new DocumentSegment(
@@ -161,27 +173,57 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
         }
     }
 
-    private async Task<MediaTranscriptionResult?> TryTranscribeWithProviderAsync(string filePath, StreamInfo streamInfo, CancellationToken cancellationToken)
+    private async Task<MediaTranscriptionResult?> TryTranscribeWithProviderAsync(string filePath, StreamInfo streamInfo, MediaTranscriptionRequest? request, CancellationToken cancellationToken)
     {
-        var context = ConversionContextAccessor.Current;
-        var provider = context?.Providers.Media ?? mediaProvider;
-        var request = context?.Request.Intelligence.Media;
+        var provider = ConversionContextAccessor.Current?.Providers.Media ?? mediaProvider;
+        var requiresExplicitProvider = request is not null;
+        var isVideoInput = IsVideoInput(streamInfo);
+        var failOnProviderError = requiresExplicitProvider || isVideoInput;
 
         if (provider is null)
         {
+            if (requiresExplicitProvider || isVideoInput)
+            {
+                throw new FileConversionException("Media transcription was requested, but no media transcription provider is configured.");
+            }
+
             return null;
         }
 
         try
         {
             await using var providerStream = OpenReadOnlyFile(filePath);
-            return await provider.TranscribeAsync(providerStream, streamInfo, request, cancellationToken).ConfigureAwait(false);
+            var result = await provider.TranscribeAsync(providerStream, streamInfo, request, cancellationToken).ConfigureAwait(false);
+            if (requiresExplicitProvider && (result is null || result.Segments.Count == 0))
+            {
+                throw new FileConversionException($"Media transcription provider '{provider.GetType().Name}' returned no transcript segments.");
+            }
+
+            return result;
         }
-        catch
+        catch (Exception ex) when (ex is not MarkItDownException)
         {
+            if (failOnProviderError)
+            {
+                throw new FileConversionException($"Media transcription provider '{provider.GetType().Name}' failed: {ex.Message}", ex);
+            }
+
             return null;
         }
     }
+
+    private static bool IsMediaTranscriptRequired(StreamInfo streamInfo, MediaTranscriptionRequest? request)
+        => request is not null || IsVideoInput(streamInfo);
+
+    private static bool IsVideoInput(StreamInfo streamInfo)
+        => streamInfo.MatchesMime(prefixes);
+
+    private static string DescribeInput(StreamInfo streamInfo)
+        => streamInfo.FileName
+           ?? streamInfo.LocalPath
+           ?? streamInfo.Url
+           ?? streamInfo.Extension
+           ?? "input";
 
     private IReadOnlyList<DocumentSegment> BuildSegments(
         IReadOnlyDictionary<string, string> metadata,
@@ -215,13 +257,27 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
 
         if (transcriptSegments.Count > 0)
         {
+            var transcriptLabel = IsVideoInput(streamInfo) ? "Video Transcript" : "Audio Transcript";
             segments.Add(new DocumentSegment(
-                markdown: "### Audio Transcript",
+                markdown: $"### {transcriptLabel}",
                 type: SegmentType.Section,
-                label: "Audio Transcript",
+                label: transcriptLabel,
                 source: source));
 
             segments.AddRange(transcriptSegments);
+        }
+
+        if (providerResult is not null && IsVideoInput(streamInfo))
+        {
+            var analysisMarkdown = BuildVideoAnalysisMarkdown(providerResult);
+            if (!string.IsNullOrWhiteSpace(analysisMarkdown))
+            {
+                segments.Add(new DocumentSegment(
+                    markdown: analysisMarkdown,
+                    type: SegmentType.Metadata,
+                    label: "Video Analysis",
+                    source: source));
+            }
         }
 
         return segments;
@@ -319,13 +375,14 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
         return segments;
     }
 
-    private IReadOnlyList<DocumentSegment> CreateAudioSegments(MediaTranscriptionResult mediaResult, StreamInfo streamInfo)
+    private static IReadOnlyList<DocumentSegment> CreateAudioSegments(MediaTranscriptionResult mediaResult, StreamInfo streamInfo)
     {
         if (mediaResult.Segments.Count == 0)
         {
             return Array.Empty<DocumentSegment>();
         }
 
+        var isVideoInput = IsVideoInput(streamInfo);
         var segments = new List<DocumentSegment>(mediaResult.Segments.Count);
         for (var i = 0; i < mediaResult.Segments.Count; i++)
         {
@@ -336,7 +393,7 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
             };
 
             segments.Add(new DocumentSegment(
-                markdown: item.Text,
+                markdown: isVideoInput ? FormatVideoTranscriptSegment(item) : item.Text,
                 type: SegmentType.Audio,
                 number: i + 1,
                 label: $"Segment {i + 1}",
@@ -348,6 +405,174 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
 
         return segments;
     }
+
+    private static string FormatVideoTranscriptSegment(MediaTranscriptSegment item)
+    {
+        var builder = new StringBuilder();
+        var hasHeader = false;
+
+        var range = FormatRange(item.Start, item.End);
+        var speaker = ResolveSpeaker(item.Metadata);
+        if (!string.IsNullOrWhiteSpace(range) || !string.IsNullOrWhiteSpace(speaker))
+        {
+            builder.Append("**");
+            if (!string.IsNullOrWhiteSpace(range))
+            {
+                builder.Append('[').Append(range).Append(']').Append(' ');
+            }
+
+            builder.Append(string.IsNullOrWhiteSpace(speaker) ? "Speaker" : speaker);
+            builder.AppendLine("**");
+            hasHeader = true;
+        }
+
+        AppendDetailLine(builder, "Emotion/Sentiment", TryGetValue(item.Metadata, MetadataKeys.Sentiment));
+
+        var sentimentScore = TryGetValue(item.Metadata, MetadataKeys.SentimentScore);
+        if (!string.IsNullOrWhiteSpace(sentimentScore))
+        {
+            AppendDetailLine(builder, "Sentiment Score", sentimentScore);
+        }
+
+        var confidence = TryGetValue(item.Metadata, MetadataKeys.Confidence);
+        if (!string.IsNullOrWhiteSpace(confidence))
+        {
+            AppendDetailLine(builder, "Transcript Confidence", confidence);
+        }
+
+        AppendDetailLine(builder, "Topics", TryGetValue(item.Metadata, MetadataKeys.Topics));
+        AppendDetailLine(builder, "Keywords", TryGetValue(item.Metadata, MetadataKeys.Keywords));
+
+        var text = item.Text?.Trim() ?? string.Empty;
+        if (builder.Length > 0 && text.Length > 0)
+        {
+            if (hasHeader || builder.ToString().Contains("\n- ", StringComparison.Ordinal))
+            {
+                builder.AppendLine();
+            }
+        }
+
+        builder.Append(text);
+        return builder.ToString().Trim();
+    }
+
+    private static string? BuildVideoAnalysisMarkdown(MediaTranscriptionResult result)
+    {
+        if (!result.Metadata.TryGetValue(MetadataKeys.Provider, out var provider) ||
+            !string.Equals(provider, MetadataValues.ProviderAzureVideoIndexer, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var builder = new StringBuilder();
+        var hasContent = false;
+
+        builder.AppendLine("### Video Analysis");
+        builder.AppendLine();
+
+        var overview = new List<(string Label, string? Value)>
+        {
+            ("Video Indexer State", TryGetValue(result.Metadata, MetadataKeys.VideoIndexerState)),
+            ("Video Indexer Index Id", TryGetValue(result.Metadata, MetadataKeys.VideoIndexerIndexId)),
+            ("Video Indexer Progress", TryGetValue(result.Metadata, MetadataKeys.VideoIndexerProgress)),
+            ("Language", TryGetValue(result.Metadata, MetadataKeys.Language)),
+            ("Duration", TryGetValue(result.Metadata, MetadataKeys.Duration)),
+            ("Speakers", TryGetValue(result.Metadata, MetadataKeys.Speakers)),
+            ("Speaker Count", TryGetValue(result.Metadata, MetadataKeys.SpeakerCount)),
+            ("Total Word Count", TryGetValue(result.Metadata, MetadataKeys.WordCount)),
+            ("Speech Fragments", TryGetValue(result.Metadata, MetadataKeys.FragmentCount)),
+            ("Longest Monologue (s)", TryGetValue(result.Metadata, MetadataKeys.LongestMonologSeconds))
+        };
+
+        var overviewLines = overview.Where(static item => !string.IsNullOrWhiteSpace(item.Value)).ToList();
+        if (overviewLines.Count > 0)
+        {
+            builder.AppendLine("#### Overview");
+            foreach (var (label, value) in overviewLines)
+            {
+                builder.Append("- **").Append(label).Append(":** ").AppendLine(value);
+            }
+
+            builder.AppendLine();
+            hasContent = true;
+        }
+
+        hasContent |= AppendAnalysisSection(builder, "Emotion / Sentiment", TryGetValue(result.Metadata, MetadataKeys.Sentiments));
+        hasContent |= AppendAnalysisSection(builder, "Topics", TryGetValue(result.Metadata, MetadataKeys.Topics));
+        hasContent |= AppendAnalysisSection(builder, "Keywords", TryGetValue(result.Metadata, MetadataKeys.Keywords));
+        hasContent |= AppendAnalysisSection(builder, "Visual Labels", TryGetValue(result.Metadata, MetadataKeys.Labels));
+        hasContent |= AppendAnalysisSection(builder, "Named Locations", TryGetValue(result.Metadata, MetadataKeys.NamedLocations));
+
+        if (!hasContent)
+        {
+            return null;
+        }
+
+        return builder.ToString().TrimEnd();
+    }
+
+    private static bool AppendAnalysisSection(StringBuilder builder, string title, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        builder.Append("#### ").AppendLine(title);
+        builder.Append("- ").AppendLine(value);
+        builder.AppendLine();
+        return true;
+    }
+
+    private static void AppendDetailLine(StringBuilder builder, string label, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        builder.Append("- ").Append(label).Append(": ").AppendLine(value);
+    }
+
+    private static string? ResolveSpeaker(IReadOnlyDictionary<string, string> metadata)
+    {
+        var speaker = TryGetValue(metadata, MetadataKeys.Speaker);
+        if (!string.IsNullOrWhiteSpace(speaker))
+        {
+            return speaker;
+        }
+
+        var speakerId = TryGetValue(metadata, MetadataKeys.SpeakerId);
+        if (string.IsNullOrWhiteSpace(speakerId))
+        {
+            return null;
+        }
+
+        return $"Speaker #{speakerId}";
+    }
+
+    private static string? FormatRange(TimeSpan? start, TimeSpan? end)
+    {
+        if (!start.HasValue && !end.HasValue)
+        {
+            return null;
+        }
+
+        if (start.HasValue && end.HasValue)
+        {
+            return $"{FormatDuration(start.Value)}-{FormatDuration(end.Value)}";
+        }
+
+        if (start.HasValue)
+        {
+            return $"{FormatDuration(start.Value)}-?";
+        }
+
+        return $"?-{FormatDuration(end!.Value)}";
+    }
+
+    private static string? TryGetValue(IReadOnlyDictionary<string, string> metadata, string key)
+        => metadata.TryGetValue(key, out var value) ? value : null;
 
     private static List<string> SplitTranscriptIntoChunks(string transcript, int segmentCount)
     {

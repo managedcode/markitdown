@@ -17,7 +17,7 @@ public class TestAssetCatalogTests
 
         var expected = Directory.GetFiles(assetRoot, "*", SearchOption.AllDirectories)
             .Select(path => path.Replace('\\', '/'))
-            .Where(path => !Path.GetFileName(path).StartsWith(".", StringComparison.Ordinal))
+            .Where(path => !Path.GetFileName(path).StartsWith('.'))
             .Select(path => path.Substring(normalizedRoot.Length + 1))
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();

@@ -9,14 +9,14 @@ namespace MarkItDown.Converters;
 /// <summary>
 /// Extracts organic results from Bing search result pages.
 /// </summary>
-public sealed class BingSerpConverter : DocumentConverterBase
+public sealed partial class BingSerpConverter : DocumentConverterBase
 {
     public BingSerpConverter()
         : base(priority: 96)
     {
     }
 
-    private static readonly Regex BingQueryRegex = new("^https://www\\.bing\\.com/search\\?q=", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex BingQueryRegex = MyRegex();
 
     private static readonly HashSet<string> AcceptedExtensions =
     [
@@ -80,7 +80,7 @@ public sealed class BingSerpConverter : DocumentConverterBase
         {
             RewriteRedirectLinks(resultElement);
 
-            var fragmentMarkdown = renderer.RenderFragment(resultElement);
+            var fragmentMarkdown = HtmlMarkdownRenderer.RenderFragment(resultElement);
             var normalized = NormalizeLines(fragmentMarkdown);
             if (!string.IsNullOrWhiteSpace(normalized))
             {
@@ -262,4 +262,7 @@ public sealed class BingSerpConverter : DocumentConverterBase
         activity.SetTag(TelemetryTags.ActivityStatusDescription, decodeFailureDescription);
         activity.SetStatus(ActivityStatusCode.Error, decodeFailureDescription);
     }
+
+    [GeneratedRegex("^https://www\\.bing\\.com/search\\?q=", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-FR")]
+    private static partial Regex MyRegex();
 }

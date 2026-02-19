@@ -51,10 +51,7 @@ public sealed class AzureDocumentIntelligenceProvider : IDocumentIntelligencePro
 
     public async Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, DocumentIntelligenceRequest? request = null, CancellationToken cancellationToken = default)
     {
-        if (stream is null)
-        {
-            throw new ArgumentNullException(nameof(stream));
-        }
+        ArgumentNullException.ThrowIfNull(stream);
 
         if (!IsSupportedStream(streamInfo))
         {

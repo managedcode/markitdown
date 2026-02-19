@@ -64,10 +64,7 @@ public sealed class AwsMediaTranscriptionProvider : IMediaTranscriptionProvider,
 
     public async Task<MediaTranscriptionResult?> TranscribeAsync(Stream stream, StreamInfo streamInfo, MediaTranscriptionRequest? request = null, CancellationToken cancellationToken = default)
     {
-        if (stream is null)
-        {
-            throw new ArgumentNullException(nameof(stream));
-        }
+        ArgumentNullException.ThrowIfNull(stream);
 
         var jobName = $"markitdown-{Guid.NewGuid():N}";
         var extension = string.IsNullOrWhiteSpace(streamInfo.Extension) ? ".wav" : streamInfo.Extension;
@@ -235,7 +232,7 @@ public sealed class AwsMediaTranscriptionProvider : IMediaTranscriptionProvider,
         return value.EndsWith(suffix, StringComparison.Ordinal) ? value : value + suffix;
     }
 
-    private MediaTranscriptionResult? ParseTranscript(string json, string language)
+    private static MediaTranscriptionResult? ParseTranscript(string json, string language)
     {
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;

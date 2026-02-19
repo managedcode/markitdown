@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Text;
 using MarkItDown;
 using MarkItDown.Converters;
+using MarkItDown.Intelligence;
+using MarkItDown.Intelligence.Models;
 using MarkItDown.YouTube;
 using Xunit;
 
@@ -329,6 +331,83 @@ public class ConverterAcceptanceTests
     }
 
     [Fact]
+    public void YouTubeUrlConverter_AcceptsInput_YouTubeWatchUrlWithExtraQueryParameters_ReturnsTrue()
+    {
+        // Arrange
+        var converter = new YouTubeUrlConverter();
+        var streamInfo = new StreamInfo(url: "https://www.youtube.com/watch?si=abc123&v=dQw4w9WgXcQ&feature=share");
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void YouTubeUrlConverter_AcceptsInput_YouTubeShortsUrl_ReturnsTrue()
+    {
+        // Arrange
+        var converter = new YouTubeUrlConverter();
+        var streamInfo = new StreamInfo(url: "https://www.youtube.com/shorts/dQw4w9WgXcQ");
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void YouTubeUrlConverter_AcceptsInput_YouTubeUrlWithVideoMime_ReturnsFalse()
+    {
+        // Arrange
+        var converter = new YouTubeUrlConverter();
+        var streamInfo = new StreamInfo(
+            mimeType: "video/mp4",
+            extension: ".mp4",
+            fileName: "upload.mp4",
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+
+        // Act
+        var result = converter.AcceptsInput(streamInfo);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task MarkItDownClient_YouTubeUrlWithVideoMime_DoesNotInvokeYouTubeMetadataProvider()
+    {
+        // Arrange
+        var youTubeProvider = new StubYouTubeMetadataProvider();
+        var options = new global::MarkItDown.MarkItDownOptions
+        {
+            YouTubeMetadataProvider = youTubeProvider,
+            MediaTranscriptionProvider = new ThrowingMediaProvider()
+        };
+        var markItDown = new global::MarkItDown.MarkItDownClient(options);
+        var streamInfo = new StreamInfo(
+            mimeType: "video/mp4",
+            extension: ".mp4",
+            fileName: "upload.mp4",
+            url: "https://youtu.be/dQw4w9WgXcQ");
+        await using var stream = new MemoryStream(new byte[] { 1, 2, 3, 4 });
+
+        // Act
+        var exception = await Assert.ThrowsAsync<UnsupportedFormatException>(
+            () => markItDown.ConvertAsync(stream, streamInfo));
+
+        // Assert
+        Assert.Equal(0, youTubeProvider.CallCount);
+        Assert.IsType<AggregateException>(exception.InnerException);
+        var aggregate = (AggregateException)exception.InnerException!;
+        Assert.Contains(aggregate.InnerExceptions, ex =>
+            ex is FileConversionException fileConversionException &&
+            fileConversionException.Message.Contains("ThrowingMediaProvider", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void YouTubeUrlConverter_AcceptsInput_NonYouTubeUrl_ReturnsFalse()
     {
         // Arrange
@@ -448,8 +527,13 @@ public class ConverterAcceptanceTests
 
 internal sealed class StubYouTubeMetadataProvider : IYouTubeMetadataProvider
 {
+    public int CallCount { get; private set; }
+    internal static readonly string[] Tags = new[] { "test", "video" };
+
     public Task<YouTubeMetadata?> GetVideoAsync(string videoId, CancellationToken cancellationToken = default)
     {
+        CallCount++;
+
         var metadata = new YouTubeMetadata(
             VideoId: videoId,
             Title: "Sample Video Title",
@@ -460,7 +544,7 @@ internal sealed class StubYouTubeMetadataProvider : IYouTubeMetadataProvider
             UploadDate: new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),
             ViewCount: 12345,
             LikeCount: 678,
-            Tags: new[] { "test", "video" },
+            Tags: Tags,
             Description: "Sample description",
             Thumbnails: new[] { new Uri($"https://img.youtube.com/vi/{videoId}/0.jpg") },
             Captions: new[]
@@ -475,5 +559,17 @@ internal sealed class StubYouTubeMetadataProvider : IYouTubeMetadataProvider
         );
 
         return Task.FromResult<YouTubeMetadata?>(metadata);
+    }
+}
+
+internal sealed class ThrowingMediaProvider : IMediaTranscriptionProvider
+{
+    public Task<MediaTranscriptionResult?> TranscribeAsync(
+        Stream stream,
+        StreamInfo streamInfo,
+        MediaTranscriptionRequest? request = null,
+        CancellationToken cancellationToken = default)
+    {
+        throw new InvalidOperationException("Simulated media provider failure.");
     }
 }

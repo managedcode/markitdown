@@ -42,6 +42,9 @@ public class PdfConverterIntelligenceTests
         public Task<IReadOnlyList<string>> RenderImagesAsync(string pdfPath, CancellationToken cancellationToken)
             => Task.FromResult(images);
     }
+    private static readonly int[] tableIndices = new[] { 0 };
+    private static readonly string[] item = new[] { "Name", "Value" };
+    private static readonly string[] itemArray = new[] { "Alpha", "42" };
 
     [Fact]
     public async Task ConvertAsync_WithDocumentIntelligenceProvider_UsesProviderSegments()
@@ -49,14 +52,13 @@ public class PdfConverterIntelligenceTests
         var page = new DocumentPageResult(
             pageNumber: 1,
             text: "**Summary**\n\nThis is page one.",
-            tableIndices: new[] { 0 });
+            tableIndices: tableIndices);
 
         var table = new DocumentTableResult(
             pageNumber: 1,
             rows: new List<IReadOnlyList<string>>
-            {
-                new[] { "Name", "Value" },
-                new[] { "Alpha", "42" }
+            { item,
+                itemArray
             });
 
         var image = new DocumentImageResult(

@@ -69,6 +69,7 @@ public class AudioConverterTests
     [Theory]
     [InlineData(".mp3", "audio/mpeg", true)]
     [InlineData(".wav", "audio/wav", true)]
+    [InlineData(".mp4", "video/mp4", false)]
     [InlineData(".txt", "text/plain", false)]
     public void AcceptsInput_VariousExtensions_ReturnsExpected(string extension, string mime, bool expected)
     {

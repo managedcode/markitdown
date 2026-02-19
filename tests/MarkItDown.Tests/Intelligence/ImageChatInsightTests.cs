@@ -8,6 +8,30 @@ namespace MarkItDown.Tests.Intelligence;
 
 public static class ImageChatInsightTests
 {
+    private static readonly string[] descriptionExpectedLines = new[]
+        {
+            "<!-- Image description:",
+            "Dashboard overview",
+            "",
+            "Visible text:",
+            "- Header: Dashboard",
+            "- Body: Current status",
+            "",
+            "Layout:",
+            "- region1 – position: top-left; notes: Hero section",
+            "",
+            "UI elements:",
+            "- Primary button – button; action: navigate",
+            "",
+            "Highlights:",
+            "- Critical alert – color: red",
+            "",
+            "Notes:",
+            "- Shows daily metrics",
+            "",
+            "-->"
+        };
+
     [Fact]
     public static void ToMarkdown_WithDescriptionAndDetails_ProducesImageDescriptionComment()
     {
@@ -42,32 +66,40 @@ public static class ImageChatInsightTests
         insight.Notes.Add("Shows daily metrics");
 
         var markdown = Normalize(insight.ToMarkdown());
-        var expected = Normalize(string.Join(Environment.NewLine, new[]
-        {
-            "<!-- Image description:",
-            "Dashboard overview",
-            "",
-            "Visible text:",
-            "- Header: Dashboard",
-            "- Body: Current status",
-            "",
-            "Layout:",
-            "- region1 – position: top-left; notes: Hero section",
-            "",
-            "UI elements:",
-            "- Primary button – button; action: navigate",
-            "",
-            "Highlights:",
-            "- Critical alert – color: red",
-            "",
-            "Notes:",
-            "- Shows daily metrics",
-            "",
-            "-->"
-        }));
+        var expected = Normalize(string.Join(Environment.NewLine, descriptionExpectedLines));
 
         markdown.ShouldBe(expected);
     }
+    private static readonly string[] tableExpectedLines = new[]
+            {
+                "<!-- Image description:",
+                "Table data:",
+                "Title: SLA Targets",
+                "| Service | Target |",
+                "| --- | --- |",
+                "| API | 99.9% |",
+                "| UI | 99.5% |",
+                "Notes: Weekly averages",
+                "",
+                "-->"
+            };
+    private static readonly string[] chartExpectedLines = new[]
+            {
+                "<!-- Chart data:",
+                "Type: Bar chart",
+                "Title: Workload Distribution",
+                "Axes: x: teams, y: tasks",
+                "Metrics:",
+                "- Completed",
+                "- Pending",
+                "Data:",
+                "| Team | Completed | Pending |",
+                "| --- | --- | --- |",
+                "| Alpha | 5 | 2 |",
+                "| Beta | 3 | 4 |",
+                "Notes: Data from Q1",
+                "-->"
+            };
 
     [Fact]
     public static void ToMarkdown_WithChartAndTable_ProducesSeparateBlocks()
@@ -114,36 +146,8 @@ public static class ImageChatInsightTests
         var markdown = Normalize(insight.ToMarkdown());
         var expected = Normalize(string.Join(Environment.NewLine + Environment.NewLine, new[]
         {
-            string.Join(Environment.NewLine, new[]
-            {
-                "<!-- Image description:",
-                "Table data:",
-                "Title: SLA Targets",
-                "| Service | Target |",
-                "| --- | --- |",
-                "| API | 99.9% |",
-                "| UI | 99.5% |",
-                "Notes: Weekly averages",
-                "",
-                "-->"
-            }),
-            string.Join(Environment.NewLine, new[]
-            {
-                "<!-- Chart data:",
-                "Type: Bar chart",
-                "Title: Workload Distribution",
-                "Axes: x: teams, y: tasks",
-                "Metrics:",
-                "- Completed",
-                "- Pending",
-                "Data:",
-                "| Team | Completed | Pending |",
-                "| --- | --- | --- |",
-                "| Alpha | 5 | 2 |",
-                "| Beta | 3 | 4 |",
-                "Notes: Data from Q1",
-                "-->"
-            })
+            string.Join(Environment.NewLine, tableExpectedLines),
+            string.Join(Environment.NewLine, chartExpectedLines)
         }));
 
         markdown.ShouldBe(expected);

@@ -26,10 +26,7 @@ public sealed class AwsDocumentIntelligenceProvider : IDocumentIntelligenceProvi
 
     public AwsDocumentIntelligenceProvider(AwsDocumentIntelligenceOptions options, IAmazonTextract? client = null)
     {
-        if (options is null)
-        {
-            throw new ArgumentNullException(nameof(options));
-        }
+        ArgumentNullException.ThrowIfNull(options);
 
         _options = options;
         _client = client ?? CreateClient(options);
@@ -37,10 +34,7 @@ public sealed class AwsDocumentIntelligenceProvider : IDocumentIntelligenceProvi
 
     public async Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, DocumentIntelligenceRequest? request = null, CancellationToken cancellationToken = default)
     {
-        if (stream is null)
-        {
-            throw new ArgumentNullException(nameof(stream));
-        }
+        ArgumentNullException.ThrowIfNull(stream);
 
         await using var handle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension, bufferSize: 256 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
         var payload = await File.ReadAllBytesAsync(handle.FilePath, cancellationToken).ConfigureAwait(false);

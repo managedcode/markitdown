@@ -11,10 +11,7 @@ internal static class ImagePlaceholderFormatter
 {
     public static string BuildPlaceholder(ImageArtifact image, string? summary, string? contextLabel = null)
     {
-        if (image is null)
-        {
-            throw new ArgumentNullException(nameof(image));
-        }
+        ArgumentNullException.ThrowIfNull(image);
 
         var normalizedSummary = TextSanitizer.Normalize(summary, trim: true);
         var normalizedContext = TextSanitizer.Normalize(contextLabel, trim: true);

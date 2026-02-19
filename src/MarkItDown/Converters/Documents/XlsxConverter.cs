@@ -55,7 +55,7 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
     private SegmentOptions ResolveSegmentOptions()
         => ConversionContextAccessor.Current?.Segments ?? segmentOptions;
 
-    private ArtifactStorageOptions ResolveStorageOptions()
+    private static ArtifactStorageOptions ResolveStorageOptions()
         => ConversionContextAccessor.Current?.Storage ?? ArtifactStorageOptions.Default;
 
     public override bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
@@ -265,9 +265,13 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
             return result.ToString().TrimEnd();
         }
 
-        var stringTable = workbookPart.SharedStringTablePart?.SharedStringTable;
+        var sharedStrings = workbookPart.SharedStringTablePart?
+            .SharedStringTable?
+            .Elements<SharedStringItem>()
+            .Select(static item => item.InnerText)
+            .ToArray();
 
-        var tableData = BuildTableData(sheetData, stringTable);
+        var tableData = BuildTableData(sheetData, sharedStrings);
 
         if (tableData.Count > 0)
         {
@@ -282,7 +286,7 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
         return result.ToString().TrimEnd();
     }
 
-    private static string GetCellValue(Cell cell, SharedStringTable? stringTable)
+    private static string GetCellValue(Cell cell, IReadOnlyList<string>? sharedStrings)
     {
         var dataType = cell.DataType?.Value;
         var cellValue = cell.CellValue?.Text;
@@ -296,13 +300,12 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
         {
             if (dataType == CellValues.SharedString)
             {
-                if (stringTable != null && int.TryParse(cellValue, out var stringIndex))
+                if (sharedStrings is not null &&
+                    int.TryParse(cellValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var stringIndex) &&
+                    stringIndex >= 0 &&
+                    stringIndex < sharedStrings.Count)
                 {
-                    var stringItem = stringTable.Elements<SharedStringItem>().ElementAtOrDefault(stringIndex);
-                    if (stringItem is not null)
-                    {
-                        return stringItem.InnerText;
-                    }
+                    return sharedStrings[stringIndex];
                 }
             }
             else if (dataType == CellValues.Boolean)
@@ -339,7 +342,7 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
         var maxColumns = tableData.Max(row => row.Count);
         
         // Write header row (first row of data)
-        result.Append("|");
+        result.Append('|');
         for (int col = 0; col < maxColumns; col++)
         {
             var cellValue = col < tableData[0].Count ? tableData[0][col] : "";
@@ -348,7 +351,7 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
         result.AppendLine();
 
         // Write header separator
-        result.Append("|");
+        result.Append('|');
         for (int col = 0; col < maxColumns; col++)
         {
             result.Append(" --- |");
@@ -359,7 +362,7 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
         for (int rowIndex = 1; rowIndex < tableData.Count; rowIndex++)
         {
             var row = tableData[rowIndex];
-            result.Append("|");
+            result.Append('|');
             
             for (int col = 0; col < maxColumns; col++)
             {
@@ -389,7 +392,7 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
         return string.IsNullOrWhiteSpace(nameWithoutExtension) ? "Excel Document" : nameWithoutExtension;
     }
 
-    private static List<List<string>> BuildTableData(SheetData sheetData, SharedStringTable? stringTable)
+    private static List<List<string>> BuildTableData(SheetData sheetData, IReadOnlyList<string>? sharedStrings)
     {
         var values = new Dictionary<(int Row, int Column), string>();
         var mergeRegions = GetMergeRegions(sheetData);
@@ -436,7 +439,7 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
                     maxColumn = columnIndex;
                 }
 
-                var value = (GetCellValue(cell, stringTable) ?? string.Empty).Trim();
+                var value = (GetCellValue(cell, sharedStrings) ?? string.Empty).Trim();
                 values[(rowIndex, columnIndex)] = value;
             }
         }

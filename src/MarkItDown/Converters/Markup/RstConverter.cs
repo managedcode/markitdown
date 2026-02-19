@@ -13,7 +13,7 @@ namespace MarkItDown.Converters;
 /// <summary>
 /// Converter for reStructuredText documents.
 /// </summary>
-public sealed class RstConverter : DocumentConverterBase
+public sealed partial class RstConverter : DocumentConverterBase
 {
     public RstConverter()
         : base(priority: 165)
@@ -32,9 +32,9 @@ public sealed class RstConverter : DocumentConverterBase
         MimeHelper.GetMimeType(".rest") ?? "text/x-rst",
     };
 
-    private static readonly Regex InlineLiteral = new("``(?<text>[^`]+)``", RegexOptions.Compiled);
-    private static readonly Regex Bold = new("\\*\\*(?<text>[^*]+)\\*\\*", RegexOptions.Compiled);
-    private static readonly Regex Italic = new("\\*(?<text>[^*]+)\\*", RegexOptions.Compiled);
+    private static readonly Regex InlineLiteral = MyRegex();
+    private static readonly Regex Bold = MyRegex1();
+    private static readonly Regex Italic = MyRegex2();
 
     public override bool AcceptsInput(StreamInfo streamInfo)
     {
@@ -113,4 +113,11 @@ public sealed class RstConverter : DocumentConverterBase
             _ => 2,
         };
     }
+
+    [GeneratedRegex("``(?<text>[^`]+)``", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
+    [GeneratedRegex("\\*\\*(?<text>[^*]+)\\*\\*", RegexOptions.Compiled)]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex("\\*(?<text>[^*]+)\\*", RegexOptions.Compiled)]
+    private static partial Regex MyRegex2();
 }

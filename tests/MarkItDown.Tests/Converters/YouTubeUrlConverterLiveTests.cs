@@ -23,7 +23,7 @@ public sealed class YouTubeUrlConverterLiveTests
 {
     private const string SolidPrinciplesVideoUrl = "https://www.youtube.com/watch?v=8hnpIIamb6k";
 
-    [Fact(Skip = "YouTube API may be rate limited or unavailable. Run manually to verify functionality.")]
+    [Fact]
     public async Task ConvertAsync_WithLiveVideo_FetchesMetadataFromYouTube()
     {
         var converter = new YouTubeUrlConverter();

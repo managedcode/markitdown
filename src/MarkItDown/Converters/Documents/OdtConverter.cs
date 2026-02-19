@@ -60,7 +60,7 @@ public sealed class OdtConverter : DocumentPipelineConverterBase
     private SegmentOptions ResolveSegmentOptions()
         => ConversionContextAccessor.Current?.Segments ?? segmentOptions;
 
-    private ArtifactStorageOptions ResolveStorageOptions()
+    private static ArtifactStorageOptions ResolveStorageOptions()
         => ConversionContextAccessor.Current?.Storage ?? ArtifactStorageOptions.Default;
 
     public override async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
@@ -239,7 +239,7 @@ public sealed class OdtConverter : DocumentPipelineConverterBase
         return builder.ToString().Trim();
     }
 
-    private OdtExtractionResult BuildExtraction(XDocument document, string markdown, StreamInfo streamInfo)
+    private static OdtExtractionResult BuildExtraction(XDocument document, string markdown, StreamInfo streamInfo)
     {
         var normalized = TextSanitizer.Normalize(markdown, trim: true);
         var segments = new List<DocumentSegment>();

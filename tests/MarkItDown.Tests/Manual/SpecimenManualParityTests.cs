@@ -11,10 +11,11 @@ using Xunit.Abstractions;
 
 namespace MarkItDown.Tests.Manual;
 
-public class SpecimenManualParityTests(ITestOutputHelper output)
+public partial class SpecimenManualParityTests(ITestOutputHelper output)
 {
     private const string PdfAsset = "TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualPdf";
     private const string DocxAsset = "TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualDocx";
+    private static readonly char[] separator = new[] { '\r', '\n' };
 
     [Fact]
     public async Task PdfAndDocx_ProduceMatchingTextAndTables()
@@ -138,7 +139,7 @@ public class SpecimenManualParityTests(ITestOutputHelper output)
 
     private static string NormalizePage(string markdown)
     {
-        var lines = markdown.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        var lines = markdown.Split(separator, StringSplitOptions.RemoveEmptyEntries);
         var normalized = new List<string>();
         var insideComment = false;
 
@@ -171,7 +172,7 @@ public class SpecimenManualParityTests(ITestOutputHelper output)
 
             if (line.Length > 0)
             {
-                var collapsed = Regex.Replace(line, "\\s+", " ");
+                var collapsed = MyRegex().Replace(line, " ");
                 normalized.Add(collapsed);
             }
         }
@@ -282,7 +283,7 @@ public class SpecimenManualParityTests(ITestOutputHelper output)
     {
         var mapping = new Dictionary<int, string>();
         var pendingComments = new Queue<string>();
-        var lines = markdown.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
+        var lines = markdown.Split(separator, StringSplitOptions.None);
 
         var tableIndex = -1;
         var insideTable = false;
@@ -304,7 +305,7 @@ public class SpecimenManualParityTests(ITestOutputHelper output)
                 continue;
             }
 
-            if (line.StartsWith("|", StringComparison.Ordinal))
+            if (line.StartsWith('|'))
             {
                 if (!insideTable)
                 {
@@ -350,14 +351,14 @@ public class SpecimenManualParityTests(ITestOutputHelper output)
             if (line.StartsWith("<!-- Table", StringComparison.OrdinalIgnoreCase))
             {
                 insideTable = false;
-                if (line.IndexOf("continues", StringComparison.OrdinalIgnoreCase) >= 0)
+                if (line.Contains("continues", StringComparison.OrdinalIgnoreCase))
                 {
                     AppendLine(builder, line);
                 }
                 continue;
             }
 
-            if (line.StartsWith("|", StringComparison.Ordinal))
+            if (line.StartsWith('|'))
             {
                 if (!insideTable)
                 {
@@ -420,4 +421,7 @@ public class SpecimenManualParityTests(ITestOutputHelper output)
             return Task.FromResult<DocumentIntelligenceResult?>(result);
         }
     }
+
+    [GeneratedRegex("\\s+")]
+    private static partial Regex MyRegex();
 }

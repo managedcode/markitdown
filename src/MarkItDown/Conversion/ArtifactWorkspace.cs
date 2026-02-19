@@ -372,7 +372,7 @@ internal sealed class ArtifactWorkspace : IDisposable, IAsyncDisposable
             return relative;
         }
 
-        if (basePath.EndsWith("/", StringComparison.Ordinal))
+        if (basePath.EndsWith('/'))
         {
             return $"{basePath}{relative}";
         }

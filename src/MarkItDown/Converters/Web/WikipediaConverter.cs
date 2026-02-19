@@ -7,14 +7,14 @@ namespace MarkItDown.Converters;
 /// <summary>
 /// Specialized converter for Wikipedia HTML pages that extracts only the main article content.
 /// </summary>
-public sealed class WikipediaConverter : DocumentConverterBase
+public sealed partial class WikipediaConverter : DocumentConverterBase
 {
     public WikipediaConverter()
         : base(priority: 95)
     {
     }
 
-    private static readonly Regex WikipediaHostRegex = new("^https?://[a-zA-Z]{2,3}\\.wikipedia\\.org/", RegexOptions.Compiled);
+    private static readonly Regex WikipediaHostRegex = MyRegex();
 
     private static readonly HashSet<string> AcceptedExtensions =
     [
@@ -66,7 +66,7 @@ public sealed class WikipediaConverter : DocumentConverterBase
         string markdown;
         if (mainContent is not null)
         {
-            markdown = renderer.RenderFragment(mainContent);
+            markdown = HtmlMarkdownRenderer.RenderFragment(mainContent);
             if (!string.IsNullOrWhiteSpace(title))
             {
                 markdown = $"# {title}\n\n" + markdown;
@@ -74,7 +74,7 @@ public sealed class WikipediaConverter : DocumentConverterBase
         }
         else
         {
-            var renderResult = renderer.RenderDocument(document);
+            var renderResult = HtmlMarkdownRenderer.RenderDocument(document);
             markdown = renderResult.Markdown;
             title ??= renderResult.Title;
         }
@@ -91,4 +91,7 @@ public sealed class WikipediaConverter : DocumentConverterBase
             node.Remove();
         }
     }
+
+    [GeneratedRegex("^https?://[a-zA-Z]{2,3}\\.wikipedia\\.org/", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
 }

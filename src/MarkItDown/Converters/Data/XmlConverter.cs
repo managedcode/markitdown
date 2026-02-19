@@ -63,7 +63,7 @@ public sealed class XmlConverter : DocumentConverterBase
 
             // Simple check for XML-like content
             return content.TrimStart().StartsWith("<?xml", StringComparison.OrdinalIgnoreCase) ||
-                   content.Contains("<") && content.Contains(">");
+                   content.Contains('<') && content.Contains('>');
         }
         catch
         {

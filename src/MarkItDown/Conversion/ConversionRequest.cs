@@ -9,7 +9,11 @@ namespace MarkItDown;
 /// <summary>
 /// Describes per-invocation options for <see cref="MarkItDownClient"/> conversions.
 /// </summary>
-public sealed class ConversionRequest
+public sealed class ConversionRequest(
+    IntelligenceOverrides intelligence,
+    PipelineExecutionOptions pipeline,
+    Func<SegmentOptions, SegmentOptions>? segmentConfigurator,
+    IReadOnlyDictionary<string, string> metadata)
 {
     private static readonly ReadOnlyDictionary<string, string> EmptyMetadata = new(new Dictionary<string, string>());
 
@@ -19,25 +23,13 @@ public sealed class ConversionRequest
         segmentConfigurator: null,
         EmptyMetadata);
 
-    public ConversionRequest(
-        IntelligenceOverrides intelligence,
-        PipelineExecutionOptions pipeline,
-        Func<SegmentOptions, SegmentOptions>? segmentConfigurator,
-        IReadOnlyDictionary<string, string> metadata)
-    {
-        Intelligence = intelligence ?? IntelligenceOverrides.Empty;
-        Pipeline = pipeline ?? PipelineExecutionOptions.Default;
-        SegmentConfigurator = segmentConfigurator;
-        Metadata = metadata ?? EmptyMetadata;
-    }
+    public IntelligenceOverrides Intelligence { get; } = intelligence ?? IntelligenceOverrides.Empty;
 
-    public IntelligenceOverrides Intelligence { get; }
+    public PipelineExecutionOptions Pipeline { get; } = pipeline ?? PipelineExecutionOptions.Default;
 
-    public PipelineExecutionOptions Pipeline { get; }
+    internal Func<SegmentOptions, SegmentOptions>? SegmentConfigurator { get; } = segmentConfigurator;
 
-    internal Func<SegmentOptions, SegmentOptions>? SegmentConfigurator { get; }
-
-    public IReadOnlyDictionary<string, string> Metadata { get; }
+    public IReadOnlyDictionary<string, string> Metadata { get; } = metadata ?? EmptyMetadata;
 
     public static ConversionRequest FromConfiguration(Action<ConversionRequestBuilder> configure)
     {
@@ -224,10 +216,7 @@ public sealed class PipelineExecutionOptionsBuilder
 
     public PipelineExecutionOptionsBuilder WithMaxParallelConverterTasks(int maxDegreeOfParallelism)
     {
-        if (maxDegreeOfParallelism <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maxDegreeOfParallelism));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxDegreeOfParallelism);
 
         maxTasks = maxDegreeOfParallelism;
         return this;

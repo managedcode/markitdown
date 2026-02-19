@@ -12,7 +12,7 @@ namespace MarkItDown.Cli;
 
 internal sealed class ConversionService
 {
-    public async Task<ConversionSummary> ConvertFilesAsync(IReadOnlyList<string>? files, string outputDirectory, MarkItDownOptions options, IProgress<ConversionProgress>? progress = null, CancellationToken cancellationToken = default)
+    public static async Task<ConversionSummary> ConvertFilesAsync(IReadOnlyList<string>? files, string outputDirectory, MarkItDownOptions options, IProgress<ConversionProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         if (files is null || files.Count == 0)
         {
@@ -47,7 +47,7 @@ internal sealed class ConversionService
         return new ConversionSummary(results);
     }
 
-    public async Task<ConversionSummary> ConvertUrlAsync(string url, string outputDirectory, MarkItDownOptions options, CancellationToken cancellationToken = default)
+    public static async Task<ConversionSummary> ConvertUrlAsync(string url, string outputDirectory, MarkItDownOptions options, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(url))
         {

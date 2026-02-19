@@ -10,25 +10,29 @@ namespace MarkItDown.Converters;
 /// Converter for YouTube URLs that extracts video metadata and information.
 /// Note: This converter extracts metadata only and does not download video content or transcriptions.
 /// </summary>
-public sealed class YouTubeUrlConverter : DocumentConverterBase
+public sealed class YouTubeUrlConverter(IYouTubeMetadataProvider? metadataProvider = null) : DocumentConverterBase(priority: 50)
 {
-    private static readonly Regex YouTubeUrlRegex = new(
-        @"^https?://(www\.)?(youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase
-    );
+    private static readonly Regex VideoIdRegex = new("^[a-zA-Z0-9_-]{11}$", RegexOptions.Compiled);
+    private static readonly string[] mediaMimePrefixes = ["audio/", "video/"];
 
-    private readonly IYouTubeMetadataProvider metadataProvider;
+    private readonly IYouTubeMetadataProvider metadataProvider = metadataProvider ?? new YoutubeExplodeMetadataProvider();
 
-    public YouTubeUrlConverter(IYouTubeMetadataProvider? metadataProvider = null)
-        : base(priority: 50) // High priority for specific URL patterns
-    {
-        this.metadataProvider = metadataProvider ?? new YoutubeExplodeMetadataProvider();
-    }
+    // High priority for specific URL patterns
 
     public override bool AcceptsInput(StreamInfo streamInfo)
     {
         var url = streamInfo.Url;
-        return !string.IsNullOrEmpty(url) && YouTubeUrlRegex.IsMatch(url);
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return false;
+        }
+
+        if (streamInfo.MatchesMime(mediaMimePrefixes))
+        {
+            return false;
+        }
+
+        return TryExtractVideoId(url, out _);
     }
 
     public override async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
@@ -36,13 +40,12 @@ public sealed class YouTubeUrlConverter : DocumentConverterBase
         try
         {
             var url = streamInfo.Url;
-            if (string.IsNullOrEmpty(url) || !YouTubeUrlRegex.IsMatch(url))
+            if (string.IsNullOrWhiteSpace(url))
             {
                 throw new UnsupportedFormatException("Invalid YouTube URL format");
             }
 
-            var videoId = ExtractVideoId(url);
-            if (string.IsNullOrEmpty(videoId))
+            if (!TryExtractVideoId(url, out var videoId))
             {
                 throw new FileConversionException("Could not extract video ID from YouTube URL");
             }
@@ -56,47 +59,141 @@ public sealed class YouTubeUrlConverter : DocumentConverterBase
         }
     }
 
-    private static string ExtractVideoId(string url)
+    private static bool TryExtractVideoId(string url, out string videoId)
     {
-        var match = YouTubeUrlRegex.Match(url);
-        if (match.Success && match.Groups.Count > 3)
+        videoId = string.Empty;
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !IsSupportedHost(uri.Host))
         {
-            return match.Groups[3].Value;
+            return false;
         }
 
-        // Fallback extraction methods
-        if (url.Contains("youtube.com/watch"))
+        var host = uri.Host.ToLowerInvariant();
+        string? candidate = null;
+
+        if (host.EndsWith("youtu.be", StringComparison.Ordinal))
         {
-            var vIndex = url.IndexOf("v=", StringComparison.OrdinalIgnoreCase);
-            if (vIndex != -1)
+            var segments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length > 0)
             {
-                var startIndex = vIndex + 2;
-                var endIndex = url.IndexOf('&', startIndex);
-                if (endIndex == -1) endIndex = url.Length;
-                
-                var videoId = url.Substring(startIndex, endIndex - startIndex);
-                if (videoId.Length == 11) return videoId;
+                candidate = segments[0];
             }
         }
-        else if (url.Contains("youtu.be/"))
+        else
         {
-            var slashIndex = url.LastIndexOf('/');
-            if (slashIndex != -1 && slashIndex < url.Length - 1)
+            if (TryGetQueryParameter(uri, "v", out var queryVideoId))
             {
-                var videoId = url.Substring(slashIndex + 1);
-                var questionIndex = videoId.IndexOf('?');
-                if (questionIndex != -1)
-                {
-                    videoId = videoId.Substring(0, questionIndex);
-                }
-                if (videoId.Length == 11) return videoId;
+                candidate = queryVideoId;
+            }
+            else if (TryGetPathBasedVideoId(uri, out var pathVideoId))
+            {
+                candidate = pathVideoId;
             }
         }
 
-        return string.Empty;
+        candidate = NormalizeVideoIdCandidate(candidate);
+        if (string.IsNullOrWhiteSpace(candidate) || !VideoIdRegex.IsMatch(candidate))
+        {
+            return false;
+        }
+
+        videoId = candidate;
+        return true;
     }
 
-    private DocumentConverterResult CreateResult(string url, string videoId, YouTubeMetadata? metadata)
+    private static bool IsSupportedHost(string host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return false;
+        }
+
+        var normalizedHost = host.ToLowerInvariant();
+        return normalizedHost is "youtube.com"
+            or "www.youtube.com"
+            or "m.youtube.com"
+            or "music.youtube.com"
+            or "youtu.be"
+            or "www.youtu.be";
+    }
+
+    private static bool TryGetQueryParameter(Uri uri, string key, out string value)
+    {
+        value = string.Empty;
+        if (string.IsNullOrWhiteSpace(uri.Query))
+        {
+            return false;
+        }
+
+        var query = uri.Query;
+        if (query.StartsWith("?", StringComparison.Ordinal))
+        {
+            query = query[1..];
+        }
+
+        foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separatorIndex = pair.IndexOf('=');
+            string currentKey;
+            string currentValue;
+            if (separatorIndex < 0)
+            {
+                currentKey = Uri.UnescapeDataString(pair);
+                currentValue = string.Empty;
+            }
+            else
+            {
+                currentKey = Uri.UnescapeDataString(pair[..separatorIndex]);
+                currentValue = Uri.UnescapeDataString(pair[(separatorIndex + 1)..]);
+            }
+
+            if (string.Equals(currentKey, key, StringComparison.OrdinalIgnoreCase))
+            {
+                value = currentValue;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetPathBasedVideoId(Uri uri, out string videoId)
+    {
+        videoId = string.Empty;
+        var segments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length < 2)
+        {
+            return false;
+        }
+
+        var first = segments[0].ToLowerInvariant();
+        if (first is "shorts" or "embed" or "live")
+        {
+            videoId = segments[1];
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string NormalizeVideoIdCandidate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = value.Trim();
+        var delimiterIndex = normalized.IndexOfAny(['?', '&', '#', '/']);
+        if (delimiterIndex >= 0)
+        {
+            normalized = normalized[..delimiterIndex];
+        }
+
+        return normalized.Trim();
+    }
+
+    private static DocumentConverterResult CreateResult(string url, string videoId, YouTubeMetadata? metadata)
     {
         var markdown = new StringBuilder();
         var segments = new List<DocumentSegment>();

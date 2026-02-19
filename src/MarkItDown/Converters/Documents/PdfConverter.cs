@@ -21,7 +21,7 @@ namespace MarkItDown.Converters;
 /// <summary>
 /// Converter for PDF files to Markdown using PdfPig for text extraction and optional page image rendering.
 /// </summary>
-public sealed class PdfConverter : DocumentPipelineConverterBase
+public sealed partial class PdfConverter : DocumentPipelineConverterBase
 {
     private static readonly HashSet<string> AcceptedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -76,7 +76,7 @@ public sealed class PdfConverter : DocumentPipelineConverterBase
     private SegmentOptions ResolveSegmentOptions()
         => ConversionContextAccessor.Current?.Segments ?? segmentOptions;
 
-    private ArtifactStorageOptions ResolveStorageOptions()
+    private static ArtifactStorageOptions ResolveStorageOptions()
         => ConversionContextAccessor.Current?.Storage ?? ArtifactStorageOptions.Default;
 
     internal PdfConverter(
@@ -511,7 +511,7 @@ public sealed class PdfConverter : DocumentPipelineConverterBase
         return new PdfExtractionResult(segments, artifacts, rawText);
     }
 
-    private PdfExtractionResult BuildExtractionFromExtractedText(IReadOnlyList<PdfPageText> pages, IReadOnlyList<string> pageImages, StreamInfo streamInfo, ImageArtifactPersistor imagePersistor, CancellationToken cancellationToken)
+    private static PdfExtractionResult BuildExtractionFromExtractedText(IReadOnlyList<PdfPageText> pages, IReadOnlyList<string> pageImages, StreamInfo streamInfo, ImageArtifactPersistor imagePersistor, CancellationToken cancellationToken)
     {
         var segments = new List<DocumentSegment>();
         var artifacts = new ConversionArtifacts();
@@ -949,7 +949,7 @@ public sealed class PdfConverter : DocumentPipelineConverterBase
             var candidate = extensions.FirstOrDefault();
             if (!string.IsNullOrWhiteSpace(candidate))
             {
-                return candidate.StartsWith(".", StringComparison.Ordinal) ? candidate : "." + candidate;
+                return candidate.StartsWith('.') ? candidate : "." + candidate;
             }
         }
 
@@ -1206,7 +1206,7 @@ public sealed class PdfConverter : DocumentPipelineConverterBase
         if (line.StartsWith("•") || line.StartsWith("-") || line.StartsWith("*"))
             return true;
 
-        var match = System.Text.RegularExpressions.Regex.Match(line, @"^\d+\.?\s+");
+        var match = MyRegex().Match(line);
         return match.Success;
     }
 
@@ -1215,7 +1215,7 @@ public sealed class PdfConverter : DocumentPipelineConverterBase
         if (line.StartsWith("•"))
             return line.Replace("•", "-");
 
-        var match = System.Text.RegularExpressions.Regex.Match(line, @"^(\d+)\.?\s+(.*)");
+        var match = MyRegex1().Match(line);
         return match.Success ? $"{match.Groups[1].Value}. {match.Groups[2].Value}" : line;
     }
 
@@ -1329,4 +1329,9 @@ public sealed class PdfConverter : DocumentPipelineConverterBase
             return Task.FromResult<IReadOnlyList<string>>(images);
         }
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^\d+\.?\s+")]
+    private static partial System.Text.RegularExpressions.Regex MyRegex();
+    [System.Text.RegularExpressions.GeneratedRegex(@"^(\d+)\.?\s+(.*)")]
+    private static partial System.Text.RegularExpressions.Regex MyRegex1();
 }

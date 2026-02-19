@@ -8,6 +8,10 @@ namespace MarkItDown.Tests;
 
 public class MetaMarkdownFormatterTests
 {
+    private static readonly string[] value = new[] { "Chart", "Summary" };
+    private static readonly string[] valueArray = new[] { "Column A", "Column B" };
+    private static readonly string[] valueArray0 = new[] { "Value A1", "Value B1" };
+
     [Fact]
     public void BuildImageComment_ProducesStructuredMetaMdBlock()
     {
@@ -20,15 +24,15 @@ public class MetaMarkdownFormatterTests
         image.Metadata[MetadataKeys.DetailedDescription] = "A concise description of the screenshot.";
         image.Metadata[MetadataKeys.LayoutRegions] = JsonSerializer.Serialize(new[]
         {
-            new { id = "main", position = "Center", elements = new[] { "Chart", "Summary" } }
+            new { id = "main", position = "Center", elements = value }
         });
         image.Metadata[MetadataKeys.StructuredTables] = JsonSerializer.Serialize(new[]
         {
             new
             {
                 title = "Sample Table",
-                headers = new[] { "Column A", "Column B" },
-                rows = new[] { new[] { "Value A1", "Value B1" } },
+                headers = valueArray,
+                rows = new[] { valueArray0 },
                 notes = "Illustrative data."
             }
         });

@@ -1,7 +1,9 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using MarkItDown;
+using MarkItDown.Converters;
 using Shouldly;
 using Xunit;
 
@@ -328,6 +330,23 @@ public sealed class NewFormatsConverterTests
         result.Markdown.ShouldContain("\"title\": \"Helios Mission Cross-System Summary\"");
         result.Markdown.ShouldContain("Adaptive Course Control");
         result.Markdown.ShouldContain("```mermaid");
+    }
+
+    [Fact]
+    public async Task MetaMdConverter_InvalidFrontMatter_ThrowsFileConversionException()
+    {
+        var converter = new MetaMdConverter();
+        var content = """
+        +++
+        { "title": "Broken"
+        +++
+        Body
+        """;
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+        var streamInfo = new StreamInfo(fileName: "broken.metamd", extension: ".metamd", mimeType: "text/x-metamd");
+
+        var exception = await Should.ThrowAsync<FileConversionException>(() => converter.ConvertAsync(stream, streamInfo));
+        exception.Message.ShouldContain("Invalid MetaMD front matter JSON");
     }
 
     private static async Task<DocumentConverterResult> ConvertAsync(string fileName)

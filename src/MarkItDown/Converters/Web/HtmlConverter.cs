@@ -60,7 +60,7 @@ public sealed class HtmlConverter : DocumentConverterBase
 
         var document = await parser.ParseDocumentAsync(html, cancellationToken).ConfigureAwait(false);
         var renderer = new HtmlMarkdownRenderer();
-        var result = renderer.RenderDocument(document);
+        var result = HtmlMarkdownRenderer.RenderDocument(document);
 
         return new DocumentConverterResult(result.Markdown, result.Title);
     }

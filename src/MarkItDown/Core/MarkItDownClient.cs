@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
@@ -46,6 +47,8 @@ public sealed class MarkItDownClient : IMarkItDownClient
     private readonly Counter<long>? _conversionFailureCounter;
     private readonly IYouTubeMetadataProvider _youTubeMetadataProvider;
     private readonly ProgressDetailLevel _progressDetail;
+    private static readonly string[] prefixes = new[] { "audio/", "video/" };
+    private static readonly char[] separatorArray = new[] { '\r', '\n' };
 
     /// <summary>
     /// Initialize a new instance of <see cref="MarkItDownClient"/>.
@@ -225,10 +228,7 @@ public sealed class MarkItDownClient : IMarkItDownClient
     {
         request ??= ConversionRequest.Default;
 
-        if (stream is null)
-        {
-            throw new ArgumentNullException(nameof(stream));
-        }
+        ArgumentNullException.ThrowIfNull(stream);
 
         using var activity = StartActivity(MarkItDownDiagnostics.ActivityNameConvertStream, streamInfo);
         var source = DescribeSource(streamInfo);
@@ -263,15 +263,38 @@ public sealed class MarkItDownClient : IMarkItDownClient
             progress.Report(new ConversionProgress(stage, Math.Clamp(completed, 0, totalForStage), totalForStage, details));
         }
 
+        var sourceLooksLikeMediaUpload = streamInfo.MatchesMime(prefixes);
+
+        bool ShouldSkipConverterForGuess(DocumentConverterBase converter, StreamInfo guess)
+        {
+            // Keep media files on media/file converters even if URL metadata is present.
+            if (converter is not YouTubeUrlConverter)
+            {
+                return false;
+            }
+
+            return sourceLooksLikeMediaUpload || guess.MatchesMime(prefixes);
+        }
+
+        static string DescribeConverterFailure(string converterName, StreamInfo guess, Exception exception)
+        {
+            var mime = guess.MimeType ?? "unknown";
+            var extension = guess.Extension ?? "unknown";
+            var type = exception.GetType().Name;
+            var message = exception.Message;
+            return $"Converter '{converterName}' failed (mime: '{mime}', extension: '{extension}', error: {type}: {message})";
+        }
+
         ReportProgress("detect-formats", 0, $"{guesses.Count} candidate formats");
 
         var intelligence = CreateIntelligenceContext(request);
         var storageOptions = _options.ArtifactStorage ?? ArtifactStorageOptions.Default;
         using var contextScope = ConversionContextAccessor.Push(new ConversionContext(streamInfo, request, intelligence, _options.Segments, pipelineOptions, storageOptions, progress, _progressDetail));
 
-        async Task<(DocumentConverterResult? Result, string? ConverterName, List<Exception> Errors)> TryConvertGroupInParallelAsync(StreamInfo currentGuess, IReadOnlyList<ConverterRegistration> group)
+        async Task<(DocumentConverterResult? Result, string? ConverterName, List<Exception> Errors, List<string> FailureDetails)> TryConvertGroupInParallelAsync(StreamInfo currentGuess, IReadOnlyList<ConverterRegistration> group)
         {
             var errors = new ConcurrentBag<Exception>();
+            var failureDetails = new ConcurrentBag<string>();
             var resultSource = new TaskCompletionSource<(DocumentConverterResult Result, string ConverterName)>(TaskCreationOptions.RunContinuationsAsynchronously);
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -290,6 +313,11 @@ public sealed class MarkItDownClient : IMarkItDownClient
 
                     try
                     {
+                        if (ShouldSkipConverterForGuess(registration.Converter, currentGuess))
+                        {
+                            return;
+                        }
+
                         using var acceptanceStream = buffer.CreateStream();
                         if (!registration.Converter.Accepts(acceptanceStream, currentGuess, token))
                         {
@@ -308,10 +336,12 @@ public sealed class MarkItDownClient : IMarkItDownClient
                     }
                     catch (Exception ex)
                     {
+                        var details = DescribeConverterFailure(converterName, currentGuess, ex);
                         RecordFailure(converterName, currentGuess);
                         ReportProgress("converter-failed", Math.Min(attemptIndex, totalAttempts), $"{converterName}: {ex.GetType().Name}");
                         _logger?.LogWarning(ex, "Converter {ConverterType} failed for {Source}", converterName, source);
                         errors.Add(ex);
+                        failureDetails.Add(details);
                     }
                 }).ConfigureAwait(false);
             }
@@ -323,15 +353,17 @@ public sealed class MarkItDownClient : IMarkItDownClient
             if (resultSource.Task.IsCompletedSuccessfully)
             {
                 var (result, converterName) = await resultSource.Task.ConfigureAwait(false);
-                return (result, converterName, errors.ToList());
+                return (result, converterName, errors.ToList(), failureDetails.ToList());
             }
 
-            return (null, null, errors.ToList());
+            return (null, null, errors.ToList(), failureDetails.ToList());
         }
 
         var groupedConverters = pipelineOptions.EnableParallelConverterEvaluation
             ? _converters.GroupBy(r => r.Priority).OrderBy(g => g.Key).Select(g => g.ToList()).ToList()
             : null;
+
+        var failureDetails = new List<string>();
 
         foreach (var guess in guesses)
         {
@@ -339,10 +371,14 @@ public sealed class MarkItDownClient : IMarkItDownClient
             {
                 foreach (var group in groupedConverters)
                 {
-                    var (parallelResult, winnerName, parallelErrors) = await TryConvertGroupInParallelAsync(guess, group).ConfigureAwait(false);
+                    var (parallelResult, winnerName, parallelErrors, parallelFailureDetails) = await TryConvertGroupInParallelAsync(guess, group).ConfigureAwait(false);
                     if (parallelErrors.Count > 0)
                     {
                         exceptions.AddRange(parallelErrors);
+                    }
+                    if (parallelFailureDetails.Count > 0)
+                    {
+                        failureDetails.AddRange(parallelFailureDetails);
                     }
 
                     if (parallelResult is not null && winnerName is not null)
@@ -377,6 +413,12 @@ public sealed class MarkItDownClient : IMarkItDownClient
 
                 try
                 {
+                    if (ShouldSkipConverterForGuess(registration.Converter, guess))
+                    {
+                        attempts++;
+                        continue;
+                    }
+
                     using var acceptanceStream = buffer.CreateStream();
                     if (!registration.Converter.Accepts(acceptanceStream, guess, cancellationToken))
                     {
@@ -409,25 +451,51 @@ public sealed class MarkItDownClient : IMarkItDownClient
                 }
                 catch (Exception ex)
                 {
+                    var details = DescribeConverterFailure(converterName, guess, ex);
                     attempts++;
                     ReportProgress("converter-failed", attempts, $"{converterDetails}: {ex.GetType().Name}", detailedOnly: true);
                     RecordFailure(converterName, guess);
                     _logger?.LogWarning(ex, "Converter {ConverterType} failed for {Source}", converterName, source);
                     exceptions.Add(ex);
+                    failureDetails.Add(details);
                 }
             }
         }
 
         var message = $"No converter available for file type. MimeType: {streamInfo.MimeType}, Extension: {streamInfo.Extension}";
-        ReportProgress("failed", attempts, message);
-        activity?.SetStatus(ActivityStatusCode.Error, message);
-        _logger?.LogWarning("No converter could handle {Source} (MimeType: {MimeType}, Extension: {Extension})", source, streamInfo.MimeType, streamInfo.Extension);
 
         if (exceptions.Count > 0)
         {
-            throw new UnsupportedFormatException(message, new AggregateException(exceptions));
+            if (TryBuildAuthorizationFailureMessage(streamInfo, failureDetails, exceptions, out var authMessage))
+            {
+                ReportProgress("failed", attempts, authMessage);
+                activity?.SetStatus(ActivityStatusCode.Error, authMessage);
+                _logger?.LogWarning("Authentication/authorization failure while converting {Source} (MimeType: {MimeType}, Extension: {Extension})", source, streamInfo.MimeType, streamInfo.Extension);
+                throw new FileConversionException(authMessage, new AggregateException(exceptions));
+            }
+
+            ReportProgress("failed", attempts, message);
+            activity?.SetStatus(ActivityStatusCode.Error, message);
+            _logger?.LogWarning("No converter could handle {Source} (MimeType: {MimeType}, Extension: {Extension})", source, streamInfo.MimeType, streamInfo.Extension);
+
+            var detailsSource = failureDetails.Count > 0
+                ? failureDetails
+                : exceptions.Select(static ex => ex.Message).ToList();
+
+            var failureSummary = string.Join(" ", detailsSource
+                .Take(3)
+                .Where(static m => !string.IsNullOrWhiteSpace(m)));
+
+            var messageWithFailures = string.IsNullOrWhiteSpace(failureSummary)
+                ? message
+                : $"{message} Converter failures: {failureSummary}";
+
+            throw new UnsupportedFormatException(messageWithFailures, new AggregateException(exceptions));
         }
 
+        ReportProgress("failed", attempts, message);
+        activity?.SetStatus(ActivityStatusCode.Error, message);
+        _logger?.LogWarning("No converter could handle {Source} (MimeType: {MimeType}, Extension: {Extension})", source, streamInfo.MimeType, streamInfo.Extension);
         throw new UnsupportedFormatException(message);
     }
 
@@ -954,6 +1022,7 @@ public sealed class MarkItDownClient : IMarkItDownClient
     {
         DocumentConverterBase CreateImageConverter() => new ImageConverter(_options.ExifToolPath, _options.ImageCaptioner);
         DocumentConverterBase CreateAudioConverter() => new AudioConverter(_options.ExifToolPath, _options.AudioTranscriber, _options.Segments, _intelligenceProviders.Media);
+        DocumentConverterBase CreateVideoConverter() => new VideoConverter(_options.ExifToolPath, _options.AudioTranscriber, _options.Segments, _intelligenceProviders.Media);
 
         var converters = new List<DocumentConverterBase>
         {
@@ -995,7 +1064,8 @@ public sealed class MarkItDownClient : IMarkItDownClient
             new DocxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image, _intelligenceProviders.Document, _intelligenceProviders.AiModels),
             new XlsxConverter(_options.Segments),
             new PptxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
-            new ZipConverter(CreateZipInnerConverters(CreateImageConverter, CreateAudioConverter)),
+            new ZipConverter(CreateZipInnerConverters(CreateImageConverter, CreateAudioConverter, CreateVideoConverter)),
+            CreateVideoConverter(),
             CreateAudioConverter(),
             CreateImageConverter(),
             new PlainTextConverter(),
@@ -1004,7 +1074,10 @@ public sealed class MarkItDownClient : IMarkItDownClient
         return converters;
     }
 
-    private IEnumerable<DocumentConverterBase> CreateZipInnerConverters(Func<DocumentConverterBase> imageConverterFactory, Func<DocumentConverterBase> audioConverterFactory)
+    private IEnumerable<DocumentConverterBase> CreateZipInnerConverters(
+        Func<DocumentConverterBase> imageConverterFactory,
+        Func<DocumentConverterBase> audioConverterFactory,
+        Func<DocumentConverterBase> videoConverterFactory)
     {
         return new DocumentConverterBase[]
         {
@@ -1045,6 +1118,7 @@ public sealed class MarkItDownClient : IMarkItDownClient
             new DocxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image, _intelligenceProviders.Document, _intelligenceProviders.AiModels),
             new XlsxConverter(_options.Segments),
             new PptxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
+            videoConverterFactory(),
             audioConverterFactory(),
             imageConverterFactory(),
             new PlainTextConverter(),
@@ -1128,6 +1202,128 @@ public sealed class MarkItDownClient : IMarkItDownClient
         }
 
         return "stream";
+    }
+
+    private static bool TryBuildAuthorizationFailureMessage(StreamInfo streamInfo, IReadOnlyList<string> failureDetails, IReadOnlyList<Exception> exceptions, out string message)
+    {
+        message = string.Empty;
+
+        var hasAuthorizationFailure = failureDetails.Any(IsAuthorizationFailureDetail);
+        if (!hasAuthorizationFailure)
+        {
+            hasAuthorizationFailure = exceptions
+                .SelectMany(EnumerateExceptionTree)
+                .Any(IsAuthorizationFailureException);
+        }
+
+        if (!hasAuthorizationFailure)
+        {
+            return false;
+        }
+
+        var details = failureDetails.FirstOrDefault(IsAuthorizationFailureDetail);
+        if (string.IsNullOrWhiteSpace(details))
+        {
+            details = exceptions
+                .SelectMany(EnumerateExceptionTree)
+                .Select(static ex => ex.Message)
+                .FirstOrDefault(IsAuthorizationFailureDetail);
+        }
+
+        details = NormalizeFailureDetails(details);
+        message = $"Authentication/authorization failed while processing file. MimeType: {streamInfo.MimeType ?? "unknown"}, Extension: {streamInfo.Extension ?? "unknown"}. {details}";
+        return true;
+    }
+
+    private static bool IsAuthorizationFailureException(Exception exception)
+    {
+        if (exception is RequestFailedException requestFailedException && (requestFailedException.Status is 401 or 403))
+        {
+            return true;
+        }
+
+        if (exception is HttpRequestException httpRequestException &&
+            (httpRequestException.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
+        {
+            return true;
+        }
+
+        if (exception is AuthenticationFailedException or CredentialUnavailableException)
+        {
+            return true;
+        }
+
+        return IsAuthorizationFailureDetail(exception.Message);
+    }
+
+    private static bool IsAuthorizationFailureDetail(string? details)
+    {
+        if (string.IsNullOrWhiteSpace(details))
+        {
+            return false;
+        }
+
+        var normalized = details.ToLowerInvariant();
+        return normalized.Contains("401 (unauthorized)", StringComparison.Ordinal)
+            || normalized.Contains("403 (forbidden)", StringComparison.Ordinal)
+            || normalized.Contains("unauthorized", StringComparison.Ordinal)
+            || normalized.Contains("forbidden", StringComparison.Ordinal)
+            || normalized.Contains("authentication failed", StringComparison.Ordinal)
+            || normalized.Contains("credentialunavailableexception", StringComparison.Ordinal)
+            || normalized.Contains("aadsts", StringComparison.Ordinal)
+            || normalized.Contains("token has expired", StringComparison.Ordinal)
+            || normalized.Contains("refresh token has expired", StringComparison.Ordinal);
+    }
+
+    private static string NormalizeFailureDetails(string? details)
+    {
+        if (string.IsNullOrWhiteSpace(details))
+        {
+            return "Verify configured provider credentials/token and account access.";
+        }
+
+        var flattened = details
+            .Replace("\r", " ", StringComparison.Ordinal)
+            .Replace("\n", " ", StringComparison.Ordinal)
+            .Trim();
+
+        if (flattened.Length <= 700)
+        {
+            return flattened;
+        }
+
+        return flattened[..700] + "...";
+    }
+
+    private static IEnumerable<Exception> EnumerateExceptionTree(Exception exception)
+    {
+        var stack = new Stack<Exception>();
+        var seen = new HashSet<Exception>();
+        stack.Push(exception);
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (!seen.Add(current))
+            {
+                continue;
+            }
+
+            yield return current;
+
+            if (current is AggregateException aggregate)
+            {
+                foreach (var inner in aggregate.InnerExceptions)
+                {
+                    stack.Push(inner);
+                }
+            }
+
+            if (current.InnerException is not null)
+            {
+                stack.Push(current.InnerException);
+            }
+        }
     }
 
     private async Task<DocumentConverterResult> ConvertFileInternalAsync(string filePath, StreamInfo? overrides, IProgress<ConversionProgress>? progress, ConversionRequest request, CancellationToken cancellationToken)
@@ -1400,7 +1596,7 @@ public sealed class MarkItDownClient : IMarkItDownClient
             return false;
         }
 
-        var lines = sample.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        var lines = sample.Split(separatorArray, StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length < 2)
         {
             return false;

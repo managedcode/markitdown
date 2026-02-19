@@ -20,13 +20,13 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
 {
     public static TheoryData<string, string> Assets => new()
     {
-        // { TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualPdf, "Specimen submission manual PDF" },
+        { TestAssetCatalog.AutogenTrialTranscriptPdf, "Generated trial transcript PDF" },
         // { TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualDocx, "Specimen submission manual DOCX" },
         // { TestAssetCatalog.LWP88AdminDashboardUserGuideDocx, "Admin dashboard user guide DOCX" },
         // { TestAssetCatalog.UserGuideV14Docx, "User guide v1.4 DOCX" }
     };
 
-    [Theory(Skip = "manuak")]
+    [Theory]
     [MemberData(nameof(Assets))]
     public async Task ConvertAndDumpSegmentsAsync(string assetName, string description)
     {
@@ -202,7 +202,7 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
         };
     }
 
-    [Fact(Skip = "manual")]
+    [Fact]
     public async Task SpecimenManual_PdfAndDocx_ProduceComparableOutput()
     {
         MarkItDownOptions options;
@@ -275,7 +275,7 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
         Assert.Contains("Specimen Submission Manual", docxBody, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact(Skip = "manual")]
+    [Fact]
     public async Task SpecimenManual_PdfAsImages_RunsFullDocumentOcr()
     {
         MarkItDownOptions options;
@@ -325,7 +325,7 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
         ValidateMetaMarkdown(result);
     }
 
-    [Fact(Skip = "manual")]
+    [Fact]
     public async Task SpecimenManual_PdfStructured_WithImageRecognition()
     {
         MarkItDownOptions options;

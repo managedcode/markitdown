@@ -15,12 +15,14 @@ namespace MarkItDown.Tests;
 
 public class PdfConverterTests
 {
+    private static readonly string[] images = new[] { "ZmFrZSBiYXNlNjQ=" };
+
     [Fact]
     public async Task ConvertAsync_CombinesTextAndImages()
     {
         // Arrange
         var textExtractor = new StubPdfTextExtractor("First page", "Second page");
-        var imageRenderer = new StubPdfImageRenderer(new[] { "ZmFrZSBiYXNlNjQ=" });
+        var imageRenderer = new StubPdfImageRenderer(images);
         var converter = new PdfConverter(textExtractor, imageRenderer);
 
         using var stream = new MemoryStream(new byte[] { 1, 2, 3, 4 });
@@ -125,20 +127,24 @@ public class PdfConverterTests
         Assert.NotNull(artifact.PlaceholderMarkdown);
         Assert.Contains("Recognized OCR line.", result.Markdown);
     }
+    private static readonly string[] item = new[] { "ITEM", "CONDITION", "QUANTITY", "LOCATION" };
+    private static readonly string[] itemArray = new[] { "Laptop", "Refurbished", "5", "Aisle 3" };
+    private static readonly string[] itemArray0 = new[] { "Laptop", "Like-New (Open Box)", "3", "Aisle 3" };
+    private static readonly string[] itemArray1 = new[] { "Laptop", "Used (Grade A)", "4", "Aisle 5" };
+    private static readonly int[] tableIndices = new[] { 0 };
 
     [Fact]
     public async Task ConvertAsync_DocumentIntMergedCells_DuplicatesValuesAcrossRows()
     {
         var rows = new List<IReadOnlyList<string>>
-        {
-            new[] { "ITEM", "CONDITION", "QUANTITY", "LOCATION" },
-            new[] { "Laptop", "Refurbished", "5", "Aisle 3" },
-            new[] { "Laptop", "Like-New (Open Box)", "3", "Aisle 3" },
-            new[] { "Laptop", "Used (Grade A)", "4", "Aisle 5" }
+        { item,
+itemArray,
+itemArray0,
+            itemArray1
         };
 
         var table = new DocumentTableResult(1, rows);
-        var page = new DocumentPageResult(1, string.Empty, new[] { 0 });
+        var page = new DocumentPageResult(1, string.Empty, tableIndices);
         var providerResult = new DocumentIntelligenceResult(new[] { page }, new[] { table }, Array.Empty<DocumentImageResult>());
         var provider = new StubDocumentIntelligenceProvider(providerResult);
         var converter = new PdfConverter(documentProvider: provider);

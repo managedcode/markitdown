@@ -11,7 +11,7 @@ namespace MarkItDown.Converters;
 
 public sealed partial class DocxConverter
 {
-    private ElementProcessingResult ProcessParagraph(
+    private static ElementProcessingResult ProcessParagraph(
         ParagraphDescriptor descriptor,
         IReadOnlyDictionary<string, DocxImagePart> imageCatalog,
         StreamInfo streamInfo,
@@ -37,7 +37,7 @@ public sealed partial class DocxConverter
             paragraphResult.Images);
     }
 
-    private ParagraphProcessingResult ConvertParagraph(
+    private static ParagraphProcessingResult ConvertParagraph(
         Paragraph paragraph,
         IReadOnlyDictionary<string, DocxImagePart> imageCatalog,
         int pageNumber,

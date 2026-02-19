@@ -10,10 +10,10 @@ namespace MarkItDown;
 
 internal readonly record struct MetaMarkdown(string Markdown, string? Title);
 
-internal static class SegmentMarkdownComposer
+internal static partial class SegmentMarkdownComposer
 {
     private const int MaxTitleLength = 160;
-    private static readonly Regex OrderedListMarkerPattern = new("\\s[0-9]{1,2}[.)]\\s", RegexOptions.Compiled);
+    private static readonly Regex OrderedListMarkerPattern = MyRegex();
     private static readonly char[] BulletMarkers = ['•', '▪', '‣', '●', '○', '◦'];
     private static readonly char[] SentenceTerminators = ['.', '!', '?'];
 
@@ -558,4 +558,7 @@ internal static class SegmentMarkdownComposer
 
         return false;
     }
+
+    [GeneratedRegex("\\s[0-9]{1,2}[.)]\\s", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
 }

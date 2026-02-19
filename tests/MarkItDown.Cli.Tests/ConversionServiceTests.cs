@@ -20,9 +20,8 @@ public class ConversionServiceTests
             await File.WriteAllTextAsync(inputFile, "Hello from MarkItDown");
             var outputDir = Path.Combine(tempRoot, "output");
 
-            var service = new ConversionService();
             var options = new MarkItDownOptions();
-            var summary = await service.ConvertFilesAsync(new[] { inputFile }, outputDir, options);
+            var summary = await ConversionService.ConvertFilesAsync(new[] { inputFile }, outputDir, options);
 
             summary.SuccessCount.ShouldBe(1);
             summary.FailureCount.ShouldBe(0);

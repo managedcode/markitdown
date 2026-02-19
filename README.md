@@ -416,6 +416,7 @@ The `AzureIntelligenceOptions`, `GoogleIntelligenceOptions`, and `AwsIntelligenc
 
 - **Managed identity**: omit the `ApiKey`/`ArmAccessToken` properties and the providers automatically fall back to `DefaultAzureCredential`. Assign the managed identity the *Cognitive Services User* role for Document Intelligence and Vision, and follow the [Video Indexer managed identity instructions](https://learn.microsoft.com/azure/azure-video-indexer/video-indexer-use-azure-ad) to authorize uploads.
 - **Video Indexer tips**: Video uploads require both the Video Indexer account (ID + region) and either the full resource ID or the trio of subscription id/resource group/account name, plus an ARM token or Azure AD identity with `Contributor` access on the Video Indexer resource. The interactive CLI exposes dedicated prompts for these values under “Configure cloud providers”.
+- **Video Indexer polling controls**: `AzureMediaIntelligenceOptions` supports `PollingInterval` and `MaxProcessingTime` to control how long conversion waits for Azure Video Indexer processing.
 
   ```csharp
   var azureOptions = new AzureIntelligenceOptions
@@ -432,10 +433,42 @@ The `AzureIntelligenceOptions`, `GoogleIntelligenceOptions`, and `AwsIntelligenc
       {
           AccountId = "<video-indexer-account-id>",
           AccountName = "<video-indexer-account-name>",
-          Location = "trial"
+          Location = "eastus",
+          ResourceId = "/subscriptions/<subscription-guid>/resourcegroups/<resource-group>/providers/Microsoft.VideoIndexer/accounts/<account-name>/",
+          ArmAccessToken = "<video-indexer-arm-token>",
+          PollingInterval = TimeSpan.FromSeconds(10),
+          MaxProcessingTime = TimeSpan.FromMinutes(15)
       }
   };
   ```
+
+#### Azure Video Indexer quick-start checklist
+
+1. Create/identify a Video Indexer account in Azure and copy:
+   - `AccountId`
+   - `Location` (for example `eastus`)
+   - full `ResourceId`
+2. Get an ARM access token for Video Indexer (or configure managed identity with proper access).
+3. Set `AzureIntelligenceOptions.Media` with those values.
+4. Convert an `.mp4` with `MediaTranscriptionRequest(PreferredProvider: Azure)` and verify the result contains:
+   - `### Video Transcript` with time ranges and speaker metadata
+   - `### Video Analysis` with sentiment/topics/keywords and Video Indexer state metadata
+
+#### Live integration test credentials (safe defaults)
+
+The live test `VideoIndexer_MarkItDownClient_LiveMp4ToMarkdown` in
+`tests/MarkItDown.Tests/Intelligence/Integration/AzureIntelligenceIntegrationTests.cs`
+uses hardcoded placeholders by default:
+
+```csharp
+private const string HardcodedVideoIndexerArmAccessToken = "TOKEN";
+private const string HardcodedVideoIndexerAccountId = "ACCOUNT_GUID";
+private const string HardcodedVideoIndexerResourceId =
+    "/subscriptions/SUBSCRIPTION-GUID/resourcegroups/AzureAI/providers/Microsoft.VideoIndexer/accounts/ACCOUNT_NAME/";
+```
+
+When placeholders are present, that test exits early (no external call), so CI/local runs stay green without secrets.
+To execute the real live path, replace those placeholders with valid values.
 
 #### Google Cloud setup
 

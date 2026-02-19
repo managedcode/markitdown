@@ -7,10 +7,7 @@ internal static class AccountTokenProvider
 {
     public static async Task<AccountAccessToken> GenerateAccountAccessTokenAsync(HttpClient httpClient, string armAccessToken, string resourceId, ArmAccessTokenPermission permission, ArmAccessTokenScope scope, CancellationToken cancellationToken)
     {
-        if (httpClient is null)
-        {
-            throw new ArgumentNullException(nameof(httpClient));
-        }
+        ArgumentNullException.ThrowIfNull(httpClient);
 
         var requestUri = new Uri($"{VideoIndexerApiConstants.ArmEndpoint}{resourceId}/generateAccessToken?api-version={VideoIndexerApiConstants.ApiVersion}");
 

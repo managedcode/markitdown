@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using MarkItDown;
 using MarkItDown.Intelligence.Providers.Azure;
 using MarkItDown.Intelligence.Providers.Azure.VideoIndexer;
 using Shouldly;
@@ -63,6 +64,136 @@ public class VideoIndexerClientTests
     }
 
     [Fact]
+    public async Task UploadAsync_ResourceIdWithoutLeadingSlash_IsNormalizedForArmRequest()
+    {
+        var sequence = new SequenceHandler();
+
+        sequence.Enqueue(request =>
+        {
+            request.Method.ShouldBe(HttpMethod.Post);
+            request.RequestUri!.ToString().ShouldContain("https://management.azure.com/subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account/generateAccessToken");
+            request.RequestUri!.ToString().ShouldNotContain("https://management.azure.comsubscriptions/");
+
+            var payload = new
+            {
+                accessToken = "token123",
+                expirationTime = "2025-01-01T00:00:00Z"
+            };
+
+            return JsonResponse(HttpStatusCode.OK, payload);
+        });
+
+        sequence.Enqueue(_ =>
+            JsonResponse(HttpStatusCode.OK, new { id = "video123" }));
+
+        using var httpClient = new HttpClient(sequence)
+        {
+            BaseAddress = new Uri("https://api.videoindexer.ai/")
+        };
+
+        var options = new AzureMediaIntelligenceOptions
+        {
+            AccountId = "account",
+            Location = "trial",
+            ResourceId = "subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account/"
+        };
+
+        var client = new VideoIndexerClient(options, httpClient, new StubArmTokenService("arm-token"));
+        await using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+        var streamInfo = new StreamInfo(mimeType: "video/mp4", extension: ".mp4", fileName: "sample.mp4");
+
+        var result = await client.UploadAsync(stream, streamInfo, CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result!.Value.VideoId.ShouldBe("video123");
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithVideoIndexerAccountAccessToken_SkipsArmGenerateAccessToken()
+    {
+        var sequence = new SequenceHandler();
+
+        sequence.Enqueue(request =>
+        {
+            request.Method.ShouldBe(HttpMethod.Post);
+            request.RequestUri!.ToString().ShouldContain("/trial/Accounts/account/Videos?");
+            request.RequestUri!.Query.ShouldContain("accessToken=");
+            request.RequestUri!.ToString().ShouldNotContain("management.azure.com");
+            return JsonResponse(HttpStatusCode.OK, new { id = "video123" });
+        });
+
+        using var httpClient = new HttpClient(sequence)
+        {
+            BaseAddress = new Uri("https://api.videoindexer.ai/")
+        };
+
+        var options = new AzureMediaIntelligenceOptions
+        {
+            AccountId = "account",
+            Location = "trial",
+            ResourceId = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account"
+        };
+
+        var token = BuildUnsignedJwtWithAudience("https://api.videoindexer.ai/", DateTimeOffset.UtcNow.AddMinutes(30));
+        var client = new VideoIndexerClient(options, httpClient, new StubArmTokenService(token));
+        await using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+        var streamInfo = new StreamInfo(mimeType: "video/mp4", extension: ".mp4", fileName: "sample.mp4");
+
+        var result = await client.UploadAsync(stream, streamInfo, CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result!.Value.VideoId.ShouldBe("video123");
+        result.Value.AccountAccessToken.ShouldBe(token);
+    }
+
+    [Fact]
+    public async Task UploadAsync_WhenNameConflicts_RetriesWithGeneratedName()
+    {
+        var sequence = new SequenceHandler();
+
+        sequence.Enqueue(request =>
+        {
+            request.Method.ShouldBe(HttpMethod.Post);
+            request.RequestUri!.ToString().ShouldContain("/trial/Accounts/account/Videos?");
+            request.RequestUri!.Query.ShouldContain("name=sample.mp4");
+            return new HttpResponseMessage(HttpStatusCode.Conflict);
+        });
+
+        sequence.Enqueue(request =>
+        {
+            request.Method.ShouldBe(HttpMethod.Post);
+            request.RequestUri!.ToString().ShouldContain("/trial/Accounts/account/Videos?");
+            request.RequestUri!.Query.ShouldContain("name=sample-");
+            request.RequestUri!.Query.ShouldContain(".mp4");
+            return JsonResponse(HttpStatusCode.OK, new { id = "video123" });
+        });
+
+        using var httpClient = new HttpClient(sequence)
+        {
+            BaseAddress = new Uri("https://api.videoindexer.ai/")
+        };
+
+        var options = new AzureMediaIntelligenceOptions
+        {
+            AccountId = "account",
+            Location = "trial",
+            ResourceId = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account"
+        };
+
+        var token = BuildUnsignedJwtWithAudience("https://api.videoindexer.ai/", DateTimeOffset.UtcNow.AddMinutes(30));
+        var client = new VideoIndexerClient(options, httpClient, new StubArmTokenService(token));
+        await using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+        var streamInfo = new StreamInfo(mimeType: "video/mp4", extension: ".mp4", fileName: "sample.mp4");
+
+        var result = await client.UploadAsync(stream, streamInfo, CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result!.Value.VideoId.ShouldBe("video123");
+        result.Value.FileName.ShouldStartWith("sample-");
+        result.Value.FileName.ShouldEndWith(".mp4");
+    }
+
+    [Fact]
     public async Task WaitForProcessingAsync_StopsWhenProcessed()
     {
         var sequence = new SequenceHandler();
@@ -92,6 +223,122 @@ public class VideoIndexerClientTests
 
         var client = new VideoIndexerClient(options, httpClient, new StubArmTokenService("arm-token"));
         await client.WaitForProcessingAsync("video123", "token123", CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task WaitForProcessingAsync_WhenFailed_ThrowsFileConversionException()
+    {
+        var sequence = new SequenceHandler();
+        sequence.Enqueue(request =>
+        {
+            request.Method.ShouldBe(HttpMethod.Get);
+            request.RequestUri!.AbsolutePath.ShouldContain("/Videos/video123/Index");
+            request.RequestUri.Query.ShouldContain("accessToken=token123");
+            return JsonResponse(HttpStatusCode.OK, new { state = "Failed" });
+        });
+
+        using var httpClient = new HttpClient(sequence)
+        {
+            BaseAddress = new Uri("https://api.videoindexer.ai/")
+        };
+
+        var options = new AzureMediaIntelligenceOptions
+        {
+            AccountId = "account",
+            AccountName = "account",
+            Location = "trial",
+            SubscriptionId = "sub",
+            ResourceGroup = "rg"
+        };
+
+        var client = new VideoIndexerClient(options, httpClient, new StubArmTokenService("arm-token"));
+
+        var exception = await Should.ThrowAsync<FileConversionException>(
+            () => client.WaitForProcessingAsync("video123", "token123", CancellationToken.None));
+
+        exception.Message.ShouldContain("failed");
+        exception.Message.ShouldContain("video123");
+    }
+
+    [Fact]
+    public async Task WaitForProcessingAsync_WhenProcessingNeverCompletes_ThrowsTimeout()
+    {
+        var sequence = new SequenceHandler();
+        sequence.Enqueue(request =>
+        {
+            request.Method.ShouldBe(HttpMethod.Get);
+            request.RequestUri!.AbsolutePath.ShouldContain("/Videos/video123/Index");
+            request.RequestUri.Query.ShouldContain("accessToken=token123");
+            return JsonResponse(HttpStatusCode.OK, new { state = "Processing", processingProgress = "42%" });
+        });
+
+        using var httpClient = new HttpClient(sequence)
+        {
+            BaseAddress = new Uri("https://api.videoindexer.ai/")
+        };
+
+        var options = new AzureMediaIntelligenceOptions
+        {
+            AccountId = "account",
+            AccountName = "account",
+            Location = "trial",
+            SubscriptionId = "sub",
+            ResourceGroup = "rg",
+            PollingInterval = TimeSpan.FromMilliseconds(1),
+            MaxProcessingTime = TimeSpan.FromTicks(1)
+        };
+
+        var client = new VideoIndexerClient(options, httpClient, new StubArmTokenService("arm-token"));
+
+        var exception = await Should.ThrowAsync<FileConversionException>(
+            () => client.WaitForProcessingAsync("video123", "token123", CancellationToken.None));
+
+        exception.Message.ShouldContain("timed out");
+        exception.Message.ShouldContain("Processing");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_WhenPollingIntervalIsNotPositive_ThrowsArgumentException(int milliseconds)
+    {
+        var options = new AzureMediaIntelligenceOptions
+        {
+            AccountId = "account",
+            Location = "trial",
+            ResourceId = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account",
+            PollingInterval = TimeSpan.FromMilliseconds(milliseconds)
+        };
+
+        var exception = Should.Throw<ArgumentException>(() =>
+            _ = new VideoIndexerClient(options, new HttpClient(new SequenceHandler())
+            {
+                BaseAddress = new Uri("https://api.videoindexer.ai/")
+            }, new StubArmTokenService("token")));
+
+        exception.Message.ShouldContain("polling interval");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Constructor_WhenMaxProcessingTimeIsNotPositive_ThrowsArgumentException(int milliseconds)
+    {
+        var options = new AzureMediaIntelligenceOptions
+        {
+            AccountId = "account",
+            Location = "trial",
+            ResourceId = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account",
+            MaxProcessingTime = TimeSpan.FromMilliseconds(milliseconds)
+        };
+
+        var exception = Should.Throw<ArgumentException>(() =>
+            _ = new VideoIndexerClient(options, new HttpClient(new SequenceHandler())
+            {
+                BaseAddress = new Uri("https://api.videoindexer.ai/")
+            }, new StubArmTokenService("token")));
+
+        exception.Message.ShouldContain("max processing time");
     }
 
     [Fact]
@@ -151,6 +398,25 @@ public class VideoIndexerClientTests
         var json = JsonSerializer.Serialize(payload);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
         return new HttpResponseMessage(statusCode) { Content = content };
+    }
+
+    private static string BuildUnsignedJwtWithAudience(string audience, DateTimeOffset expiresOn)
+    {
+        static string Encode(object value)
+        {
+            var json = JsonSerializer.Serialize(value);
+            var bytes = Encoding.UTF8.GetBytes(json);
+            return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        }
+
+        var header = Encode(new { alg = "none", typ = "JWT" });
+        var payload = Encode(new
+        {
+            aud = audience,
+            exp = expiresOn.ToUnixTimeSeconds()
+        });
+
+        return $"{header}.{payload}.";
     }
 
     private sealed class StubArmTokenService : ArmTokenService

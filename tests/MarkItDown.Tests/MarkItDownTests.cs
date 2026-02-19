@@ -1,5 +1,8 @@
 using MarkItDown;
 using MarkItDown.Converters;
+using MarkItDown.Intelligence;
+using MarkItDown.Intelligence.Models;
+using System.Net;
 using System.Text;
 
 namespace MarkItDown.Tests;
@@ -51,6 +54,101 @@ public class MarkItDownTests
         // Act & Assert
         await Assert.ThrowsAsync<UnsupportedFormatException>(
             () => markItDown.ConvertAsync(stream, streamInfo));
+    }
+
+    [Fact]
+    public async Task ConvertAsync_WhenConverterThrows_ErrorIncludesConverterName()
+    {
+        // Arrange
+        var markItDown = new global::MarkItDown.MarkItDownClient();
+        markItDown.RegisterConverter(new ThrowingTestConverter(), priority: 1);
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("boom"));
+        var streamInfo = new StreamInfo(extension: ".boom", mimeType: "application/x-boom");
+
+        // Act
+        var exception = await Assert.ThrowsAsync<UnsupportedFormatException>(
+            () => markItDown.ConvertAsync(stream, streamInfo));
+
+        // Assert
+        Assert.Contains("Converter 'ThrowingTestConverter' failed", exception.Message);
+        Assert.IsType<AggregateException>(exception.InnerException);
+        var aggregate = (AggregateException)exception.InnerException!;
+        Assert.Contains(aggregate.InnerExceptions, ex =>
+            ex is InvalidOperationException &&
+            ex.Message.Contains("Simulated converter failure.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ConvertAsync_WhenMediaTranscriptionRequestedAndProviderFails_ErrorIncludesAudioConverter()
+    {
+        // Arrange
+        var markItDown = new global::MarkItDown.MarkItDownClient(new global::MarkItDown.MarkItDownOptions
+        {
+            MediaTranscriptionProvider = new ThrowingMediaProvider()
+        });
+
+        using var stream = new MemoryStream([1, 2, 3, 4]);
+        var streamInfo = new StreamInfo(mimeType: "audio/wav", extension: ".wav", fileName: "sample.wav");
+        var request = ConversionRequest.FromConfiguration(builder =>
+            builder.UseMediaTranscription(new MediaTranscriptionRequest(
+                PreferredProvider: MediaTranscriptionProviderKind.Custom,
+                Language: "en-US")));
+
+        // Act
+        var exception = await Assert.ThrowsAsync<UnsupportedFormatException>(
+            () => markItDown.ConvertAsync(stream, streamInfo, request));
+
+        // Assert
+        Assert.Contains("Converter 'AudioConverter' failed", exception.Message);
+        Assert.IsType<AggregateException>(exception.InnerException);
+        var aggregate = (AggregateException)exception.InnerException!;
+        Assert.Contains(aggregate.InnerExceptions, ex =>
+            ex is FileConversionException &&
+            ex.Message.Contains("ThrowingMediaProvider", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ConvertAsync_VideoInput_WhenMediaProviderFailsWithoutExplicitRequest_ErrorIncludesVideoConverter()
+    {
+        // Arrange
+        var markItDown = new global::MarkItDown.MarkItDownClient(new global::MarkItDown.MarkItDownOptions
+        {
+            MediaTranscriptionProvider = new ThrowingMediaProvider()
+        });
+
+        using var stream = new MemoryStream([1, 2, 3, 4]);
+        var streamInfo = new StreamInfo(mimeType: "video/mp4", extension: ".mp4", fileName: "video.mp4");
+
+        // Act
+        var exception = await Assert.ThrowsAsync<UnsupportedFormatException>(
+            () => markItDown.ConvertAsync(stream, streamInfo));
+
+        // Assert
+        Assert.Contains("Converter 'VideoConverter' failed", exception.Message);
+        Assert.IsType<AggregateException>(exception.InnerException);
+        var aggregate = (AggregateException)exception.InnerException!;
+        Assert.Contains(aggregate.InnerExceptions, ex =>
+            ex is FileConversionException &&
+            ex.Message.Contains("ThrowingMediaProvider", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ConvertAsync_VideoInput_WhenMediaProviderUnauthorized_ThrowsFileConversionException()
+    {
+        var markItDown = new global::MarkItDown.MarkItDownClient(new global::MarkItDown.MarkItDownOptions
+        {
+            MediaTranscriptionProvider = new UnauthorizedMediaProvider()
+        });
+
+        using var stream = new MemoryStream([1, 2, 3, 4]);
+        var streamInfo = new StreamInfo(mimeType: "video/mp4", extension: ".mp4", fileName: "video.mp4");
+
+        var exception = await Assert.ThrowsAsync<FileConversionException>(
+            () => markItDown.ConvertAsync(stream, streamInfo));
+
+        Assert.Contains("Authentication/authorization failed", exception.Message);
+        Assert.Contains("401", exception.Message);
+        Assert.IsType<AggregateException>(exception.InnerException);
     }
 
     [Fact]
@@ -125,6 +223,51 @@ public class MarkItDownTests
         public override Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new DocumentConverterResult("Test conversion"));
+        }
+    }
+
+    private sealed class ThrowingTestConverter : DocumentConverterBase
+    {
+        public ThrowingTestConverter()
+            : base(priority: 1)
+        {
+        }
+
+        public override bool AcceptsInput(StreamInfo streamInfo)
+        {
+            return string.Equals(streamInfo.Extension, ".boom", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public override Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Simulated converter failure.");
+        }
+    }
+
+    private sealed class ThrowingMediaProvider : IMediaTranscriptionProvider
+    {
+        public Task<MediaTranscriptionResult?> TranscribeAsync(
+            Stream stream,
+            StreamInfo streamInfo,
+            MediaTranscriptionRequest? request = null,
+            CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Simulated media provider failure.");
+        }
+    }
+
+    private sealed class UnauthorizedMediaProvider : IMediaTranscriptionProvider
+    {
+        public Task<MediaTranscriptionResult?> TranscribeAsync(
+            Stream stream,
+            StreamInfo streamInfo,
+            MediaTranscriptionRequest? request = null,
+            CancellationToken cancellationToken = default)
+        {
+            throw new HttpRequestException(
+                "Response status code does not indicate success: 401 (Unauthorized).",
+                inner: null,
+                statusCode: HttpStatusCode.Unauthorized);
         }
     }
 }

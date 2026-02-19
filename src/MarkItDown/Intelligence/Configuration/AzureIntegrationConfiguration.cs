@@ -190,7 +190,7 @@ public abstract class AzureIntegrationAssetSettings
     }
 
     protected static string EnsureLeadingDot(string extension)
-        => extension.StartsWith(".", StringComparison.Ordinal) ? extension : "." + extension.TrimStart('.');
+        => extension.StartsWith('.') ? extension : "." + extension.TrimStart('.');
 }
 
 /// <summary>
@@ -328,13 +328,6 @@ public sealed class VisionSettings : AzureIntegrationAssetSettings
 /// </summary>
 public sealed class MediaSettings : AzureIntegrationAssetSettings
 {
-    private const string VideoAccountIdVariable = "AZURE_VIDEO_INDEXER_ACCOUNT_ID";
-    private const string VideoLocationVariable = "AZURE_VIDEO_INDEXER_LOCATION";
-    private const string VideoSubscriptionVariable = "AZURE_VIDEO_INDEXER_SUBSCRIPTION_ID";
-    private const string VideoResourceGroupVariable = "AZURE_VIDEO_INDEXER_RESOURCE_GROUP";
-    private const string VideoAccountNameVariable = "AZURE_VIDEO_INDEXER_ACCOUNT_NAME";
-    private const string VideoResourceIdVariable = "AZURE_VIDEO_INDEXER_RESOURCE_ID";
-    private const string VideoArmTokenVariable = "AZURE_VIDEO_INDEXER_ARM_TOKEN";
     private const string VideoSampleVariable = "AZURE_VIDEO_INDEXER_SAMPLE_ASSET";
     private const string LegacyVideoSampleVariable = "AZURE_VIDEO_INDEXER_SAMPLE_MEDIA";
 
@@ -352,21 +345,18 @@ public sealed class MediaSettings : AzureIntegrationAssetSettings
 
         var accountId = AzureIntegrationConfigurationReader.GetString(section, "AccountId");
         var location = AzureIntegrationConfigurationReader.GetString(section, "Location");
+        var subscriptionId = AzureIntegrationConfigurationReader.GetString(section, "SubscriptionId");
+        var resourceGroup = AzureIntegrationConfigurationReader.GetString(section, "ResourceGroup");
+        var accountName = AzureIntegrationConfigurationReader.GetString(section, "AccountName");
         var resourceId = AzureIntegrationConfigurationReader.GetString(section, "ResourceId");
+        var armToken = AzureIntegrationConfigurationReader.GetString(section, "ArmAccessToken");
+        var pollingInterval = ParsePositiveTimeSpan("PollingInterval", AzureIntegrationConfigurationReader.GetString(section, "PollingInterval"), TimeSpan.FromSeconds(10));
+        var maxProcessingTime = ParsePositiveTimeSpan("MaxProcessingTime", AzureIntegrationConfigurationReader.GetString(section, "MaxProcessingTime"), TimeSpan.FromMinutes(15));
 
-        accountId = OverrideFromEnvironment(VideoAccountIdVariable, accountId);
-        location = OverrideFromEnvironment(VideoLocationVariable, location);
-        resourceId = OverrideFromEnvironment(VideoResourceIdVariable, resourceId);
-
-        if (!string.IsNullOrWhiteSpace(resourceId) && !resourceId.StartsWith("/", StringComparison.Ordinal))
+        if (!string.IsNullOrWhiteSpace(resourceId) && !resourceId.StartsWith('/'))
         {
             resourceId = "/" + resourceId.TrimStart('/');
         }
-
-        var subscriptionId = Environment.GetEnvironmentVariable(VideoSubscriptionVariable);
-        var resourceGroup = Environment.GetEnvironmentVariable(VideoResourceGroupVariable);
-        var accountName = Environment.GetEnvironmentVariable(VideoAccountNameVariable);
-        var armToken = Environment.GetEnvironmentVariable(VideoArmTokenVariable);
 
         if (string.IsNullOrWhiteSpace(accountId) || string.IsNullOrWhiteSpace(location))
         {
@@ -389,7 +379,9 @@ public sealed class MediaSettings : AzureIntegrationAssetSettings
             SubscriptionId = subscriptionId,
             ResourceGroup = resourceGroup,
             AccountName = accountName,
-            ArmAccessToken = armToken
+            ArmAccessToken = armToken,
+            PollingInterval = pollingInterval,
+            MaxProcessingTime = maxProcessingTime
         };
 
         var sampleSource = Environment.GetEnvironmentVariable(VideoSampleVariable)
@@ -409,10 +401,24 @@ public sealed class MediaSettings : AzureIntegrationAssetSettings
         return new MediaSettings(options, samplePath, mimeType, extension);
     }
 
-    private static string? OverrideFromEnvironment(string variableName, string? fallback)
+    private static TimeSpan ParsePositiveTimeSpan(string settingName, string? value, TimeSpan fallback)
     {
-        var value = Environment.GetEnvironmentVariable(variableName);
-        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        if (!TimeSpan.TryParse(value, out var parsed))
+        {
+            throw new InvalidOperationException($"Azure Video Indexer setting '{settingName}' must be a valid TimeSpan value.");
+        }
+
+        if (parsed <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException($"Azure Video Indexer setting '{settingName}' must be greater than zero.");
+        }
+
+        return parsed;
     }
 }
 
@@ -480,13 +486,13 @@ public sealed class LanguageModelsSettings
         var section = AzureIntegrationConfigurationReader.TryGetLanguageModelsSection(root);
         var azureSection = AzureIntegrationConfigurationReader.TryGetChild(section, "AzureOpenAI");
 
-        var endpoint = AzureIntegrationConfigurationReader.GetString(azureSection, "Endpoint");
-        var apiKey = AzureIntegrationConfigurationReader.GetString(azureSection, "ApiKey");
-        var chatDeployment = AzureIntegrationConfigurationReader.GetString(azureSection, "ChatDeployment");
-        var speechDeployment = AzureIntegrationConfigurationReader.GetString(azureSection, "SpeechDeployment");
+        var endpoint = AzureIntegrationConfigurationReader.GetString(azureSection, nameof(Endpoint));
+        var apiKey = AzureIntegrationConfigurationReader.GetString(azureSection, nameof(ApiKey));
+        var chatDeployment = AzureIntegrationConfigurationReader.GetString(azureSection, nameof(ChatDeployment));
+        var speechDeployment = AzureIntegrationConfigurationReader.GetString(azureSection, nameof(SpeechDeployment));
         var imageSample = AzureIntegrationConfigurationReader.GetString(azureSection, "ImageSample");
         var audioSample = AzureIntegrationConfigurationReader.GetString(azureSection, "AudioSample");
-        var speechLanguage = AzureIntegrationConfigurationReader.GetString(azureSection, "SpeechLanguage");
+        var speechLanguage = AzureIntegrationConfigurationReader.GetString(azureSection, nameof(SpeechLanguage));
 
         endpoint = OverrideFromEnvironment(EndpointEnv, endpoint);
         apiKey = OverrideFromEnvironment(KeyEnv, apiKey);

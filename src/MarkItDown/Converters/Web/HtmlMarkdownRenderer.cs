@@ -6,7 +6,7 @@ using System.Text;
 
 namespace MarkItDown.Converters;
 
-internal sealed class HtmlMarkdownRenderer
+internal sealed partial class HtmlMarkdownRenderer
 {
     // Tags that do not produce visible Markdown output and are safe to drop entirely.
     private static readonly HashSet<string> NonRenderableElements = new(StringComparer.OrdinalIgnoreCase)
@@ -30,7 +30,7 @@ internal sealed class HtmlMarkdownRenderer
         "track",
     };
 
-    public HtmlRenderResult RenderDocument(IHtmlDocument document)
+    public static HtmlRenderResult RenderDocument(IHtmlDocument document)
     {
         var markdown = new StringBuilder();
         var root = document.Body ?? document.DocumentElement;
@@ -43,7 +43,7 @@ internal sealed class HtmlMarkdownRenderer
         return new HtmlRenderResult(normalized, title);
     }
 
-    public string RenderFragment(INode node)
+    public static string RenderFragment(INode node)
     {
         var markdown = new StringBuilder();
         ConvertNode(node, markdown, 0);
@@ -119,7 +119,7 @@ internal sealed class HtmlMarkdownRenderer
             return;
         }
 
-        var cleanText = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
+        var cleanText = MyRegex().Replace(text, " ");
         markdown.Append(cleanText);
     }
 
@@ -343,6 +343,9 @@ internal sealed class HtmlMarkdownRenderer
 
         markdown.AppendLine();
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\s+")]
+    private static partial System.Text.RegularExpressions.Regex MyRegex();
 }
 
 internal readonly record struct HtmlRenderResult(string Markdown, string? Title);

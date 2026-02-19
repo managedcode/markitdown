@@ -126,7 +126,7 @@ public abstract class DocumentPipelineConverterBase : DocumentConverterBase
         {
             extension = defaultExtension;
         }
-        else if (!extension.StartsWith(".", StringComparison.Ordinal))
+        else if (!extension.StartsWith('.'))
         {
             extension = $".{extension}";
         }

@@ -110,10 +110,7 @@ public sealed class DocumentConverterResult : IDisposable, IAsyncDisposable
 
     private static Func<string> CreateStaticMarkdownFactory(string markdown)
     {
-        if (markdown is null)
-        {
-            throw new ArgumentNullException(nameof(markdown));
-        }
+        ArgumentNullException.ThrowIfNull(markdown);
         return () => markdown;
     }
 

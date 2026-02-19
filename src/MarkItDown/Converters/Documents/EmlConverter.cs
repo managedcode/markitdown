@@ -59,7 +59,7 @@ public sealed class EmlConverter : DocumentPipelineConverterBase
     private SegmentOptions ResolveSegmentOptions()
         => ConversionContextAccessor.Current?.Segments ?? segmentOptions;
 
-    private ArtifactStorageOptions ResolveStorageOptions()
+    private static ArtifactStorageOptions ResolveStorageOptions()
         => ConversionContextAccessor.Current?.Storage ?? ArtifactStorageOptions.Default;
 
     public override async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
@@ -330,7 +330,7 @@ public sealed class EmlConverter : DocumentPipelineConverterBase
             .Replace("_", "\\_", StringComparison.Ordinal);
     }
 
-    private EmlExtractionResult BuildExtraction(string markdown, StreamInfo streamInfo, IReadOnlyList<AttachmentInfo> attachments)
+    private static EmlExtractionResult BuildExtraction(string markdown, StreamInfo streamInfo, IReadOnlyList<AttachmentInfo> attachments)
     {
         var normalized = TextSanitizer.Normalize(markdown, trim: true);
         var segments = new List<DocumentSegment>();

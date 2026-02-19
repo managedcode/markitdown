@@ -35,7 +35,7 @@ internal sealed class ImageArtifactPersistor
         cancellationToken.ThrowIfCancellationRequested();
 
         var extension = GuessImageExtension(artifact.ContentType) ?? ".bin";
-        if (!extension.StartsWith(".", StringComparison.Ordinal))
+        if (!extension.StartsWith('.'))
         {
             extension = $".{extension}";
         }

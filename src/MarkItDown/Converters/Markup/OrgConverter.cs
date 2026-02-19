@@ -13,7 +13,7 @@ namespace MarkItDown.Converters;
 /// <summary>
 /// Converter for Org mode documents.
 /// </summary>
-public sealed class OrgConverter : DocumentConverterBase
+public sealed partial class OrgConverter : DocumentConverterBase
 {
     public OrgConverter()
         : base(priority: 155)
@@ -30,9 +30,9 @@ public sealed class OrgConverter : DocumentConverterBase
         MimeHelper.GetMimeType(".org") ?? "text/x-org",
     };
 
-    private static readonly Regex Bold = new("\\*(?<text>[^*]+)\\*", RegexOptions.Compiled);
-    private static readonly Regex Italic = new("/(?<text>[^/]+)/", RegexOptions.Compiled);
-    private static readonly Regex Code = new("=`(?<text>[^`]+)`=", RegexOptions.Compiled);
+    private static readonly Regex Bold = MyRegex();
+    private static readonly Regex Italic = MyRegex1();
+    private static readonly Regex Code = MyRegex2();
 
     public override bool AcceptsInput(StreamInfo streamInfo)
     {
@@ -95,4 +95,11 @@ public sealed class OrgConverter : DocumentConverterBase
 
         return builder.ToString().Trim();
     }
+
+    [GeneratedRegex("\\*(?<text>[^*]+)\\*", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
+    [GeneratedRegex("/(?<text>[^/]+)/", RegexOptions.Compiled)]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex("=`(?<text>[^`]+)`=", RegexOptions.Compiled)]
+    private static partial Regex MyRegex2();
 }

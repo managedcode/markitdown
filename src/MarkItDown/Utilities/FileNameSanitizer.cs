@@ -35,7 +35,7 @@ internal static class FileNameSanitizer
         }
 
         extension = extension.Trim();
-        if (!extension.StartsWith(".", StringComparison.Ordinal))
+        if (!extension.StartsWith('.'))
         {
             extension = "." + extension;
         }

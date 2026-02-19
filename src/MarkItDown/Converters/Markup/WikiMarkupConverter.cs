@@ -13,7 +13,7 @@ namespace MarkItDown.Converters;
 /// <summary>
 /// Converter for generic wiki markup (MediaWiki style).
 /// </summary>
-public sealed class WikiMarkupConverter : DocumentConverterBase
+public sealed partial class WikiMarkupConverter : DocumentConverterBase
 {
     public WikiMarkupConverter()
         : base(priority: 151)
@@ -34,7 +34,7 @@ public sealed class WikiMarkupConverter : DocumentConverterBase
         MimeHelper.GetMimeType(".mediawiki") ?? "text/x-mediawiki",
     };
 
-    private static readonly Regex LinkPattern = new(@"\[\[(?<target>[^|\]]+)(\|(?<text>[^\]]+))?\]\]", RegexOptions.Compiled);
+    private static readonly Regex LinkPattern = MyRegex();
 
     public override bool AcceptsInput(StreamInfo streamInfo)
     {
@@ -101,4 +101,7 @@ public sealed class WikiMarkupConverter : DocumentConverterBase
 
         return builder.ToString().Trim();
     }
+
+    [GeneratedRegex(@"\[\[(?<target>[^|\]]+)(\|(?<text>[^\]]+))?\]\]", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
 }

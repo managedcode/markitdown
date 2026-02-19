@@ -22,10 +22,7 @@ public sealed class AiImageEnrichmentMiddleware : IConversionMiddleware
 {
     public async Task InvokeAsync(ConversionPipelineContext context, CancellationToken cancellationToken)
     {
-        if (context is null)
-        {
-            throw new ArgumentNullException(nameof(context));
-        }
+        ArgumentNullException.ThrowIfNull(context);
 
         if (context.Artifacts.Images.Count == 0)
         {
@@ -255,7 +252,7 @@ public sealed class AiImageEnrichmentMiddleware : IConversionMiddleware
                 var builder = new StringBuilder(updatedMarkdown);
                 if (builder.Length > 0)
                 {
-                    if (!updatedMarkdown.EndsWith("\n", StringComparison.Ordinal))
+                    if (!updatedMarkdown.EndsWith('\n'))
                     {
                         builder.AppendLine();
                     }

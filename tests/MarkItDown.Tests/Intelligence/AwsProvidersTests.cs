@@ -142,6 +142,7 @@ public class AwsProvidersTests
         result.Text!.ShouldContain("Invoice");
         result.DetectedObjects.ShouldContain("Document");
     }
+    private static readonly string[] collection = new[] { "IN_PROGRESS", "COMPLETED" };
 
     [Fact]
     public async Task MediaProvider_ParsesTranscriptJson()
@@ -169,7 +170,7 @@ public class AwsProvidersTests
             .Setup(s => s.DeleteObjectAsync(It.IsAny<DeleteObjectRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new DeleteObjectResponse());
 
-        var statusQueue = new Queue<string>(new[] { "IN_PROGRESS", "COMPLETED" });
+        var statusQueue = new Queue<string>(collection);
 
         var mockTranscribe = new Mock<Amazon.TranscribeService.IAmazonTranscribeService>();
         mockTranscribe

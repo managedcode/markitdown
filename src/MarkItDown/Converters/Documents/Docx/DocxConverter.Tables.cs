@@ -109,7 +109,7 @@ public sealed partial class DocxConverter
             tableData.Add(expandedRow);
         }
 
-        if (!tableData.Any())
+        if (tableData.Count == 0)
         {
             return (string.Empty, tableData);
         }
@@ -147,7 +147,7 @@ public sealed partial class DocxConverter
         return (markdown.ToString(), tableData);
     }
 
-    private ElementProcessingResult ProcessTable(TableDescriptor descriptor)
+    private static ElementProcessingResult ProcessTable(TableDescriptor descriptor)
     {
         var (markdown, rows) = ConvertTable(descriptor.Table);
         var breakCount = CountPageBreaks(descriptor.Table, cloneConsumesBreak: true);

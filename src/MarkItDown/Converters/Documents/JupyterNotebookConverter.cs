@@ -53,7 +53,7 @@ public sealed class JupyterNotebookConverter : DocumentPipelineConverterBase
     private SegmentOptions ResolveSegmentOptions()
         => ConversionContextAccessor.Current?.Segments ?? segmentOptions;
 
-    private ArtifactStorageOptions ResolveStorageOptions()
+    private static ArtifactStorageOptions ResolveStorageOptions()
         => ConversionContextAccessor.Current?.Storage ?? ArtifactStorageOptions.Default;
 
     public override bool Accepts(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
@@ -75,8 +75,8 @@ public sealed class JupyterNotebookConverter : DocumentPipelineConverterBase
 
             stream.Position = originalPosition;
 
-            return content.IndexOf("\"nbformat\"", StringComparison.Ordinal) >= 0 &&
-                   content.IndexOf("\"cells\"", StringComparison.Ordinal) >= 0;
+            return content.Contains("\"nbformat\"") &&
+                   content.Contains("\"cells\"");
         }
         catch
         {

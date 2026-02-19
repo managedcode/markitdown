@@ -76,4 +76,14 @@ public sealed class AzureMediaIntelligenceOptions
     /// Optional static ARM token. If not provided the SDK will attempt to use <see cref="Azure.Identity.DefaultAzureCredential"/>.
     /// </summary>
     public string? ArmAccessToken { get; init; }
+
+    /// <summary>
+    /// Polling cadence used while waiting for Azure Video Indexer processing.
+    /// </summary>
+    public TimeSpan PollingInterval { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Maximum time to wait for Azure Video Indexer to report a processed state.
+    /// </summary>
+    public TimeSpan MaxProcessingTime { get; init; } = TimeSpan.FromMinutes(15);
 }

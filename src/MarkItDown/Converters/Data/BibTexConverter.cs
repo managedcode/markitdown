@@ -13,7 +13,7 @@ namespace MarkItDown.Converters;
 /// <summary>
 /// Converter for BibTeX bibliographies.
 /// </summary>
-public sealed class BibTexConverter : DocumentConverterBase
+public sealed partial class BibTexConverter : DocumentConverterBase
 {
     public BibTexConverter()
         : base(priority: 140)
@@ -32,8 +32,9 @@ public sealed class BibTexConverter : DocumentConverterBase
         MimeHelper.GetMimeType(".bibtex") ?? "text/x-bibtex",
     };
 
-    private static readonly Regex EntryRegex = new("@(?<type>\\w+)\\s*\\{\\s*(?<key>[^,]+),(?<fields>.*?)\\}\\s*(?=@|\\z)", RegexOptions.Singleline | RegexOptions.Compiled);
-    private static readonly Regex FieldRegex = new("(?<name>[A-Za-z]+)\\s*=\\s*(\\{(?<value>[^{}]*)\\}|\"(?<value>[^\"]*)\"|(?<bare>[^,]+))", RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex EntryRegex = MyRegex();
+    private static readonly Regex FieldRegex = MyRegex1();
+    private static readonly string[] separator = new[] { " and " };
 
     public override bool AcceptsInput(StreamInfo streamInfo)
     {
@@ -124,9 +125,14 @@ public sealed class BibTexConverter : DocumentConverterBase
 
     private static string FormatAuthors(string rawAuthors)
     {
-        var authors = rawAuthors.Split(new[] { " and " }, StringSplitOptions.RemoveEmptyEntries)
+        var authors = rawAuthors.Split(separator, StringSplitOptions.RemoveEmptyEntries)
             .Select(a => a.Trim('{', '}', ' ', '\t', '\n', '\r'))
             .ToArray();
         return string.Join(", ", authors);
     }
+
+    [GeneratedRegex("@(?<type>\\w+)\\s*\\{\\s*(?<key>[^,]+),(?<fields>.*?)\\}\\s*(?=@|\\z)", RegexOptions.Compiled | RegexOptions.Singleline)]
+    private static partial Regex MyRegex();
+    [GeneratedRegex("(?<name>[A-Za-z]+)\\s*=\\s*(\\{(?<value>[^{}]*)\\}|\"(?<value>[^\"]*)\"|(?<bare>[^,]+))", RegexOptions.Compiled | RegexOptions.Singleline)]
+    private static partial Regex MyRegex1();
 }

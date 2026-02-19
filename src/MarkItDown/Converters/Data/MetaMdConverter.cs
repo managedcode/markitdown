@@ -14,7 +14,7 @@ namespace MarkItDown.Converters;
 /// <summary>
 /// Converter for MetaMD documents that carry structured metadata and references.
 /// </summary>
-public sealed class MetaMdConverter : DocumentConverterBase
+public sealed partial class MetaMdConverter : DocumentConverterBase
 {
     public MetaMdConverter()
         : base(priority: 145)
@@ -32,9 +32,9 @@ public sealed class MetaMdConverter : DocumentConverterBase
         MimeHelper.GetMimeType(".metamd") ?? "text/x-metamd",
     };
 
-    private static readonly Regex FrontMatterPattern = new("^\\+\\+\\+\\s*\\n(?<meta>.*?)(?:\\n\\+\\+\\+\\s*\\n)(?<body>[\\s\\S]*)$", RegexOptions.Compiled | RegexOptions.Singleline);
-    private static readonly Regex ReferencePattern = new("\\[@(?<id>[^\\]]+)\\]", RegexOptions.Compiled);
-    private static readonly Regex DiagramPattern = new(":::diagram\\s+type=\"(?<type>[^\"]+)\"\\s*\\n(?<content>[\\s\\S]*?)\\n:::", RegexOptions.Compiled);
+    private static readonly Regex FrontMatterPattern = MyRegex();
+    private static readonly Regex ReferencePattern = MyRegex1();
+    private static readonly Regex DiagramPattern = MyRegex2();
 
     public override bool AcceptsInput(StreamInfo streamInfo)
     {
@@ -85,9 +85,9 @@ public sealed class MetaMdConverter : DocumentConverterBase
 
             return (MetaMdMetadata.FromJson(document.RootElement), body);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            return (MetaMdMetadata.Empty, body);
+            throw new FileConversionException($"Invalid MetaMD front matter JSON: {ex.Message}", ex);
         }
     }
 
@@ -246,4 +246,11 @@ public sealed class MetaMdConverter : DocumentConverterBase
             return new MetaMdReference(id, title, authors, url);
         }
     }
+
+    [GeneratedRegex("^\\+\\+\\+\\s*\\n(?<meta>.*?)(?:\\n\\+\\+\\+\\s*\\n)(?<body>[\\s\\S]*)$", RegexOptions.Compiled | RegexOptions.Singleline)]
+    private static partial Regex MyRegex();
+    [GeneratedRegex("\\[@(?<id>[^\\]]+)\\]", RegexOptions.Compiled)]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex(":::diagram\\s+type=\"(?<type>[^\"]+)\"\\s*\\n(?<content>[\\s\\S]*?)\\n:::", RegexOptions.Compiled)]
+    private static partial Regex MyRegex2();
 }

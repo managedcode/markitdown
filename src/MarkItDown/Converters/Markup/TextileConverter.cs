@@ -14,7 +14,7 @@ namespace MarkItDown.Converters;
 /// <summary>
 /// Converter for Textile documents.
 /// </summary>
-public sealed class TextileConverter : DocumentConverterBase
+public sealed partial class TextileConverter : DocumentConverterBase
 {
     public TextileConverter()
         : base(priority: 152)
@@ -31,9 +31,9 @@ public sealed class TextileConverter : DocumentConverterBase
         MimeHelper.GetMimeType(".textile") ?? "text/textile",
     };
 
-    private static readonly Regex Heading = new("^h(?<level>[1-6])\\.\\s*(?<text>.+)$", RegexOptions.Compiled);
-    private static readonly Regex Bold = new("\\*(?<text>[^*]+)\\*", RegexOptions.Compiled);
-    private static readonly Regex Italic = new("_(?<text>[^_]+)_", RegexOptions.Compiled);
+    private static readonly Regex Heading = MyRegex();
+    private static readonly Regex Bold = MyRegex1();
+    private static readonly Regex Italic = MyRegex2();
 
     public override bool AcceptsInput(StreamInfo streamInfo)
     {
@@ -95,4 +95,11 @@ public sealed class TextileConverter : DocumentConverterBase
 
         return builder.ToString().Trim();
     }
+
+    [GeneratedRegex("^h(?<level>[1-6])\\.\\s*(?<text>.+)$", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
+    [GeneratedRegex("\\*(?<text>[^*]+)\\*", RegexOptions.Compiled)]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex("_(?<text>[^_]+)_", RegexOptions.Compiled)]
+    private static partial Regex MyRegex2();
 }

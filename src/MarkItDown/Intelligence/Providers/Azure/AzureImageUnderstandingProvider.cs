@@ -21,10 +21,7 @@ public sealed class AzureImageUnderstandingProvider : IImageUnderstandingProvide
 
     public AzureImageUnderstandingProvider(AzureVisionOptions options, ImageAnalysisClient? client = null)
     {
-        if (options is null)
-        {
-            throw new ArgumentNullException(nameof(options));
-        }
+        ArgumentNullException.ThrowIfNull(options);
 
         if (string.IsNullOrWhiteSpace(options.Endpoint))
         {
@@ -47,10 +44,7 @@ public sealed class AzureImageUnderstandingProvider : IImageUnderstandingProvide
 
     public async Task<ImageUnderstandingResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, ImageUnderstandingRequest? request = null, CancellationToken cancellationToken = default)
     {
-        if (stream is null)
-        {
-            throw new ArgumentNullException(nameof(stream));
-        }
+        ArgumentNullException.ThrowIfNull(stream);
 
         await using var handle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension, bufferSize: 128 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
         await using var localStream = handle.OpenRead();

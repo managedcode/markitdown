@@ -15,7 +15,7 @@ namespace MarkItDown.Converters;
 
 public sealed partial class DocxConverter
 {
-    private ElementProcessingResult ProcessOther(OtherDescriptor descriptor)
+    private static ElementProcessingResult ProcessOther(OtherDescriptor descriptor)
     {
         var text = CleanText(descriptor.Element.InnerText ?? string.Empty);
 

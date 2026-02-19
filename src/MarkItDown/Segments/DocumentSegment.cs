@@ -33,10 +33,7 @@ public sealed class DocumentSegment
         string? source = null,
         IReadOnlyDictionary<string, string>? additionalMetadata = null)
     {
-        if (markdown is null)
-        {
-            throw new ArgumentNullException(nameof(markdown));
-        }
+        ArgumentNullException.ThrowIfNull(markdown);
 
         Markdown = TextSanitizer.Normalize(markdown, trim: false);
         Type = type;

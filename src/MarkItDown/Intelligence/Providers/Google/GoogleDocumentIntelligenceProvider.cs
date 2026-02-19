@@ -71,10 +71,7 @@ public sealed class GoogleDocumentIntelligenceProvider : IDocumentIntelligencePr
 
     public async Task<DocumentIntelligenceResult?> AnalyzeAsync(Stream stream, StreamInfo streamInfo, DocumentIntelligenceRequest? request = null, CancellationToken cancellationToken = default)
     {
-        if (stream is null)
-        {
-            throw new ArgumentNullException(nameof(stream));
-        }
+        ArgumentNullException.ThrowIfNull(stream);
 
         await using var handle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension, bufferSize: 256 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
         var payload = await File.ReadAllBytesAsync(handle.FilePath, cancellationToken).ConfigureAwait(false);
@@ -192,7 +189,7 @@ public sealed class GoogleDocumentIntelligenceProvider : IDocumentIntelligencePr
                 continue;
             }
 
-            builder.Append(document.Text.Substring(startIndex, endIndex - startIndex));
+            builder.Append(document.Text.AsSpan(startIndex, endIndex - startIndex));
         }
 
         return builder.ToString().Trim();

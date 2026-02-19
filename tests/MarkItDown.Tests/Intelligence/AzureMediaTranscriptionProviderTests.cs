@@ -82,10 +82,20 @@ public class AzureMediaTranscriptionProviderTests
         handler.Enqueue(request =>
         {
             var transcriptJson = "{" +
+                "\"state\":\"Processed\"," +
                 "\"videos\":[{" +
-                "\"insights\":{\"transcript\":[" +
-                "{\"text\":\"Hello world\",\"start\":\"0:00:00\",\"duration\":\"0:00:05\"}," +
-                "{\"text\":\"Segment two\",\"start\":\"0:00:05\",\"duration\":\"0:00:05\"}" +
+                "\"id\":\"index-123\"," +
+                "\"processingProgress\":\"100%\"," +
+                "\"insights\":{" +
+                "\"language\":\"en-US\"," +
+                "\"duration\":\"0:00:10\"," +
+                "\"speakers\":[{\"id\":1,\"name\":\"Speaker #1\"}]," +
+                "\"sentiments\":[{\"sentimentType\":\"Neutral\",\"averageScore\":0.5,\"instances\":[{\"start\":\"0:00:00\",\"end\":\"0:00:10\"}]}]," +
+                "\"topics\":[{\"name\":\"Health\",\"confidence\":0.998,\"instances\":[{\"start\":\"0:00:00\",\"end\":\"0:00:10\"}]}]," +
+                "\"keywords\":[{\"text\":\"AGI\",\"confidence\":0.95,\"instances\":[{\"start\":\"0:00:00\",\"end\":\"0:00:10\"}]}]," +
+                "\"transcript\":[" +
+                "{\"text\":\"Hello world\",\"confidence\":0.72,\"speakerId\":1,\"instances\":[{\"start\":\"0:00:00\",\"end\":\"0:00:05\"}]}," +
+                "{\"text\":\"Segment two\",\"confidence\":0.68,\"speakerId\":1,\"instances\":[{\"start\":\"0:00:05\",\"end\":\"0:00:10\"}]}" +
                 "]}}]}";
 
             return new HttpResponseMessage(HttpStatusCode.OK)
@@ -120,7 +130,18 @@ public class AzureMediaTranscriptionProviderTests
         result.Segments[0].Text.ShouldBe("Hello world");
         result.Segments[0].Start.ShouldBe(TimeSpan.Zero);
         result.Segments[0].End.ShouldBe(TimeSpan.FromSeconds(5));
+        result.Segments[0].Metadata[MetadataKeys.Speaker].ShouldBe("Speaker #1");
+        result.Segments[0].Metadata[MetadataKeys.Sentiment].ShouldBe("Neutral");
+        result.Segments[0].Metadata[MetadataKeys.Topics].ShouldContain("Health");
+        result.Segments[0].Metadata[MetadataKeys.Keywords].ShouldContain("AGI");
         result.Segments[1].Text.ShouldBe("Segment two");
+        result.Metadata[MetadataKeys.Provider].ShouldBe(MetadataValues.ProviderAzureVideoIndexer);
+        result.Metadata[MetadataKeys.Speakers].ShouldContain("Speaker #1");
+        result.Metadata[MetadataKeys.Sentiments].ShouldContain("Neutral");
+        result.Metadata[MetadataKeys.VideoIndexerState].ShouldBe("Processed");
+        result.Metadata[MetadataKeys.VideoIndexerIndexId].ShouldBe("index-123");
+        result.Metadata[MetadataKeys.VideoIndexerProgress].ShouldBe("100%");
+        result.Segments[0].Metadata[MetadataKeys.VideoIndexerState].ShouldBe("Processed");
     }
 
     [Fact]

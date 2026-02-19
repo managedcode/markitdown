@@ -11,14 +11,9 @@ namespace MarkItDown.Converters;
 /// Provides a reusable foundation for document converter implementations, including shared
 /// validation and helper methods for common MIME and extension matching patterns.
 /// </summary>
-public abstract class DocumentConverterBase
+public abstract class DocumentConverterBase(int priority)
 {
-    protected DocumentConverterBase(int priority)
-    {
-        Priority = priority;
-    }
-
-    public int Priority { get; }
+    public int Priority { get; } = priority;
 
     public abstract bool AcceptsInput(StreamInfo streamInfo);
 

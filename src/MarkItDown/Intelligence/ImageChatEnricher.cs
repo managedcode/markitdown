@@ -194,15 +194,9 @@ public static async Task<ImageChatEnrichmentResult?> EnrichAsync(
         ILogger? logger,
         CancellationToken cancellationToken)
     {
-        if (image is null)
-        {
-            throw new ArgumentNullException(nameof(image));
-        }
+        ArgumentNullException.ThrowIfNull(image);
 
-        if (chatClient is null)
-        {
-            throw new ArgumentNullException(nameof(chatClient));
-        }
+        ArgumentNullException.ThrowIfNull(chatClient);
         var mimeType = RequireContentType(image);
         var messages = BuildMessages(streamInfo, image, mimeType);
 

@@ -256,7 +256,7 @@ internal sealed class DiskBufferHandle : IAsyncDisposable
             return ".bin";
         }
 
-        return extension.StartsWith(".", StringComparison.Ordinal)
+        return extension.StartsWith('.')
             ? extension
             : "." + extension;
     }

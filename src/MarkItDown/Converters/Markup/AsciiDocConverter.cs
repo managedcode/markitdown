@@ -13,7 +13,7 @@ namespace MarkItDown.Converters;
 /// <summary>
 /// Converter for AsciiDoc documents.
 /// </summary>
-public sealed class AsciiDocConverter : DocumentConverterBase
+public sealed partial class AsciiDocConverter : DocumentConverterBase
 {
     public AsciiDocConverter()
         : base(priority: 160)
@@ -32,9 +32,9 @@ public sealed class AsciiDocConverter : DocumentConverterBase
         MimeHelper.GetMimeType(".asciidoc") ?? "text/asciidoc",
     };
 
-    private static readonly Regex Bold = new("\\*(?<text>[^*]+)\\*", RegexOptions.Compiled);
-    private static readonly Regex Italic = new("_(?<text>[^_]+)_", RegexOptions.Compiled);
-    private static readonly Regex Monospace = new("`(?<text>[^`]+)`", RegexOptions.Compiled);
+    private static readonly Regex Bold = MyRegex();
+    private static readonly Regex Italic = MyRegex1();
+    private static readonly Regex Monospace = MyRegex2();
 
     public override bool AcceptsInput(StreamInfo streamInfo)
     {
@@ -100,4 +100,11 @@ public sealed class AsciiDocConverter : DocumentConverterBase
 
         return builder.ToString().Trim();
     }
+
+    [GeneratedRegex("\\*(?<text>[^*]+)\\*", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
+    [GeneratedRegex("_(?<text>[^_]+)_", RegexOptions.Compiled)]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex("`(?<text>[^`]+)`", RegexOptions.Compiled)]
+    private static partial Regex MyRegex2();
 }

@@ -13,7 +13,7 @@ namespace MarkItDown.Converters;
 /// <summary>
 /// Simplistic converter for LaTeX documents.
 /// </summary>
-public sealed class LatexConverter : DocumentConverterBase
+public sealed partial class LatexConverter : DocumentConverterBase
 {
     public LatexConverter()
         : base(priority: 170)
@@ -33,10 +33,10 @@ public sealed class LatexConverter : DocumentConverterBase
         "application/x-tex",
     };
 
-    private static readonly Regex SectionRegex = new(@"\\(?<level>sub)*section\{(?<title>[^}]*)\}", RegexOptions.Compiled);
-    private static readonly Regex BoldRegex = new(@"\\textbf\{(?<text>[^}]*)\}", RegexOptions.Compiled);
-    private static readonly Regex EmphRegex = new(@"\\emph\{(?<text>[^}]*)\}", RegexOptions.Compiled);
-    private static readonly Regex TitleRegex = new(@"\\title\{(?<title>[^}]*)\}", RegexOptions.Compiled);
+    private static readonly Regex SectionRegex = MyRegex();
+    private static readonly Regex BoldRegex = MyRegex1();
+    private static readonly Regex EmphRegex = MyRegex2();
+    private static readonly Regex TitleRegex = MyRegex3();
 
     public override bool AcceptsInput(StreamInfo streamInfo)
     {
@@ -73,18 +73,18 @@ public sealed class LatexConverter : DocumentConverterBase
             return "\n" + new string('#', level) + " " + match.Groups["title"].Value.Trim() + "\n";
         });
 
-        normalized = Regex.Replace(normalized, @"\\subsubsection\{([^}]*)\}", m => "\n#### " + m.Groups[1].Value.Trim() + "\n");
+        normalized = MyRegex4().Replace(normalized, m => "\n#### " + m.Groups[1].Value.Trim() + "\n");
         normalized = BoldRegex.Replace(normalized, m => "**" + m.Groups["text"].Value + "**");
         normalized = EmphRegex.Replace(normalized, m => "*" + m.Groups["text"].Value + "*");
-        normalized = Regex.Replace(normalized, @"\\begin\{itemize\}", "\n");
-        normalized = Regex.Replace(normalized, @"\\end\{itemize\}", "\n");
-        normalized = Regex.Replace(normalized, @"\\begin\{enumerate\}", "\n");
-        normalized = Regex.Replace(normalized, @"\\end\{enumerate\}", "\n");
-        normalized = Regex.Replace(normalized, @"\\item\s+", "\n- ");
-        normalized = Regex.Replace(normalized, @"\\\\", "\n");
-        normalized = Regex.Replace(normalized, @"\\\[[^\]]*\\\]", string.Empty);
-        normalized = Regex.Replace(normalized, @"\\cite\{[^}]*\}", string.Empty);
-        normalized = Regex.Replace(normalized, @"\\[a-zA-Z]+", string.Empty);
+        normalized = MyRegex5().Replace(normalized, "\n");
+        normalized = MyRegex6().Replace(normalized, "\n");
+        normalized = MyRegex7().Replace(normalized, "\n");
+        normalized = MyRegex8().Replace(normalized, "\n");
+        normalized = MyRegex9().Replace(normalized, "\n- ");
+        normalized = MyRegex10().Replace(normalized, "\n");
+        normalized = MyRegex11().Replace(normalized, string.Empty);
+        normalized = MyRegex12().Replace(normalized, string.Empty);
+        normalized = MyRegex13().Replace(normalized, string.Empty);
 
         var lines = normalized.Split('\n');
         var builder = new StringBuilder();
@@ -103,4 +103,33 @@ public sealed class LatexConverter : DocumentConverterBase
 
         return builder.ToString().Trim();
     }
+
+    [GeneratedRegex(@"\\(?<level>sub)*section\{(?<title>[^}]*)\}", RegexOptions.Compiled)]
+    private static partial Regex MyRegex();
+    [GeneratedRegex(@"\\textbf\{(?<text>[^}]*)\}", RegexOptions.Compiled)]
+    private static partial Regex MyRegex1();
+    [GeneratedRegex(@"\\emph\{(?<text>[^}]*)\}", RegexOptions.Compiled)]
+    private static partial Regex MyRegex2();
+    [GeneratedRegex(@"\\title\{(?<title>[^}]*)\}", RegexOptions.Compiled)]
+    private static partial Regex MyRegex3();
+    [GeneratedRegex(@"\\subsubsection\{([^}]*)\}")]
+    private static partial Regex MyRegex4();
+    [GeneratedRegex(@"\\begin\{itemize\}")]
+    private static partial Regex MyRegex5();
+    [GeneratedRegex(@"\\end\{itemize\}")]
+    private static partial Regex MyRegex6();
+    [GeneratedRegex(@"\\begin\{enumerate\}")]
+    private static partial Regex MyRegex7();
+    [GeneratedRegex(@"\\end\{enumerate\}")]
+    private static partial Regex MyRegex8();
+    [GeneratedRegex(@"\\item\s+")]
+    private static partial Regex MyRegex9();
+    [GeneratedRegex(@"\\\\")]
+    private static partial Regex MyRegex10();
+    [GeneratedRegex(@"\\\[[^\]]*\\\]")]
+    private static partial Regex MyRegex11();
+    [GeneratedRegex(@"\\cite\{[^}]*\}")]
+    private static partial Regex MyRegex12();
+    [GeneratedRegex(@"\\[a-zA-Z]+")]
+    private static partial Regex MyRegex13();
 }

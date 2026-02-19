@@ -144,7 +144,7 @@ public sealed partial class DocxConverter
         }
     }
 
-    private ImageArtifact? TryCreateImageArtifact(
+    private static ImageArtifact? TryCreateImageArtifact(
         DocumentFormat.OpenXml.Wordprocessing.Drawing drawing,
         IReadOnlyDictionary<string, DocxImagePart> imageCatalog,
         int pageNumber,
@@ -157,7 +157,7 @@ public sealed partial class DocxConverter
         return TryCreateImageArtifact(relationshipId, imageCatalog, pageNumber, streamInfo, persistor, cancellationToken);
     }
 
-    private ImageArtifact? TryCreateImageArtifact(
+    private static ImageArtifact? TryCreateImageArtifact(
         Picture picture,
         IReadOnlyDictionary<string, DocxImagePart> imageCatalog,
         int pageNumber,
@@ -170,7 +170,7 @@ public sealed partial class DocxConverter
         return TryCreateImageArtifact(relationshipId, imageCatalog, pageNumber, streamInfo, persistor, cancellationToken);
     }
 
-    private ImageArtifact? TryCreateImageArtifact(
+    private static ImageArtifact? TryCreateImageArtifact(
         string? relationshipId,
         IReadOnlyDictionary<string, DocxImagePart> imageCatalog,
         int pageNumber,

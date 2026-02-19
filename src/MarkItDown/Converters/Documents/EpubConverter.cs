@@ -67,7 +67,7 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
     private SegmentOptions ResolveSegmentOptions()
         => ConversionContextAccessor.Current?.Segments ?? segmentOptions;
 
-    private ArtifactStorageOptions ResolveStorageOptions()
+    private static ArtifactStorageOptions ResolveStorageOptions()
         => ConversionContextAccessor.Current?.Storage ?? ArtifactStorageOptions.Default;
 
     public override async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
@@ -173,7 +173,7 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
         }
     }
 
-    private SectionContent BuildMetadataSection(IReadOnlyDictionary<string, string> metadata)
+    private static SectionContent BuildMetadataSection(IReadOnlyDictionary<string, string> metadata)
     {
         var builder = new StringBuilder();
         foreach (var pair in metadata)
@@ -199,36 +199,15 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
 
         foreach (var filePath in orderedFiles)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var entry = archive.GetEntry(filePath);
             if (entry is null)
             {
                 continue;
             }
 
-            await using var entryStream = entry.Open();
-            await using var bufferHandle = await DiskBufferHandle.FromStreamAsync(entryStream, Path.GetExtension(entry.Name), bufferSize: 128 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
-
-            var extension = Path.GetExtension(entry.Name).ToLowerInvariant();
-            var mimeType = MimeTypeMapping.TryGetValue(extension, out var mappedMime)
-                ? mappedMime
-                : MimeHelper.HTML;
-
-            var sectionStreamInfo = new StreamInfo(
-                fileName: entry.Name,
-                extension: extension,
-                mimeType: mimeType);
-
-            await using (var detectionStream = bufferHandle.OpenRead())
-            {
-                if (!htmlConverter.Accepts(detectionStream, sectionStreamInfo, cancellationToken))
-                {
-                    continue;
-                }
-            }
-
-            await using var conversionStream = bufferHandle.OpenRead();
-            await using var htmlResult = await htmlConverter.ConvertAsync(conversionStream, sectionStreamInfo, cancellationToken).ConfigureAwait(false);
-            var normalized = TextSanitizer.Normalize(htmlResult.Markdown, trim: true);
+            var normalized = await RenderSectionMarkdownAsync(entry, cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(normalized))
             {
                 continue;
@@ -238,6 +217,36 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
         }
 
         return sections;
+    }
+
+    private async Task<string?> RenderSectionMarkdownAsync(ZipArchiveEntry entry, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await using var entryStream = entry.Open();
+        await using var bufferHandle = await DiskBufferHandle.FromStreamAsync(entryStream, Path.GetExtension(entry.Name), bufferSize: 128 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
+
+        var extension = Path.GetExtension(entry.Name).ToLowerInvariant();
+        var mimeType = MimeTypeMapping.TryGetValue(extension, out var mappedMime)
+            ? mappedMime
+            : MimeHelper.HTML;
+
+        var sectionStreamInfo = new StreamInfo(
+            fileName: entry.Name,
+            extension: extension,
+            mimeType: mimeType);
+
+        await using (var detectionStream = bufferHandle.OpenRead())
+        {
+            if (!htmlConverter.Accepts(detectionStream, sectionStreamInfo, cancellationToken))
+            {
+                return null;
+            }
+        }
+
+        await using var conversionStream = bufferHandle.OpenRead();
+        await using var htmlResult = await htmlConverter.ConvertAsync(conversionStream, sectionStreamInfo, cancellationToken).ConfigureAwait(false);
+        return TextSanitizer.Normalize(htmlResult.Markdown, trim: true);
     }
 
     private static async Task<Dictionary<string, string>> ExtractMetadataAsync(ZipArchive archive, CancellationToken cancellationToken)
@@ -340,7 +349,7 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
             var manifest = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             var basePath = Path.GetDirectoryName(opfPath)?.Replace("\\", "/");
-            if (!string.IsNullOrEmpty(basePath) && !basePath.EndsWith("/", StringComparison.Ordinal))
+            if (!string.IsNullOrEmpty(basePath) && !basePath.EndsWith('/'))
             {
                 basePath += "/";
             }
@@ -350,6 +359,8 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
             {
                 foreach (XmlNode item in manifestNodes)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     var id = item.Attributes?["id"]?.Value;
                     var href = item.Attributes?["href"]?.Value;
                     if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(href))
@@ -367,6 +378,8 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
             {
                 foreach (XmlNode itemRef in spineNodes)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     var idRef = itemRef.Attributes?["idref"]?.Value;
                     if (!string.IsNullOrWhiteSpace(idRef) && manifest.TryGetValue(idRef, out var path))
                     {
@@ -380,6 +393,8 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
             files.Clear();
             foreach (var entry in archive.Entries)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var extension = Path.GetExtension(entry.Name).ToLowerInvariant();
                 if (extension is ".html" or ".htm" or ".xhtml")
                 {
