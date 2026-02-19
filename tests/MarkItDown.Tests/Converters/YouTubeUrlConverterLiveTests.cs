@@ -9,10 +9,17 @@ using MarkItDown.Converters;
 using MarkItDown.Intelligence.Models;
 using Shouldly;
 using Xunit;
-using Xunit.Sdk;
 using YoutubeExplode.Exceptions;
 
 namespace MarkItDown.Tests.Converters;
+
+public sealed class YouTubeLiveFactAttribute : FactAttribute
+{
+    public YouTubeLiveFactAttribute()
+    {
+        Skip = YouTubeUrlConverterLiveTests.LiveProbe.Value.SkipReason;
+    }
+}
 
 /// <summary>
 /// Live integration tests that exercise the YouTube converter against the public API.
@@ -22,44 +29,18 @@ namespace MarkItDown.Tests.Converters;
 public sealed class YouTubeUrlConverterLiveTests
 {
     private const string SolidPrinciplesVideoUrl = "https://www.youtube.com/watch?v=8hnpIIamb6k";
+    private const string FallbackTitlePrefix = "YouTube Video ";
 
-    [Fact]
-    public async Task ConvertAsync_WithLiveVideo_FetchesMetadataFromYouTube()
+    internal static readonly Lazy<LiveProbeResult> LiveProbe = new(ProbeLiveVideo, LazyThreadSafetyMode.ExecutionAndPublication);
+
+    [YouTubeLiveFact]
+    public void ConvertAsync_WithLiveVideo_FetchesMetadataFromYouTube()
     {
-        var converter = new YouTubeUrlConverter();
-        var streamInfo = new StreamInfo(url: SolidPrinciplesVideoUrl);
+        var result = LiveProbe.Value.Result ?? throw new InvalidOperationException("Live probe expected conversion result when no skip reason is set.");
+        var title = result.Title ?? throw new InvalidOperationException("Live probe returned null title.");
+        title.StartsWith(FallbackTitlePrefix, StringComparison.OrdinalIgnoreCase).ShouldBeFalse();
 
-        DocumentConverterResult result;
-
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-
-        try
-        {
-            result = await converter.ConvertAsync(Stream.Null, streamInfo, cts.Token);
-        }
-        catch (HttpRequestException ex)
-        {
-            throw SkipException.ForSkip($"Skipping live YouTube test due to HTTP failure: {ex.Message}");
-        }
-        catch (TaskCanceledException ex)
-        {
-            throw SkipException.ForSkip($"Skipping live YouTube test because the request was cancelled: {ex.Message}");
-        }
-        catch (YoutubeExplodeException ex)
-        {
-            throw SkipException.ForSkip($"Skipping live YouTube test due to YouTube API error: {ex.Message}");
-        }
-
-        result.ShouldNotBeNull();
-        result.Title.ShouldNotBeNull();
-        
-        // If metadata fetching failed (due to rate limiting, API changes, etc.), skip the test
-        if (result.Title.StartsWith("YouTube Video ", StringComparison.OrdinalIgnoreCase))
-        {
-            throw SkipException.ForSkip($"Skipping live YouTube test because metadata could not be fetched (got fallback title: {result.Title})");
-        }
-        
-        result.Title.ShouldContain("SOLID Principles");
+        title.ShouldContain("SOLID Principles");
         result.Markdown.ShouldContain("Managed Code");
         result.Markdown.ShouldContain("**Views:**");
         result.Segments.ShouldContain(segment => segment.Type == SegmentType.Metadata);
@@ -68,5 +49,55 @@ public sealed class YouTubeUrlConverterLiveTests
         var metadataSegment = result.Segments.First(segment => segment.Type == SegmentType.Metadata);
         metadataSegment.AdditionalMetadata.ShouldContainKey(MetadataKeys.Provider);
         metadataSegment.AdditionalMetadata[MetadataKeys.Provider].ShouldBe(MetadataValues.ProviderYouTube);
+    }
+
+    private static LiveProbeResult ProbeLiveVideo()
+    {
+        var converter = new YouTubeUrlConverter();
+        var streamInfo = new StreamInfo(url: SolidPrinciplesVideoUrl);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+
+        try
+        {
+            var result = converter.ConvertAsync(Stream.Null, streamInfo, cts.Token).GetAwaiter().GetResult();
+            var title = result.Title;
+            if (title is null)
+            {
+                return LiveProbeResult.Skip("Live YouTube metadata unavailable (title was null).");
+            }
+
+            if (title.StartsWith(FallbackTitlePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return LiveProbeResult.Skip($"Live YouTube metadata unavailable (fallback title returned: {title}).");
+            }
+
+            return LiveProbeResult.Success(result);
+        }
+        catch (HttpRequestException ex)
+        {
+            return LiveProbeResult.Skip($"Live YouTube metadata unavailable due to HTTP failure: {ex.Message}");
+        }
+        catch (TaskCanceledException ex)
+        {
+            return LiveProbeResult.Skip($"Live YouTube metadata unavailable because request was cancelled: {ex.Message}");
+        }
+        catch (YoutubeExplodeException ex)
+        {
+            return LiveProbeResult.Skip($"Live YouTube metadata unavailable due to YouTube API error: {ex.Message}");
+        }
+    }
+
+    internal sealed record LiveProbeResult(DocumentConverterResult? Result, string? SkipReason)
+    {
+        public static LiveProbeResult Success(DocumentConverterResult result)
+        {
+            return new(result, null);
+        }
+
+        public static LiveProbeResult Skip(string reason)
+        {
+            return new(null, reason);
+        }
     }
 }
