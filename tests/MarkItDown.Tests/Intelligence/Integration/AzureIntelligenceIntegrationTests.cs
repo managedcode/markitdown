@@ -26,8 +26,8 @@ namespace MarkItDown.Tests.Intelligence.Integration;
 public class AzureIntelligenceIntegrationTests(AzureIntelligenceFixture fixture) : IClassFixture<AzureIntelligenceFixture>
 {
     private const string HardcodedVideoIndexerArmAccessToken = "TOKEN";
-    private const string HardcodedVideoIndexerAccountId = "ACCOUNT_GUID";
-    private const string HardcodedVideoIndexerResourceId = "/subscriptions/SUBSCRIPTION-GUID/resourcegroups/AzureAI/providers/Microsoft.VideoIndexer/accounts/ACCOUNT_NAME/";
+    private const string HardcodedVideoIndexerAccountId = "GUID";
+    private const string HardcodedVideoIndexerResourceId = "/subscriptions/GUID/resourcegroups/AzureAI/providers/Microsoft.VideoIndexer/accounts/VIDEO-INDEXER-NAME/";
 
     private static readonly AzureMediaIntelligenceOptions HardcodedVideoIndexerOptions = new()
     {
@@ -92,7 +92,7 @@ public class AzureIntelligenceIntegrationTests(AzureIntelligenceFixture fixture)
         Assert.NotEmpty(result!.Segments);
     }
 
-    [Fact]
+    [Fact(Skip = "Manul run only")]
     public async Task VideoIndexer_MarkItDownClient_LiveMp4ToMarkdown()
     {
         if (!IsHardcodedVideoIndexerConfigured())

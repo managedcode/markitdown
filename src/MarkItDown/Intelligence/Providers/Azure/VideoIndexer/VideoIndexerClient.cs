@@ -270,8 +270,9 @@ internal sealed class VideoIndexerClient : IDisposable
             return null;
         }
 
-        if (LooksLikeVideoIndexerAccountAccessToken(armToken, out var accountTokenExpiry))
+        if (LooksLikeVideoIndexerAccountAccessToken(armToken, out var accountTokenExpiry, out var permission))
         {
+            EnsureUploadPermission(permission);
             logger?.LogDebug("Using provided token as Azure Video Indexer account access token for account {AccountId}.", accountId);
             cachedAccountToken = new AccountAccessToken(armToken, accountTokenExpiry);
             return armToken;
@@ -331,13 +332,75 @@ internal sealed class VideoIndexerClient : IDisposable
 
     private static string NormalizeResourceId(string resourceId)
     {
-        var normalized = resourceId.Trim();
-        if (!normalized.StartsWith("/", StringComparison.Ordinal))
+        var normalized = ExtractResourcePath(resourceId);
+        if (string.IsNullOrWhiteSpace(normalized))
         {
-            normalized = "/" + normalized;
+            throw new ArgumentException("Azure Video Indexer resource id must be provided.", nameof(resourceId));
         }
 
-        return normalized.TrimEnd('/');
+        var trimmed = normalized.Trim().Trim('/');
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            throw new ArgumentException("Azure Video Indexer resource id must be provided.", nameof(resourceId));
+        }
+
+        var segments = trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (TryGetVideoIndexerAccountSegmentIndex(segments, out var accountSegmentIndex))
+        {
+            return "/" + string.Join("/", segments, 0, accountSegmentIndex + 2);
+        }
+
+        return "/" + trimmed;
+    }
+
+    private static string ExtractResourcePath(string resourceId)
+    {
+        var candidate = resourceId.Trim();
+        var queryOrFragmentSeparator = candidate.IndexOfAny(new[] { '?', '#' });
+        if (queryOrFragmentSeparator >= 0)
+        {
+            candidate = candidate[..queryOrFragmentSeparator];
+        }
+
+        if (Uri.TryCreate(candidate, UriKind.Absolute, out var uri))
+        {
+            candidate = uri.AbsolutePath;
+        }
+
+        return candidate;
+    }
+
+    private static bool TryGetVideoIndexerAccountSegmentIndex(string[] segments, out int accountSegmentIndex)
+    {
+        accountSegmentIndex = -1;
+
+        for (var index = 0; index < segments.Length - 1; index++)
+        {
+            if (!string.Equals(segments[index], "accounts", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (index < 2)
+            {
+                continue;
+            }
+
+            if (!string.Equals(segments[index - 2], "providers", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!string.Equals(segments[index - 1], "Microsoft.VideoIndexer", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            accountSegmentIndex = index;
+            return true;
+        }
+
+        return false;
     }
 
     private static string ReadProcessingState(JsonElement root)
@@ -425,9 +488,10 @@ internal sealed class VideoIndexerClient : IDisposable
         return $"{nameWithoutExtension}-{Guid.NewGuid():N}{extension}";
     }
 
-    private static bool LooksLikeVideoIndexerAccountAccessToken(string token, out DateTimeOffset? expiresOn)
+    private static bool LooksLikeVideoIndexerAccountAccessToken(string token, out DateTimeOffset? expiresOn, out string? permission)
     {
         expiresOn = null;
+        permission = null;
 
         if (!TryParseJwtPayload(token, out var payload))
         {
@@ -452,7 +516,26 @@ internal sealed class VideoIndexerClient : IDisposable
             expiresOn = DateTimeOffset.FromUnixTimeSeconds(expUnix);
         }
 
+        if (payload.TryGetProperty("Permission", out var permissionNode) &&
+            permissionNode.ValueKind == JsonValueKind.String)
+        {
+            permission = permissionNode.GetString();
+        }
+
         return true;
+    }
+
+    private static void EnsureUploadPermission(string? permission)
+    {
+        if (!string.Equals(permission, "Reader", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        throw new FileConversionException(
+            "Configured Azure Video Indexer token is read-only (Permission=Reader). " +
+            "Uploading media requires Contributor permission. " +
+            "Provide ArmAccessToken as an ARM token with contributor access or an account token with Contributor permission.");
     }
 
     private static bool TryParseJwtPayload(string token, out JsonElement payload)

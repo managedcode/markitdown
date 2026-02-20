@@ -108,6 +108,55 @@ public class VideoIndexerClientTests
         result!.Value.VideoId.ShouldBe("video123");
     }
 
+    [Theory]
+    [InlineData("subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account/overview")]
+    [InlineData("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account/overview/")]
+    [InlineData("https://management.azure.com/subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account/overview/?api-version=2024-01-01")]
+    public async Task UploadAsync_ResourceIdWithExtraSegments_IsNormalizedToAccountPath(string resourceId)
+    {
+        var sequence = new SequenceHandler();
+
+        sequence.Enqueue(request =>
+        {
+            request.Method.ShouldBe(HttpMethod.Post);
+            request.RequestUri!.ToString().ShouldContain("https://management.azure.com/subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account/generateAccessToken");
+            request.RequestUri!.ToString().ShouldNotContain("/overview");
+            request.RequestUri!.ToString().ShouldNotContain("https://management.azure.comsubscriptions/");
+
+            var payload = new
+            {
+                accessToken = "token123",
+                expirationTime = "2025-01-01T00:00:00Z"
+            };
+
+            return JsonResponse(HttpStatusCode.OK, payload);
+        });
+
+        sequence.Enqueue(_ =>
+            JsonResponse(HttpStatusCode.OK, new { id = "video123" }));
+
+        using var httpClient = new HttpClient(sequence)
+        {
+            BaseAddress = new Uri("https://api.videoindexer.ai/")
+        };
+
+        var options = new AzureMediaIntelligenceOptions
+        {
+            AccountId = "account",
+            Location = "trial",
+            ResourceId = resourceId
+        };
+
+        var client = new VideoIndexerClient(options, httpClient, new StubArmTokenService("arm-token"));
+        await using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+        var streamInfo = new StreamInfo(mimeType: "video/mp4", extension: ".mp4", fileName: "sample.mp4");
+
+        var result = await client.UploadAsync(stream, streamInfo, CancellationToken.None);
+
+        result.ShouldNotBeNull();
+        result!.Value.VideoId.ShouldBe("video123");
+    }
+
     [Fact]
     public async Task UploadAsync_WithVideoIndexerAccountAccessToken_SkipsArmGenerateAccessToken()
     {
@@ -144,6 +193,32 @@ public class VideoIndexerClientTests
         result.ShouldNotBeNull();
         result!.Value.VideoId.ShouldBe("video123");
         result.Value.AccountAccessToken.ShouldBe(token);
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithReadOnlyVideoIndexerAccountToken_FailsFastWithActionableError()
+    {
+        using var httpClient = new HttpClient(new SequenceHandler())
+        {
+            BaseAddress = new Uri("https://api.videoindexer.ai/")
+        };
+
+        var options = new AzureMediaIntelligenceOptions
+        {
+            AccountId = "account",
+            Location = "trial",
+            ResourceId = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account"
+        };
+
+        var readOnlyToken = BuildUnsignedJwtWithAudience("https://api.videoindexer.ai/", DateTimeOffset.UtcNow.AddMinutes(30), permission: "Reader");
+        var client = new VideoIndexerClient(options, httpClient, new StubArmTokenService(readOnlyToken));
+        await using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+        var streamInfo = new StreamInfo(mimeType: "video/mp4", extension: ".mp4", fileName: "sample.mp4");
+
+        var exception = await Should.ThrowAsync<FileConversionException>(() => client.UploadAsync(stream, streamInfo, CancellationToken.None));
+
+        exception.Message.ShouldContain("Permission=Reader");
+        exception.Message.ShouldContain("Contributor");
     }
 
     [Fact]
@@ -400,7 +475,7 @@ public class VideoIndexerClientTests
         return new HttpResponseMessage(statusCode) { Content = content };
     }
 
-    private static string BuildUnsignedJwtWithAudience(string audience, DateTimeOffset expiresOn)
+    private static string BuildUnsignedJwtWithAudience(string audience, DateTimeOffset expiresOn, string? permission = null)
     {
         static string Encode(object value)
         {
@@ -410,11 +485,18 @@ public class VideoIndexerClientTests
         }
 
         var header = Encode(new { alg = "none", typ = "JWT" });
-        var payload = Encode(new
+        var payloadBody = new Dictionary<string, object?>
         {
-            aud = audience,
-            exp = expiresOn.ToUnixTimeSeconds()
-        });
+            ["aud"] = audience,
+            ["exp"] = expiresOn.ToUnixTimeSeconds()
+        };
+
+        if (!string.IsNullOrWhiteSpace(permission))
+        {
+            payloadBody["Permission"] = permission;
+        }
+
+        var payload = Encode(payloadBody);
 
         return $"{header}.{payload}.";
     }
