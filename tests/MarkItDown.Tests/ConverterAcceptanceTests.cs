@@ -422,20 +422,26 @@ public class ConverterAcceptanceTests
     }
 
     [Fact]
-    public async Task YouTubeUrlConverter_ConvertAsync_UsesMetadataProvider()
+    public async Task YouTubeUrlConverter_ConvertAsync_DelegatesToMediaConverterAndKeepsYouTubeMetadata()
     {
         // Arrange
         var provider = new StubYouTubeMetadataProvider();
-        var converter = new YouTubeUrlConverter(provider);
+        var converter = new YouTubeUrlConverter(
+            provider,
+            new StubYouTubeVideoDownloader(),
+            new SpyMediaConverter(),
+            httpClient: null);
         var streamInfo = new StreamInfo(url: "https://youtu.be/abcdefghijk");
 
         // Act
         var result = await converter.ConvertAsync(Stream.Null, streamInfo);
 
         // Assert
-        Assert.Contains("Sample Video Title", result.Markdown);
-        Assert.Contains(result.Segments, segment => segment.Type == SegmentType.Audio && segment.Markdown.Contains("Hello captions"));
-        Assert.Contains(result.Segments, segment => segment.Type == SegmentType.Metadata && segment.AdditionalMetadata.TryGetValue(MetadataKeys.Provider, out var providerValue) && providerValue == MetadataValues.ProviderYouTube);
+        Assert.Equal("## Media transcript", result.Markdown);
+        Assert.True(result.Metadata.TryGetValue(MetadataKeys.Provider, out var providerValue));
+        Assert.Equal(MetadataValues.ProviderYouTube, providerValue);
+        Assert.True(result.Metadata.TryGetValue(MetadataKeys.VideoId, out var videoId));
+        Assert.Equal("abcdefghijk", videoId);
     }
 
     [Fact]
@@ -559,6 +565,61 @@ internal sealed class StubYouTubeMetadataProvider : IYouTubeMetadataProvider
         );
 
         return Task.FromResult<YouTubeMetadata?>(metadata);
+    }
+}
+
+internal sealed class StubYouTubeVideoDownloader : IYouTubeVideoDownloader
+{
+    public async Task<ResolvedVideoMedia> DownloadAsync(string videoId, Uri sourceUrl, CancellationToken cancellationToken = default)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"markitdown-{Guid.NewGuid():N}.mp4");
+        await File.WriteAllBytesAsync(path, [0, 1, 2, 3], cancellationToken);
+
+        var streamInfo = new StreamInfo(
+            mimeType: "video/mp4",
+            extension: ".mp4",
+            fileName: "downloaded.mp4",
+            localPath: path,
+            url: sourceUrl.ToString());
+
+        return new ResolvedVideoMedia(path, streamInfo, new TempFileCleanup(path));
+    }
+}
+
+internal sealed class SpyMediaConverter : DocumentConverterBase
+{
+    public SpyMediaConverter()
+        : base(priority: 1)
+    {
+    }
+
+    public override bool AcceptsInput(StreamInfo streamInfo)
+    {
+        return true;
+    }
+
+    public override Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(new DocumentConverterResult("## Media transcript", "Media"));
+    }
+}
+
+internal sealed class TempFileCleanup(string path) : IAsyncDisposable
+{
+    public ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+        }
+
+        return ValueTask.CompletedTask;
     }
 }
 

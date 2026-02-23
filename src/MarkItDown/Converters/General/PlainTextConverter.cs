@@ -55,12 +55,12 @@ public sealed class PlainTextConverter : DocumentConverterBase
             // Try to detect encoding
             var buffer = new byte[stream.Length];
             var bytesRead = await stream.ReadAsync(buffer, cancellationToken);
-            
+
             if (bytesRead > 0)
             {
                 // Reset stream position
                 stream.Position = 0;
-                
+
                 // Try UTF-8 first, then fall back to system default
                 try
                 {

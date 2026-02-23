@@ -197,8 +197,33 @@ public enum MediaTranscriptionProviderKind
     Custom
 }
 
+public enum MediaUploadRoute
+{
+    /// <summary>
+    /// Prefer URL upload when a valid HTTP/S source URL is available; otherwise fallback to stream upload.
+    /// </summary>
+    Auto,
+
+    /// <summary>
+    /// Force multipart stream upload and ignore URL upload sources.
+    /// </summary>
+    Stream,
+
+    /// <summary>
+    /// Require URL upload using request/source metadata URL.
+    /// </summary>
+    SourceUrl,
+
+    /// <summary>
+    /// Upload media to a configured storage provider and use the generated public URL for provider-side ingestion.
+    /// </summary>
+    StorageUrl
+}
+
 public sealed record MediaTranscriptionRequest(
     MediaTranscriptionProviderKind? PreferredProvider,
     string? Language,
     string? VocabularyName = null,
-    string? CustomProviderName = null);
+    string? CustomProviderName = null,
+    string? SourceUrl = null,
+    MediaUploadRoute UploadRoute = MediaUploadRoute.Auto);

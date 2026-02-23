@@ -44,7 +44,7 @@ public class NewConvertersTests
         // Arrange
         var converter = new DocxConverter();
         var streamInfo = new StreamInfo(
-            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             extension: ".docx");
 
         // Act
@@ -60,7 +60,7 @@ public class NewConvertersTests
         // Arrange
         var converter = new XlsxConverter();
         var streamInfo = new StreamInfo(
-            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             extension: ".xlsx");
 
         // Act
@@ -76,7 +76,7 @@ public class NewConvertersTests
         // Arrange
         var converter = new PptxConverter();
         var streamInfo = new StreamInfo(
-            mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", 
+            mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             extension: ".pptx");
 
         // Act

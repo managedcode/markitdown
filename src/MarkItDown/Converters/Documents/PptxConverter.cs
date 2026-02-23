@@ -258,31 +258,31 @@ public sealed class PptxConverter : DocumentConverterBase
                         AppendTextShape(textShape, markdown, text);
                         break;
                     case DocumentFormat.OpenXml.Presentation.Picture picture:
-                    {
-                        var artifact = await ExtractImageAsync(picture, slidePart, slideNumber, streamInfo, cancellationToken).ConfigureAwait(false);
-                        if (artifact is null)
                         {
+                            var artifact = await ExtractImageAsync(picture, slidePart, slideNumber, streamInfo, cancellationToken).ConfigureAwait(false);
+                            if (artifact is null)
+                            {
+                                break;
+                            }
+
+                            slideImageIndex++;
+                            var label = artifact.Label ?? $"Slide {slideNumber} Image {slideImageIndex}";
+                            artifact.Label = label;
+
+                            var mimeType = string.IsNullOrWhiteSpace(artifact.ContentType)
+                                ? MimeHelper.PNG
+                                : artifact.ContentType;
+
+                            var base64 = Convert.ToBase64String(artifact.Data);
+                            var placeholder = $"![{label}](data:{mimeType};base64,{base64})";
+                            artifact.PlaceholderMarkdown = placeholder;
+                            markdown.AppendLine(placeholder);
+                            markdown.AppendLine();
+
+                            text.AppendLine(label);
+                            images.Add(artifact);
                             break;
                         }
-
-                        slideImageIndex++;
-                        var label = artifact.Label ?? $"Slide {slideNumber} Image {slideImageIndex}";
-                        artifact.Label = label;
-
-                        var mimeType = string.IsNullOrWhiteSpace(artifact.ContentType)
-                            ? MimeHelper.PNG
-                            : artifact.ContentType;
-
-                        var base64 = Convert.ToBase64String(artifact.Data);
-                        var placeholder = $"![{label}](data:{mimeType};base64,{base64})";
-                        artifact.PlaceholderMarkdown = placeholder;
-                        markdown.AppendLine(placeholder);
-                        markdown.AppendLine();
-
-                        text.AppendLine(label);
-                        images.Add(artifact);
-                        break;
-                    }
                 }
             }
         }

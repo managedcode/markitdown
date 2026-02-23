@@ -279,7 +279,7 @@ public sealed class RtfConverter : DocumentPipelineConverterBase
         if (string.IsNullOrWhiteSpace(text))
         {
             return null;
-    }
+        }
 
         var reader = new StringReader(text);
         string? line;

@@ -27,7 +27,7 @@ public class MarkItDownIntegrationTests
         var markItDown = new global::MarkItDown.MarkItDownClient();
         var htmlContent = "<html><body><h1>Test Header</h1><p>Test content</p></body></html>";
         var bytes = Encoding.UTF8.GetBytes(htmlContent);
-        
+
         using var stream = new MemoryStream(bytes);
         var streamInfo = new StreamInfo(mimeType: "text/html", extension: ".html");
 
@@ -49,23 +49,23 @@ public class MarkItDownIntegrationTests
         var content = "Simple text content for testing";
         var bytes = Encoding.UTF8.GetBytes(content);
         var cts = new CancellationTokenSource();
-        
+
         using var stream = new MemoryStream(bytes);
         var streamInfo = new StreamInfo(extension: ".txt");
 
         // Act & Assert
         cts.Cancel();
-        
+
         // The cancellation might be caught during the conversion process
         // Let's check that either OperationCanceledException or UnsupportedFormatException 
         // with an inner TaskCanceledException is thrown
         var ex = await Assert.ThrowsAnyAsync<Exception>(
             () => markItDown.ConvertAsync(stream, streamInfo, cts.Token));
-            
+
         // Verify that cancellation was involved somehow
-        Assert.True(ex is OperationCanceledException || 
-                   ex is UnsupportedFormatException ufe && 
-                   ufe.InnerException is AggregateException ae && 
+        Assert.True(ex is OperationCanceledException ||
+                   ex is UnsupportedFormatException ufe &&
+                   ufe.InnerException is AggregateException ae &&
                    ae.InnerExceptions.Any(e => e is TaskCanceledException));
     }
 
@@ -75,7 +75,7 @@ public class MarkItDownIntegrationTests
         // Arrange
         var markItDown = new global::MarkItDown.MarkItDownClient();
         var largeContent = new StringBuilder();
-        
+
         // Create a large HTML document
         largeContent.AppendLine("<html><body>");
         for (int i = 0; i < 1000; i++)
@@ -84,7 +84,7 @@ public class MarkItDownIntegrationTests
             largeContent.AppendLine($"<p>This is content for section {i}. It contains some text to make the document larger.</p>");
         }
         largeContent.AppendLine("</body></html>");
-        
+
         var bytes = Encoding.UTF8.GetBytes(largeContent.ToString());
         using var stream = new MemoryStream(bytes);
         var streamInfo = new StreamInfo(mimeType: "text/html", extension: ".html");
@@ -97,7 +97,7 @@ public class MarkItDownIntegrationTests
         Assert.NotEmpty(result.Markdown);
         Assert.Contains("## Section 0", result.Markdown);
         Assert.Contains("## Section 999", result.Markdown);
-        
+
         // Verify the content is substantial
         Assert.True(result.Markdown.Length > 10000);
     }
@@ -109,7 +109,7 @@ public class MarkItDownIntegrationTests
         var markItDown = new global::MarkItDown.MarkItDownClient();
         var content = "Test content for non-seekable stream";
         var bytes = Encoding.UTF8.GetBytes(content);
-        
+
         using var nonSeekableStream = new NonSeekableMemoryStream(bytes);
         var streamInfo = new StreamInfo(extension: ".txt");
 
@@ -142,7 +142,7 @@ public class MarkItDownIntegrationTests
         // Arrange
         var markItDown = new global::MarkItDown.MarkItDownClient();
         var binaryData = new byte[] { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 }; // Random binary data
-        
+
         using var stream = new MemoryStream(binaryData);
         var streamInfo = new StreamInfo(mimeType: "application/octet-stream", extension: ".bin");
 
@@ -158,7 +158,7 @@ public class MarkItDownIntegrationTests
         var markItDown = new global::MarkItDown.MarkItDownClient();
         var jsonContent = "{\"name\": \"test\", \"value\": 123, \"nested\": {\"key\": \"value\"}}";
         var bytes = Encoding.UTF8.GetBytes(jsonContent);
-        
+
         using var stream = new MemoryStream(bytes);
         var streamInfo = new StreamInfo(mimeType: "application/json", extension: ".json");
 
@@ -181,7 +181,7 @@ public class MarkItDownIntegrationTests
         var markItDown = new global::MarkItDown.MarkItDownClient();
         var markdownContent = "# Header\n\nThis is **bold** and *italic* text.\n\n- List item 1\n- List item 2\n";
         var bytes = Encoding.UTF8.GetBytes(markdownContent);
-        
+
         using var stream = new MemoryStream(bytes);
         var streamInfo = new StreamInfo(mimeType: "text/markdown", extension: ".md");
 
@@ -218,7 +218,7 @@ public class MarkItDownIntegrationTests
                 </body>
             </html>";
         var bytes = Encoding.UTF8.GetBytes(htmlContent);
-        
+
         using var stream = new MemoryStream(bytes);
         var streamInfo = new StreamInfo(mimeType: "text/html", extension: ".html");
 
@@ -314,14 +314,14 @@ public class MarkItDownIntegrationTests
         // Arrange
         var markItDown = new global::MarkItDown.MarkItDownClient();
         var tasks = new Task<DocumentConverterResult>[10];
-        
+
         for (int i = 0; i < 10; i++)
         {
             var content = $"<h1>Document {i}</h1><p>Content for document {i}</p>";
             var bytes = Encoding.UTF8.GetBytes(content);
             var stream = new MemoryStream(bytes);
             var streamInfo = new StreamInfo(mimeType: "text/html", extension: ".html");
-            
+
             tasks[i] = markItDown.ConvertAsync(stream, streamInfo);
         }
 
@@ -377,10 +377,10 @@ public class MarkItDownIntegrationTests
         public override bool CanSeek => false; // This is the key difference
         public override bool CanWrite => _inner.CanWrite;
         public override long Length => _inner.Length;
-        
-        public override long Position 
-        { 
-            get => _inner.Position; 
+
+        public override long Position
+        {
+            get => _inner.Position;
             set => throw new NotSupportedException("Stream is not seekable");
         }
 

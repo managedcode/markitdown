@@ -170,7 +170,7 @@ Populate the following fields in the JSON response:
 
 Return ONLY valid JSON matching the provided schema. Be exhaustive in extraction.
 ";
-    
+
     private static string RequireContentType(ImageArtifact image)
     {
         if (!string.IsNullOrWhiteSpace(image.ContentType))
@@ -187,12 +187,12 @@ Return ONLY valid JSON matching the provided schema. Be exhaustive in extraction
         throw new InvalidOperationException($"Image artifact {identifier} is missing a content type.");
     }
 
-public static async Task<ImageChatEnrichmentResult?> EnrichAsync(
-        ImageArtifact image,
-        StreamInfo streamInfo,
-        IChatClient chatClient,
-        ILogger? logger,
-        CancellationToken cancellationToken)
+    public static async Task<ImageChatEnrichmentResult?> EnrichAsync(
+            ImageArtifact image,
+            StreamInfo streamInfo,
+            IChatClient chatClient,
+            ILogger? logger,
+            CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(image);
 
@@ -680,7 +680,7 @@ public static async Task<ImageChatEnrichmentResult?> EnrichAsync(
     private readonly record struct ChartExtraction(ChartPayload Metadata, string? Markdown);
 
 
-private static void NormalizeInsight(ImageChatInsight insight)
+    private static void NormalizeInsight(ImageChatInsight insight)
     {
         insight.Description = NormalizeWhitespace(insight.Description);
         NormalizeList(insight.Notes);

@@ -45,10 +45,10 @@ public class StreamInfoDetectionTests
         var markItDown = new global::MarkItDown.MarkItDownClient();
         var htmlContent = "<!DOCTYPE html><html><head><title>Test</title></head><body><h1>Test</h1></body></html>";
         var bytes = Encoding.UTF8.GetBytes(htmlContent);
-        
+
         using var stream = new MemoryStream(bytes);
         var baseGuess = new StreamInfo(fileName: "test.html", extension: ".html");
-        
+
         // This would require implementing _GetStreamInfoGuesses method
         // For now, we'll test the basic detection logic
         Assert.Equal(".html", baseGuess.Extension);
@@ -59,10 +59,10 @@ public class StreamInfoDetectionTests
     {
         var markItDown = new global::MarkItDown.MarkItDownClient();
         var pdfSignature = new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2D }; // %PDF-
-        
+
         using var stream = new MemoryStream(pdfSignature);
         var baseGuess = new StreamInfo(fileName: "test.pdf", extension: ".pdf");
-        
+
         Assert.Equal(".pdf", baseGuess.Extension);
     }
 
@@ -72,10 +72,10 @@ public class StreamInfoDetectionTests
         var markItDown = new global::MarkItDown.MarkItDownClient();
         var jsonContent = "{\"test\": \"value\", \"number\": 123}";
         var bytes = Encoding.UTF8.GetBytes(jsonContent);
-        
+
         using var stream = new MemoryStream(bytes);
         var baseGuess = new StreamInfo(fileName: "test.json", extension: ".json");
-        
+
         Assert.Equal(".json", baseGuess.Extension);
     }
 
@@ -90,10 +90,10 @@ public class StreamInfoDetectionTests
     {
         var extension = Path.GetExtension(fileName);
         var streamInfo = new StreamInfo(extension: extension);
-        
+
         // Test that the extension is correctly normalized
         Assert.Equal(extension.ToLowerInvariant(), streamInfo.Extension);
-        
+
         // Verify extension starts with dot
         Assert.StartsWith(".", streamInfo.Extension);
     }

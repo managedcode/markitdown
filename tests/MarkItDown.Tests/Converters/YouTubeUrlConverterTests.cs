@@ -1,147 +1,135 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
-using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Text;
-using System.Text.Json;
 using MarkItDown.Converters;
-using MarkItDown.Intelligence.Models;
 using MarkItDown.YouTube;
 using Shouldly;
 using Xunit;
-using MarkItDown.Tests;
 
 namespace MarkItDown.Tests.Converters;
 
 public class YouTubeUrlConverterTests
 {
-    private const string SampleUrl = "https://www.youtube.com/watch?v=abcdefghijk";
+    private const string YouTubeUrl = "https://www.youtube.com/watch?v=abcdefghijk";
 
     [Fact]
-    public async Task ConvertAsync_ProviderReturnsMetadata_EmitsSegments()
+    public void AcceptsInput_YouTubeAndSupportedPlatform_ReturnsTrue()
     {
-        var provider = new StubYouTubeMetadataProvider();
-        var converter = new YouTubeUrlConverter(provider);
-        var streamInfo = new StreamInfo(url: SampleUrl);
+        var converter = CreateConverter();
 
-        var result = await converter.ConvertAsync(Stream.Null, streamInfo);
-
-        result.Markdown.ShouldContain("Sample Video Title");
-        result.Segments.Count.ShouldBeGreaterThan(0);
-        result.Segments.ShouldContain(segment => segment.Type == SegmentType.Metadata);
-        result.Segments.ShouldContain(segment => segment.Type == SegmentType.Audio && segment.Markdown.Contains("Hello captions"));
+        converter.AcceptsInput(new StreamInfo(url: YouTubeUrl)).ShouldBeTrue();
+        converter.AcceptsInput(new StreamInfo(url: "https://vimeo.com/1234567")).ShouldBeTrue();
     }
 
     [Fact]
-    public async Task ConvertAsync_ProviderReturnsNull_FallsBackToBasicMetadata()
+    public void AcceptsInput_UrlWithVideoMime_ReturnsFalse()
     {
-        var provider = new NullYouTubeMetadataProvider();
-        var converter = new YouTubeUrlConverter(provider);
-        var streamInfo = new StreamInfo(url: SampleUrl);
+        var converter = CreateConverter();
+        var streamInfo = new StreamInfo(
+            mimeType: "video/mp4",
+            extension: ".mp4",
+            fileName: "upload.mp4",
+            url: YouTubeUrl);
 
-        var result = await converter.ConvertAsync(Stream.Null, streamInfo);
-
-        result.Markdown.ShouldContain("YouTube Video");
-        result.Markdown.ShouldContain("Video ID");
-        result.Markdown.ShouldContain("Video URL");
-        result.Segments.Count.ShouldBe(0);
+        converter.AcceptsInput(streamInfo).ShouldBeFalse();
     }
 
     [Fact]
-    public async Task ConvertAsync_WatchUrlWithAdditionalQueryParams_ExtractsVideoId()
+    public async Task ConvertAsync_YouTubeUrl_DownloadsVideoAndDelegatesToMediaConverter()
     {
-        var provider = new StubYouTubeMetadataProvider();
-        var converter = new YouTubeUrlConverter(provider);
-        var streamInfo = new StreamInfo(url: "https://www.youtube.com/watch?si=abc123&v=abcdefghijk&feature=share");
+        var metadataProvider = new StubYouTubeMetadataProvider();
+        var downloader = new StubYouTubeVideoDownloader();
+        var mediaConverter = new SpyMediaConverter();
+        var converter = new YouTubeUrlConverter(metadataProvider, downloader, mediaConverter, httpClient: null);
 
-        var result = await converter.ConvertAsync(Stream.Null, streamInfo);
+        var result = await converter.ConvertAsync(Stream.Null, new StreamInfo(url: YouTubeUrl));
 
-        var metadataSegment = result.Segments.First(segment => segment.Type == SegmentType.Metadata);
-        metadataSegment.AdditionalMetadata[MetadataKeys.VideoId].ShouldBe("abcdefghijk");
+        downloader.CallCount.ShouldBe(1);
+        downloader.LastVideoId.ShouldBe("abcdefghijk");
+        mediaConverter.CallCount.ShouldBe(1);
+        mediaConverter.LastStreamInfo.ShouldNotBeNull();
+        mediaConverter.LastStreamInfo!.MimeType.ShouldBe("video/mp4");
+        mediaConverter.LastStreamInfo.Url.ShouldBe("https://youtube-media.example.com/abcdefghijk.mp4?sig=abc");
+        result.Markdown.ShouldBe("## Media transcript");
+        result.Metadata.TryGetValue(MetadataKeys.Provider, out var provider).ShouldBeTrue();
+        provider.ShouldBe(MetadataValues.ProviderYouTube);
+        result.Metadata.TryGetValue(MetadataKeys.VideoId, out var videoId).ShouldBeTrue();
+        videoId.ShouldBe("abcdefghijk");
     }
 
-    private sealed class NullYouTubeMetadataProvider : IYouTubeMetadataProvider
+    [Fact]
+    public async Task ConvertAsync_SupportedNonYouTubeUrl_ResolvesVideoFromHtmlAndDelegatesToMediaConverter()
     {
-        public Task<YouTubeMetadata?> GetVideoAsync(string videoId, CancellationToken cancellationToken = default)
+        var metadataProvider = new StubYouTubeMetadataProvider();
+        var downloader = new StubYouTubeVideoDownloader();
+        var mediaConverter = new SpyMediaConverter();
+        using var httpClient = new HttpClient(new StubHttpMessageHandler(request =>
         {
-            return Task.FromResult<YouTubeMetadata?>(null);
-        }
+            request.RequestUri.ShouldNotBeNull();
+            request.RequestUri!.ToString().ShouldBe("https://cdn.example.com/video.mp4");
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent([1, 2, 3, 4, 5])
+                {
+                    Headers =
+                    {
+                        ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("video/mp4")
+                    }
+                }
+            };
+        }));
+
+        var converter = new YouTubeUrlConverter(metadataProvider, downloader, mediaConverter, httpClient);
+        const string html = "<html><head><meta property=\"og:video\" content=\"https://cdn.example.com/video.mp4\"/></head><body></body></html>";
+        using var htmlStream = new MemoryStream(Encoding.UTF8.GetBytes(html));
+
+        var result = await converter.ConvertAsync(htmlStream, new StreamInfo(url: "https://vimeo.com/1234567"));
+
+        downloader.CallCount.ShouldBe(0);
+        mediaConverter.CallCount.ShouldBe(1);
+        mediaConverter.LastStreamInfo.ShouldNotBeNull();
+        mediaConverter.LastStreamInfo!.MimeType.ShouldBe("video/mp4");
+        mediaConverter.LastStreamInfo.Url.ShouldBe("https://cdn.example.com/video.mp4");
+        result.Markdown.ShouldBe("## Media transcript");
     }
 
     [Fact]
-    public async Task ConvertAsync_WithRecordedMetadata_RendersVideoDetails()
+    public async Task ConvertAsync_SupportedNonYouTubeUrl_WhenResolvedContentIsNotVideo_ThrowsFileConversionException()
     {
-        var metadata = LoadRecordedMetadata();
-        var provider = new FixtureYouTubeMetadataProvider(metadata);
-        var converter = new YouTubeUrlConverter(provider);
-        var streamInfo = new StreamInfo(url: "https://www.youtube.com/watch?v=8hnpIIamb6k");
+        var metadataProvider = new StubYouTubeMetadataProvider();
+        var downloader = new StubYouTubeVideoDownloader();
+        var mediaConverter = new SpyMediaConverter();
+        using var httpClient = new HttpClient(new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("not a video", Encoding.UTF8, "text/html")
+        }));
 
-        var result = await converter.ConvertAsync(Stream.Null, streamInfo);
+        var converter = new YouTubeUrlConverter(metadataProvider, downloader, mediaConverter, httpClient);
+        const string html = "<html><head><meta property=\"og:video\" content=\"https://cdn.example.com/not-video\"/></head><body></body></html>";
+        using var htmlStream = new MemoryStream(Encoding.UTF8.GetBytes(html));
 
-        result.Title.ShouldBe(metadata.Title);
-        result.Markdown.ShouldContain(metadata.Title);
-        result.Markdown.ShouldContain("Managed Code");
-        result.Markdown.ShouldContain("**Views:** 484");
-        result.Markdown.ShouldContain("SOLID Principles");
-        result.Markdown.ShouldContain("## Captions");
-        result.Segments.ShouldContain(segment => segment.Type == SegmentType.Metadata);
-        result.Segments.Count(s => s.Type == SegmentType.Audio).ShouldBe(metadata.Captions.Count);
+        var exception = await Should.ThrowAsync<FileConversionException>(
+            () => converter.ConvertAsync(htmlStream, new StreamInfo(url: "https://vimeo.com/1234567")));
 
-        var firstCaption = result.Segments.First(s => s.Type == SegmentType.Audio);
-        firstCaption.StartTime.ShouldNotBeNull();
-        firstCaption.StartTime.Value.ShouldBeGreaterThan(TimeSpan.Zero);
-        result.Segments.ShouldContain(segment =>
-            segment.Type == SegmentType.Audio &&
-            segment.Markdown.Contains("principles", StringComparison.OrdinalIgnoreCase));
+        exception.Message.ShouldContain("non-video content type");
+        mediaConverter.CallCount.ShouldBe(0);
     }
 
-    private static YouTubeMetadata LoadRecordedMetadata()
+    private static YouTubeUrlConverter CreateConverter()
     {
-        var jsonPath = TestAssetLoader.GetAssetPath(TestAssetCatalog.YoutubeSolidPrinciplesJson);
-        using var stream = File.OpenRead(jsonPath);
-        var fixture = JsonSerializer.Deserialize<YouTubeMetadataFixture>(stream, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
-
-        if (fixture is null)
-        {
-            throw new InvalidOperationException("Failed to deserialize recorded YouTube metadata fixture.");
-        }
-
-        var captions = fixture.Captions.Select(c => new YouTubeCaptionSegment(
-            c.Text,
-            c.Start is not null ? TimeSpan.FromSeconds(c.Start.Value) : null,
-            c.End is not null ? TimeSpan.FromSeconds(c.End.Value) : null,
-            c.Metadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        )).ToList();
-
-        var thumbnails = fixture.Thumbnails.Select(uri => new Uri(uri)).ToList();
-        var additional = fixture.AdditionalMetadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        return new YouTubeMetadata(
-            VideoId: fixture.VideoId,
-            Title: fixture.Title,
-            ChannelTitle: fixture.ChannelTitle,
-            WatchUrl: new Uri(fixture.WatchUrl),
-            ChannelUrl: new Uri(fixture.ChannelUrl),
-            Duration: fixture.DurationSeconds is not null ? TimeSpan.FromSeconds(fixture.DurationSeconds.Value) : null,
-            UploadDate: fixture.UploadDate is not null ? DateTimeOffset.Parse(fixture.UploadDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal) : null,
-            ViewCount: fixture.ViewCount,
-            LikeCount: fixture.LikeCount,
-            Tags: fixture.Tags ?? Array.Empty<string>(),
-            Description: fixture.Description,
-            Thumbnails: thumbnails,
-            Captions: captions,
-            AdditionalMetadata: additional
-        );
+        return new YouTubeUrlConverter(
+            new StubYouTubeMetadataProvider(),
+            new StubYouTubeVideoDownloader(),
+            new SpyMediaConverter(),
+            httpClient: null);
     }
 
     private sealed class StubYouTubeMetadataProvider : IYouTubeMetadataProvider
     {
-        private static readonly string[] Tags = new[] { "test", "video" };
-
         public Task<YouTubeMetadata?> GetVideoAsync(string videoId, CancellationToken cancellationToken = default)
         {
             var metadata = new YouTubeMetadata(
@@ -154,62 +142,88 @@ public class YouTubeUrlConverterTests
                 UploadDate: new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),
                 ViewCount: 12345,
                 LikeCount: 678,
-                Tags: Tags,
+                Tags: ["test", "video"],
                 Description: "Sample description",
-                Thumbnails: new[] { new Uri($"https://img.youtube.com/vi/{videoId}/0.jpg") },
-                Captions: new[]
+                Thumbnails: [new Uri($"https://img.youtube.com/vi/{videoId}/0.jpg")],
+                Captions: Array.Empty<YouTubeCaptionSegment>(),
+                AdditionalMetadata: new Dictionary<string, string>());
+
+            return Task.FromResult<YouTubeMetadata?>(metadata);
+        }
+    }
+
+    private sealed class StubYouTubeVideoDownloader : IYouTubeVideoDownloader
+    {
+        public int CallCount { get; private set; }
+        public string? LastVideoId { get; private set; }
+
+        public async Task<ResolvedVideoMedia> DownloadAsync(string videoId, Uri sourceUrl, CancellationToken cancellationToken = default)
+        {
+            _ = sourceUrl;
+            CallCount++;
+            LastVideoId = videoId;
+
+            var path = Path.Combine(Path.GetTempPath(), $"markitdown-{Guid.NewGuid():N}.mp4");
+            await File.WriteAllBytesAsync(path, [0, 1, 2, 3], cancellationToken);
+
+            var streamInfo = new StreamInfo(
+                mimeType: "video/mp4",
+                extension: ".mp4",
+                fileName: "downloaded.mp4",
+                localPath: path,
+                url: $"https://youtube-media.example.com/{videoId}.mp4?sig=abc");
+
+            return new ResolvedVideoMedia(path, streamInfo, new FileCleanup(path));
+        }
+    }
+
+    private sealed class SpyMediaConverter : DocumentConverterBase
+    {
+        public SpyMediaConverter()
+            : base(priority: 1)
+        {
+        }
+
+        public int CallCount { get; private set; }
+
+        public StreamInfo? LastStreamInfo { get; private set; }
+
+        public override bool AcceptsInput(StreamInfo streamInfo)
+        {
+            return true;
+        }
+
+        public override Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            LastStreamInfo = streamInfo;
+            return Task.FromResult(new DocumentConverterResult("## Media transcript", "Media"));
+        }
+    }
+
+    private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler)
+        : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(handler(request));
+    }
+
+    private sealed class FileCleanup(string path) : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync()
+        {
+            try
+            {
+                if (File.Exists(path))
                 {
-                    new YouTubeCaptionSegment("Hello captions", TimeSpan.Zero, TimeSpan.FromSeconds(5), new Dictionary<string, string>
-                    {
-                        [MetadataKeys.Language] = "en",
-                        [MetadataKeys.Provider] = MetadataValues.ProviderYouTube
-                    })
-                },
-                AdditionalMetadata: new Dictionary<string, string>()
-            );
+                    File.Delete(path);
+                }
+            }
+            catch
+            {
+            }
 
-            return Task.FromResult<YouTubeMetadata?>(metadata);
+            return ValueTask.CompletedTask;
         }
-    }
-
-    private sealed class FixtureYouTubeMetadataProvider : IYouTubeMetadataProvider
-    {
-        private readonly YouTubeMetadata metadata;
-
-        public FixtureYouTubeMetadataProvider(YouTubeMetadata metadata)
-        {
-            this.metadata = metadata;
-        }
-
-        public Task<YouTubeMetadata?> GetVideoAsync(string videoId, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<YouTubeMetadata?>(metadata);
-        }
-    }
-
-    private sealed class YouTubeMetadataFixture
-    {
-        public string VideoId { get; init; } = string.Empty;
-        public string Title { get; init; } = string.Empty;
-        public string ChannelTitle { get; init; } = string.Empty;
-        public string WatchUrl { get; init; } = string.Empty;
-        public string ChannelUrl { get; init; } = string.Empty;
-        public double? DurationSeconds { get; init; }
-        public string? UploadDate { get; init; }
-        public long? ViewCount { get; init; }
-        public long? LikeCount { get; init; }
-        public IReadOnlyList<string>? Tags { get; init; }
-        public string? Description { get; init; }
-        public IReadOnlyList<string> Thumbnails { get; init; } = Array.Empty<string>();
-        public IReadOnlyList<YouTubeCaptionFixture> Captions { get; init; } = Array.Empty<YouTubeCaptionFixture>();
-        public IReadOnlyDictionary<string, string>? AdditionalMetadata { get; init; }
-    }
-
-    private sealed class YouTubeCaptionFixture
-    {
-        public string Text { get; init; } = string.Empty;
-        public double? Start { get; init; }
-        public double? End { get; init; }
-        public IReadOnlyDictionary<string, string>? Metadata { get; init; }
     }
 }

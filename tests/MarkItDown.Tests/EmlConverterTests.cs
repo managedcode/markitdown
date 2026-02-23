@@ -56,14 +56,14 @@ John";
         result.ShouldNotBeNull();
         result.Markdown.ShouldNotBeNullOrWhiteSpace();
         result.Title.ShouldBe("Important Project Update");
-        
+
         // Check essential email headers are present
         result.Markdown.ShouldContain("**Subject:** Important Project Update");
         result.Markdown.ShouldContain("**From:** John Doe <sender@example.com>");
         result.Markdown.ShouldContain("**To:** Jane Smith <recipient@example.com>");
         result.Markdown.ShouldContain("**CC:** Team <team@example.com>");
         result.Markdown.ShouldContain("**Date:** 2024-01-15 10:30:00 +00:00");
-        
+
         // Check message content is included
         result.Markdown.ShouldContain("Hello Jane");
         result.Markdown.ShouldContain("Phase 1 is complete");
@@ -130,7 +130,7 @@ Content-Type: text/html; charset=UTF-8
         result.ShouldNotBeNull();
         result.Markdown.ShouldNotBeNullOrWhiteSpace();
         result.Title.ShouldBe("HTML Test");
-        
+
         // Check that HTML was converted to Markdown
         result.Markdown.ShouldContain("# Welcome");
         result.Markdown.ShouldContain("**bold**");

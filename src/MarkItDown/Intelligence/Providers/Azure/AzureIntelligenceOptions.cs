@@ -1,3 +1,6 @@
+using ManagedCode.Storage.Core;
+using MarkItDown;
+
 namespace MarkItDown.Intelligence.Providers.Azure;
 
 /// <summary>
@@ -76,6 +79,17 @@ public sealed class AzureMediaIntelligenceOptions
     /// Optional static ARM token. If not provided the SDK will attempt to use <see cref="Azure.Identity.DefaultAzureCredential"/>.
     /// </summary>
     public string? ArmAccessToken { get; init; }
+
+    /// <summary>
+    /// Optional storage factory used when transcription requests choose <see cref="MediaUploadRoute.StorageUrl"/>.
+    /// The created <see cref="IStorage"/> uploads local media and must return metadata with an HTTP/S URI reachable by Azure Video Indexer.
+    /// </summary>
+    public Func<IStorage>? UploadStorageFactory { get; init; }
+
+    /// <summary>
+    /// Optional resolver for upload directory names when using <see cref="UploadStorageFactory"/>.
+    /// </summary>
+    public Func<StreamInfo, string>? UploadStorageDirectoryResolver { get; init; }
 
     /// <summary>
     /// Polling cadence used while waiting for Azure Video Indexer processing.

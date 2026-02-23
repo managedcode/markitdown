@@ -1,23 +1,89 @@
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
+using AngleSharp.Html.Parser;
+using ManagedCode.MimeTypes;
 using MarkItDown;
 using MarkItDown.YouTube;
 
 namespace MarkItDown.Converters;
 
 /// <summary>
-/// Converter for YouTube URLs that extracts video metadata and information.
-/// Note: This converter extracts metadata only and does not download video content or transcriptions.
+/// Converter for YouTube and supported video-platform URLs.
+/// URLs are resolved to downloadable media and delegated to the video conversion pipeline,
+/// so transcription/analysis runs through configured media providers (for example Azure Video Indexer).
 /// </summary>
-public sealed class YouTubeUrlConverter(IYouTubeMetadataProvider? metadataProvider = null) : DocumentConverterBase(priority: 50)
+public sealed class YouTubeUrlConverter : DocumentConverterBase
 {
-    private static readonly Regex VideoIdRegex = new("^[a-zA-Z0-9_-]{11}$", RegexOptions.Compiled);
     private static readonly string[] mediaMimePrefixes = ["audio/", "video/"];
+    private static readonly string[] videoMimePrefixes = ["video/"];
+    private static readonly HashSet<string> SupportedVideoPlatformHosts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "vimeo.com",
+        "www.vimeo.com",
+        "player.vimeo.com",
+        "dailymotion.com",
+        "www.dailymotion.com",
+        "dai.ly",
+        "tiktok.com",
+        "www.tiktok.com",
+        "m.tiktok.com",
+        "vm.tiktok.com",
+        "twitch.tv",
+        "www.twitch.tv",
+        "clips.twitch.tv",
+        "facebook.com",
+        "www.facebook.com",
+        "fb.watch",
+        "instagram.com",
+        "www.instagram.com",
+        "x.com",
+        "www.x.com",
+        "twitter.com",
+        "www.twitter.com",
+        "rutube.ru",
+        "www.rutube.ru",
+        "bilibili.com",
+        "www.bilibili.com",
+    };
 
-    private readonly IYouTubeMetadataProvider metadataProvider = metadataProvider ?? new YoutubeExplodeMetadataProvider();
+    private static readonly HashSet<string> VideoMetaKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "og:video",
+        "og:video:url",
+        "og:video:secure_url",
+        "twitter:player:stream",
+        "contentUrl",
+        "contentURL"
+    };
 
-    // High priority for specific URL patterns
+    private static readonly HttpClient sharedHttpClient = new();
+
+    private readonly IYouTubeMetadataProvider metadataProvider;
+    private readonly IYouTubeVideoDownloader youTubeVideoDownloader;
+    private readonly DocumentConverterBase mediaConverter;
+    private readonly HttpClient httpClient;
+
+    public YouTubeUrlConverter(IYouTubeMetadataProvider? metadataProvider = null)
+        : this(
+            metadataProvider ?? new YoutubeExplodeMetadataProvider(),
+            new YoutubeExplodeVideoDownloader(),
+            new VideoConverter(),
+            httpClient: null)
+    {
+    }
+
+    internal YouTubeUrlConverter(
+        IYouTubeMetadataProvider metadataProvider,
+        IYouTubeVideoDownloader youTubeVideoDownloader,
+        DocumentConverterBase mediaConverter,
+        HttpClient? httpClient)
+        : base(priority: 50)
+    {
+        this.metadataProvider = metadataProvider ?? throw new ArgumentNullException(nameof(metadataProvider));
+        this.youTubeVideoDownloader = youTubeVideoDownloader ?? throw new ArgumentNullException(nameof(youTubeVideoDownloader));
+        this.mediaConverter = mediaConverter ?? throw new ArgumentNullException(nameof(mediaConverter));
+        this.httpClient = httpClient ?? sharedHttpClient;
+    }
 
     public override bool AcceptsInput(StreamInfo streamInfo)
     {
@@ -32,7 +98,13 @@ public sealed class YouTubeUrlConverter(IYouTubeMetadataProvider? metadataProvid
             return false;
         }
 
-        return TryExtractVideoId(url, out _);
+        if (TryExtractVideoId(url, out _))
+        {
+            return true;
+        }
+
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && IsSupportedVideoPlatformHost(uri.Host);
     }
 
     public override async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
@@ -40,30 +112,41 @@ public sealed class YouTubeUrlConverter(IYouTubeMetadataProvider? metadataProvid
         try
         {
             var url = streamInfo.Url;
-            if (string.IsNullOrWhiteSpace(url))
+            if (string.IsNullOrWhiteSpace(url) ||
+                !Uri.TryCreate(url, UriKind.Absolute, out var sourceUri))
             {
-                throw new UnsupportedFormatException("Invalid YouTube URL format");
+                throw new UnsupportedFormatException("Invalid video URL format");
             }
 
-            if (!TryExtractVideoId(url, out var videoId))
+            var metadataTask = ResolveMetadataTask(url, cancellationToken);
+
+            await using var media = await ResolveMediaAsync(stream, sourceUri, cancellationToken).ConfigureAwait(false);
+            await using var mediaStream = File.OpenRead(media.FilePath);
+            var mediaStreamInfo = media.StreamInfo.CopyWith(localPath: media.FilePath);
+            var result = await mediaConverter.ConvertAsync(mediaStream, mediaStreamInfo, cancellationToken).ConfigureAwait(false);
+
+            if (metadataTask is not null)
             {
-                throw new FileConversionException("Could not extract video ID from YouTube URL");
+                var metadata = await metadataTask.ConfigureAwait(false);
+                if (metadata is not null)
+                {
+                    result = result.WithMetadata(BuildMetadataDictionary(metadata));
+                }
             }
 
-            var metadata = await metadataProvider.GetVideoAsync(videoId, cancellationToken).ConfigureAwait(false);
-            return CreateResult(url, videoId, metadata);
+            return result;
         }
         catch (Exception ex) when (ex is not MarkItDownException)
         {
-            throw new FileConversionException($"Failed to process YouTube URL: {ex.Message}", ex);
+            throw new FileConversionException($"Failed to process video URL: {ex.Message}", ex);
         }
     }
 
-    private static bool TryExtractVideoId(string url, out string videoId)
+    internal static bool TryExtractVideoId(string url, out string videoId)
     {
         videoId = string.Empty;
 
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !IsSupportedHost(uri.Host))
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !IsYouTubeHost(uri.Host))
         {
             return false;
         }
@@ -92,7 +175,7 @@ public sealed class YouTubeUrlConverter(IYouTubeMetadataProvider? metadataProvid
         }
 
         candidate = NormalizeVideoIdCandidate(candidate);
-        if (string.IsNullOrWhiteSpace(candidate) || !VideoIdRegex.IsMatch(candidate))
+        if (string.IsNullOrWhiteSpace(candidate) || !YouTubeVideoId.IsMatch(candidate))
         {
             return false;
         }
@@ -101,7 +184,224 @@ public sealed class YouTubeUrlConverter(IYouTubeMetadataProvider? metadataProvid
         return true;
     }
 
-    private static bool IsSupportedHost(string host)
+    private static readonly System.Text.RegularExpressions.Regex YouTubeVideoId =
+        new("^[a-zA-Z0-9_-]{11}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private Task<YouTubeMetadata?>? ResolveMetadataTask(string url, CancellationToken cancellationToken)
+    {
+        if (!TryExtractVideoId(url, out var videoId))
+        {
+            return null;
+        }
+
+        return TryGetMetadataAsync(videoId, cancellationToken);
+    }
+
+    private async Task<ResolvedVideoMedia> ResolveMediaAsync(Stream stream, Uri sourceUri, CancellationToken cancellationToken)
+    {
+        if (TryExtractVideoId(sourceUri.ToString(), out var videoId))
+        {
+            return await youTubeVideoDownloader.DownloadAsync(videoId, sourceUri, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (!IsSupportedVideoPlatformHost(sourceUri.Host))
+        {
+            throw new UnsupportedFormatException($"Unsupported video URL host '{sourceUri.Host}'.");
+        }
+
+        var mediaUri = await ResolvePlatformMediaUrlAsync(stream, sourceUri, cancellationToken).ConfigureAwait(false);
+        if (mediaUri is null)
+        {
+            throw new FileConversionException($"Could not resolve a downloadable media URL for '{sourceUri}'.");
+        }
+
+        return await DownloadVideoFromUriAsync(mediaUri, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<Uri?> ResolvePlatformMediaUrlAsync(Stream stream, Uri sourceUri, CancellationToken cancellationToken)
+    {
+        var html = await TryReadHtmlAsync(stream, cancellationToken).ConfigureAwait(false);
+
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            using var response = await httpClient.GetAsync(sourceUri, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            html = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return null;
+        }
+
+        return await TryExtractVideoUriFromHtmlAsync(html, sourceUri, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ResolvedVideoMedia> DownloadVideoFromUriAsync(Uri mediaUri, CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync(mediaUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        var mimeType = response.Content.Headers.ContentType?.MediaType;
+        var extension = NormalizeExtension(Path.GetExtension(mediaUri.LocalPath));
+        extension ??= GuessExtensionFromMime(mimeType);
+
+        if (string.IsNullOrWhiteSpace(mimeType) && !string.IsNullOrWhiteSpace(extension))
+        {
+            mimeType = MimeHelper.GetMimeType(extension);
+        }
+
+        if (!StreamInfo.MatchesMime(mimeType, videoMimePrefixes))
+        {
+            throw new FileConversionException($"Resolved media URL '{mediaUri}' returned non-video content type '{mimeType ?? "unknown"}'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            throw new FileConversionException($"Could not infer file extension for resolved media URL '{mediaUri}'.");
+        }
+
+        await using var mediaStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var handle = await DiskBufferHandle.FromStreamAsync(
+            mediaStream,
+            extension,
+            bufferSize: 1024 * 128,
+            onChunkWritten: null,
+            cancellationToken).ConfigureAwait(false);
+
+        var fileName = Path.GetFileName(mediaUri.LocalPath);
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            fileName = $"video{extension}";
+        }
+
+        var mediaStreamInfo = new StreamInfo(
+            mimeType: mimeType,
+            extension: extension,
+            fileName: fileName,
+            localPath: handle.FilePath,
+            url: mediaUri.ToString());
+
+        return new ResolvedVideoMedia(handle.FilePath, mediaStreamInfo, handle);
+    }
+
+    private async Task<YouTubeMetadata?> TryGetMetadataAsync(string videoId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await metadataProvider.GetVideoAsync(videoId, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static async Task<string?> TryReadHtmlAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        if (!stream.CanRead)
+        {
+            return null;
+        }
+
+        var originalPosition = stream.CanSeek ? stream.Position : 0;
+        try
+        {
+            if (stream.CanSeek)
+            {
+                stream.Position = 0;
+            }
+
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+            var html = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            return string.IsNullOrWhiteSpace(html) ? null : html;
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            if (stream.CanSeek)
+            {
+                stream.Position = originalPosition;
+            }
+        }
+    }
+
+    private static async Task<Uri?> TryExtractVideoUriFromHtmlAsync(string html, Uri baseUri, CancellationToken cancellationToken)
+    {
+        var parser = new HtmlParser(new HtmlParserOptions
+        {
+            IsKeepingSourceReferences = false,
+            IsEmbedded = false,
+        });
+
+        var document = await parser.ParseDocumentAsync(html, cancellationToken).ConfigureAwait(false);
+
+        foreach (var meta in document.QuerySelectorAll("meta"))
+        {
+            var key = meta.GetAttribute("property")
+                ?? meta.GetAttribute("name")
+                ?? meta.GetAttribute("itemprop");
+
+            if (string.IsNullOrWhiteSpace(key) || !VideoMetaKeys.Contains(key))
+            {
+                continue;
+            }
+
+            if (TryResolveHttpUri(baseUri, meta.GetAttribute("content"), out var resolved))
+            {
+                return resolved;
+            }
+        }
+
+        foreach (var element in document.QuerySelectorAll("video[src], video source[src], link[as=video][href]"))
+        {
+            var value = element.GetAttribute("src") ?? element.GetAttribute("href");
+            if (TryResolveHttpUri(baseUri, value, out var resolved))
+            {
+                return resolved;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryResolveHttpUri(Uri baseUri, string? candidate, out Uri resolved)
+    {
+        resolved = baseUri;
+
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(baseUri, candidate.Trim(), out var uri))
+        {
+            return false;
+        }
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return false;
+        }
+
+        resolved = uri;
+        return true;
+    }
+
+    private static bool IsSupportedVideoPlatformHost(string host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return false;
+        }
+
+        return SupportedVideoPlatformHosts.Contains(host.ToLowerInvariant());
+    }
+
+    private static bool IsYouTubeHost(string host)
     {
         if (string.IsNullOrWhiteSpace(host))
         {
@@ -193,124 +493,6 @@ public sealed class YouTubeUrlConverter(IYouTubeMetadataProvider? metadataProvid
         return normalized.Trim();
     }
 
-    private static DocumentConverterResult CreateResult(string url, string videoId, YouTubeMetadata? metadata)
-    {
-        var markdown = new StringBuilder();
-        var segments = new List<DocumentSegment>();
-
-        if (metadata is not null)
-        {
-            markdown.AppendLine($"# {EscapeMarkdown(metadata.Title)}");
-            markdown.AppendLine();
-
-            markdown.AppendLine("## Overview");
-            markdown.AppendLine($"- **Channel:** [{EscapeMarkdown(metadata.ChannelTitle)}]({metadata.ChannelUrl})");
-            markdown.AppendLine($"- **Duration:** {FormatTime(metadata.Duration)}");
-            if (metadata.UploadDate.HasValue)
-            {
-                markdown.AppendLine($"- **Published:** {metadata.UploadDate:yyyy-MM-dd}");
-            }
-            if (metadata.ViewCount.HasValue)
-            {
-                markdown.AppendLine($"- **Views:** {metadata.ViewCount.Value:N0}");
-            }
-            if (metadata.LikeCount.HasValue)
-            {
-                markdown.AppendLine($"- **Likes:** {metadata.LikeCount.Value:N0}");
-            }
-            if (metadata.Tags.Count > 0)
-            {
-                markdown.AppendLine($"- **Tags:** {string.Join(", ", metadata.Tags.Select(EscapeMarkdown))}");
-            }
-
-            markdown.AppendLine();
-            markdown.AppendLine("## Links");
-            markdown.AppendLine($"- Watch: {metadata.WatchUrl}");
-            markdown.AppendLine($"- Embed: https://www.youtube.com/embed/{videoId}");
-            if (metadata.Thumbnails.Count > 0)
-            {
-                markdown.AppendLine($"- Thumbnail: {metadata.Thumbnails[0]}");
-            }
-            markdown.AppendLine();
-
-            if (!string.IsNullOrWhiteSpace(metadata.Description))
-            {
-                markdown.AppendLine("## Description");
-                markdown.AppendLine($"```\n{metadata.Description}\n```\n");
-            }
-
-            if (metadata.Thumbnails.Count > 0)
-            {
-                markdown.AppendLine("## Preview");
-                markdown.AppendLine($"![Thumbnail]({metadata.Thumbnails[0]})");
-                markdown.AppendLine();
-            }
-
-            var metadataSegmentText = new StringBuilder()
-                .AppendLine($"Channel: {metadata.ChannelTitle}")
-                .AppendLine($"Published: {(metadata.UploadDate?.ToString("u", CultureInfo.InvariantCulture) ?? "unknown")}")
-                .AppendLine($"Duration: {FormatTime(metadata.Duration)}")
-                .ToString().TrimEnd();
-
-            segments.Add(new DocumentSegment(
-                metadataSegmentText,
-                SegmentType.Metadata,
-                number: 1,
-                label: "Video Metadata",
-                additionalMetadata: BuildMetadataDictionary(metadata)
-            ));
-
-            if (metadata.Captions.Count > 0)
-            {
-                markdown.AppendLine("## Captions");
-                markdown.AppendLine("Auto-generated transcript snippets included below.");
-                markdown.AppendLine();
-
-                var index = 1;
-                foreach (var caption in metadata.Captions)
-                {
-                    segments.Add(new DocumentSegment(
-                        caption.Text,
-                        SegmentType.Audio,
-                        number: index,
-                        label: $"Caption {index}",
-                        startTime: caption.Start,
-                        endTime: caption.End,
-                        additionalMetadata: caption.Metadata
-                    ));
-                    index++;
-                }
-            }
-        }
-        else
-        {
-            // Fallback minimal markdown
-            markdown.AppendLine("# YouTube Video");
-            markdown.AppendLine();
-            markdown.AppendLine($"**Video URL:** {url}");
-            markdown.AppendLine($"**Video ID:** {videoId}");
-            markdown.AppendLine();
-        }
-
-        // Append URL parameter information regardless of metadata availability
-        var parameters = ExtractUrlParameters(url);
-        if (parameters.Count > 0)
-        {
-            markdown.AppendLine("## URL Parameters");
-            foreach (var kvp in parameters)
-            {
-                markdown.AppendLine($"- **{EscapeMarkdown(kvp.Key)}:** {EscapeMarkdown(kvp.Value)}");
-            }
-            markdown.AppendLine();
-        }
-
-        return new DocumentConverterResult(
-            markdown: markdown.ToString().TrimEnd(),
-            title: metadata?.Title ?? $"YouTube Video {videoId}",
-            segments: segments
-        );
-    }
-
     private static Dictionary<string, string> BuildMetadataDictionary(YouTubeMetadata metadata)
     {
         var values = new Dictionary<string, string>(metadata.AdditionalMetadata, StringComparer.OrdinalIgnoreCase)
@@ -349,60 +531,29 @@ public sealed class YouTubeUrlConverter(IYouTubeMetadataProvider? metadataProvid
         return values;
     }
 
-    private static string EscapeMarkdown(string value) => value.Replace("*", "\\*").Replace("_", "\\_");
-
-    private static string FormatTime(TimeSpan? value) => value.HasValue ? value.Value.ToString(@"hh\:mm\:ss", CultureInfo.InvariantCulture) : "unknown";
-
-    private static Dictionary<string, string> ExtractUrlParameters(string url)
+    private static string? NormalizeExtension(string? extension)
     {
-        var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        try
+        if (string.IsNullOrWhiteSpace(extension))
         {
-            var uri = new Uri(url);
-            var query = uri.Query;
-
-            if (string.IsNullOrEmpty(query)) return parameters;
-
-            // Remove the leading '?'
-            if (query.StartsWith("?"))
-                query = query.Substring(1);
-
-            var pairs = query.Split('&');
-            foreach (var pair in pairs)
-            {
-                var keyValue = pair.Split('=');
-                if (keyValue.Length == 2)
-                {
-                    var key = Uri.UnescapeDataString(keyValue[0]);
-                    var value = Uri.UnescapeDataString(keyValue[1]);
-                    
-                    // Add descriptive names for common YouTube parameters
-                    var description = GetParameterDescription(key);
-                    var displayKey = string.IsNullOrEmpty(description) ? key : $"{key} ({description})";
-                    
-                    parameters[displayKey] = value;
-                }
-            }
-        }
-        catch
-        {
-            // If URL parsing fails, return empty dictionary
+            return null;
         }
 
-        return parameters;
+        return extension.StartsWith('.') ? extension.ToLowerInvariant() : "." + extension.ToLowerInvariant();
     }
 
-    private static string GetParameterDescription(string parameter) => parameter.ToLowerInvariant() switch
+    private static string? GuessExtensionFromMime(string? mime)
     {
-        "v" => "Video ID",
-        "t" => "Start Time",
-        "list" => "Playlist ID",
-        "index" => "Playlist Index",
-        "ab_channel" => "Channel Name",
-        "feature" => "Feature",
-        "app" => "App",
-        "si" => "Share ID",
-        _ => string.Empty
-    };
+        if (string.IsNullOrWhiteSpace(mime))
+        {
+            return null;
+        }
+
+        if (!MimeHelper.TryGetExtensions(mime, out var extensions) || extensions.Count == 0)
+        {
+            return null;
+        }
+
+        var extension = extensions.FirstOrDefault();
+        return NormalizeExtension(extension);
+    }
 }

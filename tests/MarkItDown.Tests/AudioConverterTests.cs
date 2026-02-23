@@ -5,6 +5,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using MarkItDown;
 using MarkItDown.Converters;
+using MarkItDown.Intelligence;
+using MarkItDown.Intelligence.Models;
 using Xunit;
 
 namespace MarkItDown.Tests;
@@ -87,6 +89,29 @@ public class AudioConverterTests
         Assert.Equal(expected, result);
     }
 
+    [Fact]
+    public async Task ConvertAsync_VideoInput_MediaProviderReceivesMaterializedLocalPath()
+    {
+        // Arrange
+        var provider = new CapturingMediaProvider();
+        var converter = new AudioConverter(
+            metadataExtractor: new StubAudioMetadataExtractor(new Dictionary<string, string>()),
+            transcriber: new StubAudioTranscriber(null),
+            mediaProvider: provider);
+
+        using var stream = new MemoryStream(new byte[] { 1, 2, 3, 4 });
+        var streamInfo = new StreamInfo(mimeType: "video/mp4", extension: ".mp4", fileName: "video.mp4");
+
+        // Act
+        var result = await converter.ConvertAsync(stream, streamInfo);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.NotNull(provider.LastStreamInfo);
+        Assert.False(string.IsNullOrWhiteSpace(provider.LastStreamInfo!.LocalPath));
+        Assert.True(provider.LocalPathExistedDuringCall);
+    }
+
     private sealed class StubAudioMetadataExtractor : AudioConverter.IAudioMetadataExtractor
     {
         private readonly IReadOnlyDictionary<string, string> metadata;
@@ -114,6 +139,30 @@ public class AudioConverterTests
         public Task<string?> TranscribeAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
         {
             return Task.FromResult(transcript);
+        }
+    }
+
+    private sealed class CapturingMediaProvider : IMediaTranscriptionProvider
+    {
+        public StreamInfo? LastStreamInfo { get; private set; }
+
+        public bool LocalPathExistedDuringCall { get; private set; }
+
+        public Task<MediaTranscriptionResult?> TranscribeAsync(
+            Stream stream,
+            StreamInfo streamInfo,
+            MediaTranscriptionRequest? request = null,
+            CancellationToken cancellationToken = default)
+        {
+            LastStreamInfo = streamInfo;
+            LocalPathExistedDuringCall =
+                !string.IsNullOrWhiteSpace(streamInfo.LocalPath) &&
+                File.Exists(streamInfo.LocalPath);
+            var segments = new List<MediaTranscriptSegment>
+            {
+                new("Hello from provider", TimeSpan.Zero, TimeSpan.FromSeconds(1), new Dictionary<string, string>())
+            };
+            return Task.FromResult<MediaTranscriptionResult?>(new MediaTranscriptionResult(segments, "en-US", new Dictionary<string, string>()));
         }
     }
 }

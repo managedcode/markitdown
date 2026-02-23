@@ -138,15 +138,15 @@ public sealed partial class DocxConverter
                 switch (textElement)
                 {
                     case Text text:
-                    {
-                        var textContent = text.Text;
-                        if (!string.IsNullOrEmpty(textContent))
                         {
-                            AppendText(textContent, currentBold, currentItalic);
-                        }
+                            var textContent = text.Text;
+                            if (!string.IsNullOrEmpty(textContent))
+                            {
+                                AppendText(textContent, currentBold, currentItalic);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
 
                     case TabChar:
                         AppendText("\t", currentBold, currentItalic);
@@ -157,26 +157,26 @@ public sealed partial class DocxConverter
                         break;
 
                     case DocumentFormat.OpenXml.Wordprocessing.Drawing drawing:
-                    {
-                        var artifact = TryCreateImageArtifact(drawing, imageCatalog, pageNumber, streamInfo, imagePersistor, cancellationToken);
-                        if (artifact is not null)
                         {
-                            QueueImage(artifact);
-                        }
+                            var artifact = TryCreateImageArtifact(drawing, imageCatalog, pageNumber, streamInfo, imagePersistor, cancellationToken);
+                            if (artifact is not null)
+                            {
+                                QueueImage(artifact);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
 
                     case Picture picture:
-                    {
-                        var artifact = TryCreateImageArtifact(picture, imageCatalog, pageNumber, streamInfo, imagePersistor, cancellationToken);
-                        if (artifact is not null)
                         {
-                            QueueImage(artifact);
-                        }
+                            var artifact = TryCreateImageArtifact(picture, imageCatalog, pageNumber, streamInfo, imagePersistor, cancellationToken);
+                            if (artifact is not null)
+                            {
+                                QueueImage(artifact);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                 }
             }
         }
@@ -195,12 +195,12 @@ public sealed partial class DocxConverter
                     break;
 
                 case ParagraphImageToken imageToken:
-                {
-                    var artifact = imageToken.Artifact;
-                    AppendImageContent(paragraphBuilder, artifact);
-                    collectedImages.Add(artifact);
-                    break;
-                }
+                    {
+                        var artifact = imageToken.Artifact;
+                        AppendImageContent(paragraphBuilder, artifact);
+                        collectedImages.Add(artifact);
+                        break;
+                    }
             }
         }
 

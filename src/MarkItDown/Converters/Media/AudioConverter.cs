@@ -193,7 +193,10 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
         try
         {
             await using var providerStream = OpenReadOnlyFile(filePath);
-            var result = await provider.TranscribeAsync(providerStream, streamInfo, request, cancellationToken).ConfigureAwait(false);
+            var providerStreamInfo = string.Equals(streamInfo.LocalPath, filePath, StringComparison.Ordinal)
+                ? streamInfo
+                : streamInfo.CopyWith(localPath: filePath);
+            var result = await provider.TranscribeAsync(providerStream, providerStreamInfo, request, cancellationToken).ConfigureAwait(false);
             if (requiresExplicitProvider && (result is null || result.Segments.Count == 0))
             {
                 throw new FileConversionException($"Media transcription provider '{provider.GetType().Name}' returned no transcript segments.");

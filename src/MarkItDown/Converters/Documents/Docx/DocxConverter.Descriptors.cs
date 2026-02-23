@@ -25,37 +25,37 @@ public sealed partial class DocxConverter
             switch (element)
             {
                 case Paragraph paragraph:
-                {
-                    var breakCount = CountPageBreaks(paragraph, cloneConsumesBreak: true);
-                    descriptors.Add(new ParagraphDescriptor(index++, pageNumber, (Paragraph)paragraph.CloneNode(true)));
-                    if (breakCount > 0)
                     {
-                        pageNumber += breakCount;
-                    }
+                        var breakCount = CountPageBreaks(paragraph, cloneConsumesBreak: true);
+                        descriptors.Add(new ParagraphDescriptor(index++, pageNumber, (Paragraph)paragraph.CloneNode(true)));
+                        if (breakCount > 0)
+                        {
+                            pageNumber += breakCount;
+                        }
 
-                    break;
-                }
+                        break;
+                    }
 
                 case Table table:
-                {
-                    var breakCount = CountPageBreaks(table, cloneConsumesBreak: true);
-                    descriptors.Add(new TableDescriptor(index++, pageNumber, (Table)table.CloneNode(true)));
-                    if (breakCount > 0)
                     {
-                        pageNumber += breakCount;
+                        var breakCount = CountPageBreaks(table, cloneConsumesBreak: true);
+                        descriptors.Add(new TableDescriptor(index++, pageNumber, (Table)table.CloneNode(true)));
+                        if (breakCount > 0)
+                        {
+                            pageNumber += breakCount;
+                        }
+
+                        break;
                     }
 
-                    break;
-                }
-
                 default:
-                {
-                    var clone = (OpenXmlElement)element.CloneNode(true);
-                    descriptors.Add(new OtherDescriptor(index++, pageNumber, clone));
-                    pageNumber += CountPageBreaks(element, cloneConsumesBreak: false);
+                    {
+                        var clone = (OpenXmlElement)element.CloneNode(true);
+                        descriptors.Add(new OtherDescriptor(index++, pageNumber, clone));
+                        pageNumber += CountPageBreaks(element, cloneConsumesBreak: false);
 
-                    break;
-                }
+                        break;
+                    }
             }
         }
 

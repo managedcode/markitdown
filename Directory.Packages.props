@@ -1,16 +1,16 @@
 <Project>
   <ItemGroup>
     <PackageVersion Include="AngleSharp" Version="1.4.0" />
-    <PackageVersion Include="AWSSDK.Rekognition" Version="4.0.3.10" />
-    <PackageVersion Include="AWSSDK.S3" Version="4.0.17.1" />
-    <PackageVersion Include="AWSSDK.Textract" Version="4.0.3.10" />
-    <PackageVersion Include="AWSSDK.TranscribeService" Version="4.0.5" />
+    <PackageVersion Include="AWSSDK.Rekognition" Version="4.0.3.13" />
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.18.6" />
+    <PackageVersion Include="AWSSDK.Textract" Version="4.0.3.13" />
+    <PackageVersion Include="AWSSDK.TranscribeService" Version="4.0.5.3" />
     <PackageVersion Include="Azure.AI.FormRecognizer" Version="4.1.0" />
     <PackageVersion Include="Azure.AI.OpenAI" Version="2.1.0" />
     <PackageVersion Include="Azure.AI.Vision.ImageAnalysis" Version="1.0.0" />
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.27.0" />
     <PackageVersion Include="Azure.Identity" Version="1.17.1" />
-    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="coverlet.collector" Version="8.0.0" />
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.4.1" />
     <PackageVersion Include="DotNet.ReproducibleBuilds" Version="1.2.25" />
     <PackageVersion Include="Google.Cloud.DocumentAI.V1" Version="3.23.0" />
@@ -22,22 +22,22 @@
     <PackageVersion Include="ManagedCode.Storage.Core" Version="10.0.2" />
     <PackageVersion Include="ManagedCode.Storage.FileSystem" Version="10.0.2" />
     <PackageVersion Include="ManagedCode.Storage.Gcp" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.1.1" />
-    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="9.9.1-preview.1.25474.6" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.3.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.3.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.3" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
-    <PackageVersion Include="MimeKit" Version="4.14.0" />
+    <PackageVersion Include="MimeKit" Version="4.15.0" />
     <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="PdfPig" Version="0.1.13" />
     <PackageVersion Include="PDFtoImage" Version="5.2.0" />
-    <PackageVersion Include="Sep" Version="0.12.1" />
+    <PackageVersion Include="Sep" Version="0.12.2" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="Testcontainers.Azurite" Version="4.10.0" />
-    <PackageVersion Include="SkiaSharp" Version="3.119.1" />
+    <PackageVersion Include="SkiaSharp" Version="3.119.2" />
     <PackageVersion Include="Spectre.Console" Version="0.54.0" />
-    <PackageVersion Include="YoutubeExplode" Version="6.5.6" />
+    <PackageVersion Include="YoutubeExplode" Version="6.5.7" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>

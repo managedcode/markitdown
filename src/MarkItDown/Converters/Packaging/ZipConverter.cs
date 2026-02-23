@@ -64,7 +64,7 @@ public sealed class ZipConverter : DocumentConverterBase
             // Check for ZIP file signature (PK)
             var buffer = new byte[4];
             var bytesRead = stream.Read(buffer, 0, 4);
-            
+
             stream.Position = originalPosition;
 
             // ZIP files start with "PK" (0x50, 0x4B)
@@ -95,7 +95,7 @@ public sealed class ZipConverter : DocumentConverterBase
             markdown.AppendLine();
 
             using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
-            
+
             var processedFiles = 0;
             var totalFiles = archive.Entries.Count;
 

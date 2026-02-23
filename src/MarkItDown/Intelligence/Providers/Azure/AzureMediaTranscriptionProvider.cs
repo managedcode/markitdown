@@ -1,10 +1,14 @@
 using System.Globalization;
 using System.Diagnostics;
+using System.IO;
 using System.Net.Http;
 using System.Text.Json;
 using System.Diagnostics.CodeAnalysis;
 using Azure.Core;
 using Azure.Identity;
+using ManagedCode.Communication;
+using ManagedCode.Storage.Core;
+using ManagedCode.Storage.Core.Models;
 using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Models;
 using MarkItDown.Intelligence.Providers.Azure.VideoIndexer;
@@ -20,6 +24,8 @@ public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvide
 {
     private readonly AzureMediaIntelligenceOptions _options;
     private readonly VideoIndexerClient _client;
+    private readonly Func<IStorage>? _uploadStorageFactory;
+    private readonly Func<StreamInfo, string>? _uploadStorageDirectoryResolver;
     private readonly ILogger? _logger;
     private bool _disposed;
 
@@ -33,6 +39,8 @@ public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvide
         }
 
         _client = new VideoIndexerClient(options, httpClient, armTokenService, logger);
+        _uploadStorageFactory = options.UploadStorageFactory;
+        _uploadStorageDirectoryResolver = options.UploadStorageDirectoryResolver;
         _logger = logger;
     }
 
@@ -56,7 +64,8 @@ public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvide
 
         try
         {
-            var uploadResult = await _client.UploadAsync(stream, streamInfo, cancellationToken).ConfigureAwait(false);
+            var uploadStreamInfo = await ResolveUploadStreamInfoAsync(streamInfo, request, cancellationToken).ConfigureAwait(false);
+            var uploadResult = await _client.UploadAsync(stream, uploadStreamInfo, cancellationToken).ConfigureAwait(false);
             if (uploadResult is null)
             {
                 activity?.SetStatus(ActivityStatusCode.Error, "Azure Video Indexer upload returned no video id.");
@@ -95,6 +104,213 @@ public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvide
             _logger?.LogWarning(ex, "Azure Video Indexer transcription failed for source {Source}.", streamInfo.FileName ?? streamInfo.Url ?? "stream");
             throw;
         }
+    }
+
+    private async Task<StreamInfo> ResolveUploadStreamInfoAsync(
+        StreamInfo streamInfo,
+        MediaTranscriptionRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var route = request?.UploadRoute ?? MediaUploadRoute.Auto;
+        var explicitSourceUrl = ValidateHttpUrl(request?.SourceUrl, "MediaTranscriptionRequest.SourceUrl");
+        var detectedSourceUrl = TryNormalizeHttpUrl(streamInfo.Url);
+
+        return route switch
+        {
+            MediaUploadRoute.Auto => ResolveAutoUploadStreamInfo(streamInfo, explicitSourceUrl, detectedSourceUrl),
+            MediaUploadRoute.Stream => RemoveUploadSourceUrl(streamInfo),
+            MediaUploadRoute.SourceUrl => ResolveSourceUrlUploadStreamInfo(streamInfo, explicitSourceUrl, detectedSourceUrl),
+            MediaUploadRoute.StorageUrl => await ResolveStorageUrlUploadStreamInfoAsync(streamInfo, cancellationToken).ConfigureAwait(false),
+            _ => throw new FileConversionException($"Unsupported media upload route '{route}'.")
+        };
+    }
+
+    private static StreamInfo ResolveAutoUploadStreamInfo(
+        StreamInfo streamInfo,
+        string? explicitSourceUrl,
+        string? detectedSourceUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitSourceUrl))
+        {
+            return streamInfo.CopyWith(url: explicitSourceUrl);
+        }
+
+        if (!string.IsNullOrWhiteSpace(detectedSourceUrl))
+        {
+            return streamInfo.CopyWith(url: detectedSourceUrl);
+        }
+
+        return streamInfo;
+    }
+
+    private static StreamInfo ResolveSourceUrlUploadStreamInfo(
+        StreamInfo streamInfo,
+        string? explicitSourceUrl,
+        string? detectedSourceUrl)
+    {
+        var selectedUrl = explicitSourceUrl ?? detectedSourceUrl;
+        if (string.IsNullOrWhiteSpace(selectedUrl))
+        {
+            throw new FileConversionException(
+                "Media upload route 'SourceUrl' requires a valid absolute http/https URL in MediaTranscriptionRequest.SourceUrl or StreamInfo.Url.");
+        }
+
+        return streamInfo.CopyWith(url: selectedUrl);
+    }
+
+    private async Task<StreamInfo> ResolveStorageUrlUploadStreamInfoAsync(StreamInfo streamInfo, CancellationToken cancellationToken)
+    {
+        if (_uploadStorageFactory is null)
+        {
+            throw new FileConversionException(
+                "Media upload route 'StorageUrl' requires AzureMediaIntelligenceOptions.UploadStorageFactory to be configured.");
+        }
+
+        var localPath = streamInfo.LocalPath;
+        if (string.IsNullOrWhiteSpace(localPath) || !File.Exists(localPath))
+        {
+            throw new FileConversionException(
+                "Media upload route 'StorageUrl' requires StreamInfo.LocalPath to reference an existing local file.");
+        }
+
+        var storage = _uploadStorageFactory();
+        if (storage is null)
+        {
+            throw new FileConversionException(
+                "AzureMediaIntelligenceOptions.UploadStorageFactory returned null storage instance.");
+        }
+
+        try
+        {
+            var fileInfo = new FileInfo(localPath);
+            var uploadFileName = ResolveUploadFileName(streamInfo, fileInfo);
+            var uploadDirectory = ResolveUploadDirectory(streamInfo);
+            var uploadMimeType = streamInfo.ResolveMimeType();
+
+            var uploadResult = await storage.UploadAsync(fileInfo, uploadOptions =>
+            {
+                uploadOptions.FileName = uploadFileName;
+                uploadOptions.Directory = uploadDirectory;
+                if (!string.IsNullOrWhiteSpace(uploadMimeType))
+                {
+                    uploadOptions.MimeType = uploadMimeType;
+                }
+            }, cancellationToken).ConfigureAwait(false);
+
+            var metadata = EnsureUploadSucceeded(uploadResult, "upload media file to storage");
+            var normalizedUrl = ValidateHttpUrl(metadata.Uri?.ToString(), "Storage upload result URI");
+            if (string.IsNullOrWhiteSpace(normalizedUrl))
+            {
+                throw new FileConversionException(
+                    $"Uploaded storage object '{metadata.FullName}' did not provide a valid absolute http/https URI.");
+            }
+
+            return streamInfo.CopyWith(url: normalizedUrl);
+        }
+        finally
+        {
+            storage.Dispose();
+        }
+    }
+
+    private static StreamInfo RemoveUploadSourceUrl(StreamInfo streamInfo)
+    {
+        return new StreamInfo(
+            mimeType: streamInfo.MimeType,
+            extension: streamInfo.Extension,
+            charset: streamInfo.Charset,
+            fileName: streamInfo.FileName,
+            localPath: streamInfo.LocalPath,
+            url: null);
+    }
+
+    private static string? ValidateHttpUrl(string? rawUrl, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(rawUrl))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var parsedUri) ||
+            (parsedUri.Scheme != Uri.UriSchemeHttp && parsedUri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new FileConversionException(
+                $"{parameterName} must be an absolute http/https URL. Value: '{rawUrl}'.");
+        }
+
+        return parsedUri.ToString();
+    }
+
+    private static string? TryNormalizeHttpUrl(string? rawUrl)
+    {
+        if (string.IsNullOrWhiteSpace(rawUrl))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var parsedUri))
+        {
+            return null;
+        }
+
+        if (parsedUri.Scheme != Uri.UriSchemeHttp && parsedUri.Scheme != Uri.UriSchemeHttps)
+        {
+            return null;
+        }
+
+        return parsedUri.ToString();
+    }
+
+    private string? ResolveUploadDirectory(StreamInfo streamInfo)
+    {
+        if (_uploadStorageDirectoryResolver is null)
+        {
+            return null;
+        }
+
+        var rawDirectory = _uploadStorageDirectoryResolver(streamInfo);
+        if (string.IsNullOrWhiteSpace(rawDirectory))
+        {
+            throw new FileConversionException(
+                "AzureMediaIntelligenceOptions.UploadStorageDirectoryResolver returned an empty directory.");
+        }
+
+        var normalizedDirectory = rawDirectory.Trim().Replace('\\', '/').Trim('/');
+        return string.IsNullOrWhiteSpace(normalizedDirectory)
+            ? null
+            : normalizedDirectory;
+    }
+
+    private static string ResolveUploadFileName(StreamInfo streamInfo, FileInfo fileInfo)
+    {
+        var extension = streamInfo.Extension;
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            extension = Path.GetExtension(fileInfo.Name);
+        }
+
+        var baseFileName = FileNameSanitizer.BuildFileName(
+            streamInfo.FileName ?? fileInfo.Name,
+            fallbackBaseName: "video",
+            extension: extension);
+        var nameWithoutExtension = Path.GetFileNameWithoutExtension(baseFileName);
+        var normalizedExtension = Path.GetExtension(baseFileName);
+        return $"{nameWithoutExtension}-{Guid.NewGuid():N}{normalizedExtension}";
+    }
+
+    private static BlobMetadata EnsureUploadSucceeded(Result<BlobMetadata> result, string operation)
+    {
+        if (result.IsSuccess)
+        {
+            return result.Value;
+        }
+
+        if (result.Problem is not null)
+        {
+            throw result.Problem.ToException();
+        }
+
+        throw new FileConversionException($"Failed to {operation}.");
     }
 
     private static TimeSpan? ParseTimeSpan(string? value)

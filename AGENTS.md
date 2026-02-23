@@ -122,6 +122,9 @@ Extraction guidelines:
 - Multi-page tables must emit continuation comments and populate `table.pageStart`, `table.pageEnd`, `table.pageRange` metadata.
 - PDF converters must honor `SegmentOptions.Pdf.TreatPagesAsImages` by rendering pages to PNG, running OCR/vision enrichment, and composing image+recognized-text segments.
 - Persist conversion workspaces through `ManagedCode.Storage` with sanitized per-document folders and store extracted artifacts + final markdown there.
+- Media upload integrations must use `ManagedCode.Storage.Core.IStorage` directly (factory/options flow); do not introduce custom URL-upload provider abstractions when `IStorage` is available.
+- After feature/refactor work, delete orphaned/unused code files and stale abstractions immediately; do not leave dead code in the repository.
+- In storage-related tests, use real `ManagedCode.Storage` implementations (for example `LocalStorage`) instead of custom storage stubs when feasible.
 - Root path configurability: `MarkItDownPathResolver` must support configurable root via `MarkItDownOptions.RootPath` or `MarkItDownServiceBuilder.UseRootPath()`, with lock-guarded atomic initialization and conflict exceptions.
 
 ### Autonomy

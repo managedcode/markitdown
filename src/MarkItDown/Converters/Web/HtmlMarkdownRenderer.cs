@@ -156,20 +156,20 @@ internal sealed partial class HtmlMarkdownRenderer
                 break;
 
             case "blockquote":
-            {
-                var inner = new StringBuilder();
-                ConvertChildren(element, inner, indentLevel);
-                var normalized = NormalizeSpacing(inner.ToString());
-                if (!string.IsNullOrWhiteSpace(normalized))
                 {
-                    foreach (var line in normalized.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    var inner = new StringBuilder();
+                    ConvertChildren(element, inner, indentLevel);
+                    var normalized = NormalizeSpacing(inner.ToString());
+                    if (!string.IsNullOrWhiteSpace(normalized))
                     {
-                        markdown.AppendLine($"> {line}");
+                        foreach (var line in normalized.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            markdown.AppendLine($"> {line}");
+                        }
+                        markdown.AppendLine();
                     }
-                    markdown.AppendLine();
+                    break;
                 }
-                break;
-            }
 
             case "br":
                 markdown.AppendLine();

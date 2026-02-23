@@ -110,9 +110,9 @@ public sealed class MarkItDownClient : IMarkItDownClient
     public void RegisterConverter(DocumentConverterBase converter, double priority = ConverterPriority.SpecificFileFormat)
     {
         ArgumentNullException.ThrowIfNull(converter);
-        
+
         _converters.Add(new ConverterRegistration(converter, priority));
-        
+
         // Sort by priority to ensure proper order
         _converters.Sort((a, b) => a.Priority.CompareTo(b.Priority));
     }
@@ -870,7 +870,7 @@ public sealed class MarkItDownClient : IMarkItDownClient
 
     private IMediaTranscriptionProvider? BuildAzureMediaProvider()
     {
-        var options = _options.AzureIntelligence?.Media;
+        var options = ResolveAzureMediaOptions(_options.AzureIntelligence?.Media);
         return options is null ? null : new AzureMediaTranscriptionProvider(options);
     }
 
@@ -964,7 +964,7 @@ public sealed class MarkItDownClient : IMarkItDownClient
         {
             if (_options.AzureIntelligence?.Media is { } azureMedia)
             {
-                mediaProvider = new AzureMediaTranscriptionProvider(azureMedia);
+                mediaProvider = new AzureMediaTranscriptionProvider(ResolveAzureMediaOptions(azureMedia)!);
             }
             else if (_options.GoogleIntelligence?.Media is { } googleMedia)
             {
@@ -979,6 +979,34 @@ public sealed class MarkItDownClient : IMarkItDownClient
         var aiModels = _options.AiModels ?? NullAiModelProvider.Instance;
 
         return new IntelligenceProviderHub(documentProvider, imageProvider, mediaProvider, aiModels);
+    }
+
+    private AzureMediaIntelligenceOptions? ResolveAzureMediaOptions(AzureMediaIntelligenceOptions? options)
+    {
+        if (options is null)
+        {
+            return null;
+        }
+
+        if (options.UploadStorageFactory is not null || _options.ArtifactStorage.StorageFactory is null)
+        {
+            return options;
+        }
+
+        return new AzureMediaIntelligenceOptions
+        {
+            AccountId = options.AccountId,
+            AccountName = options.AccountName,
+            Location = options.Location,
+            SubscriptionId = options.SubscriptionId,
+            ResourceGroup = options.ResourceGroup,
+            ResourceId = options.ResourceId,
+            ArmAccessToken = options.ArmAccessToken,
+            PollingInterval = options.PollingInterval,
+            MaxProcessingTime = options.MaxProcessingTime,
+            UploadStorageFactory = _options.ArtifactStorage.StorageFactory,
+            UploadStorageDirectoryResolver = options.UploadStorageDirectoryResolver
+        };
     }
 
     private static IDocumentIntelligenceProvider? CreateLegacyDocumentIntelligenceProvider(DocumentIntelligenceOptions legacy)
@@ -1031,10 +1059,16 @@ public sealed class MarkItDownClient : IMarkItDownClient
         DocumentConverterBase CreateImageConverter() => new ImageConverter(_options.ExifToolPath, _options.ImageCaptioner);
         DocumentConverterBase CreateAudioConverter() => new AudioConverter(_options.ExifToolPath, _options.AudioTranscriber, _options.Segments, _intelligenceProviders.Media);
         DocumentConverterBase CreateVideoConverter() => new VideoConverter(_options.ExifToolPath, _options.AudioTranscriber, _options.Segments, _intelligenceProviders.Media);
+        var primaryVideoConverter = CreateVideoConverter();
+        var youTubeUrlConverter = new YouTubeUrlConverter(
+            _youTubeMetadataProvider,
+            new YoutubeExplodeVideoDownloader(),
+            primaryVideoConverter,
+            _httpClient);
 
         var converters = new List<DocumentConverterBase>
         {
-            new YouTubeUrlConverter(_youTubeMetadataProvider),
+            youTubeUrlConverter,
             new HtmlConverter(),
             new WikipediaConverter(),
             new BingSerpConverter(),
@@ -1073,7 +1107,7 @@ public sealed class MarkItDownClient : IMarkItDownClient
             new XlsxConverter(_options.Segments),
             new PptxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
             new ZipConverter(CreateZipInnerConverters(CreateImageConverter, CreateAudioConverter, CreateVideoConverter)),
-            CreateVideoConverter(),
+            primaryVideoConverter,
             CreateAudioConverter(),
             CreateImageConverter(),
             new PlainTextConverter(),
@@ -1087,9 +1121,14 @@ public sealed class MarkItDownClient : IMarkItDownClient
         Func<DocumentConverterBase> audioConverterFactory,
         Func<DocumentConverterBase> videoConverterFactory)
     {
+        var zipVideoConverter = videoConverterFactory();
         return new DocumentConverterBase[]
         {
-            new YouTubeUrlConverter(_youTubeMetadataProvider),
+            new YouTubeUrlConverter(
+                _youTubeMetadataProvider,
+                new YoutubeExplodeVideoDownloader(),
+                zipVideoConverter,
+                _httpClient),
             new HtmlConverter(),
             new WikipediaConverter(),
             new BingSerpConverter(),
@@ -1126,7 +1165,7 @@ public sealed class MarkItDownClient : IMarkItDownClient
             new DocxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image, _intelligenceProviders.Document, _intelligenceProviders.AiModels),
             new XlsxConverter(_options.Segments),
             new PptxConverter(_options.Segments, _conversionPipeline, _intelligenceProviders.Image),
-            videoConverterFactory(),
+            zipVideoConverter,
             audioConverterFactory(),
             imageConverterFactory(),
             new PlainTextConverter(),
@@ -1369,10 +1408,10 @@ public sealed class MarkItDownClient : IMarkItDownClient
     {
         var extension = Path.GetExtension(filePath);
         var filename = Path.GetFileName(filePath);
-        
+
         // Simple MIME type detection based on extension
         var mimeType = GetMimeTypeFromExtension(extension);
-        
+
         return new StreamInfo(mimeType, extension, null, filename);
     }
 
@@ -1380,10 +1419,10 @@ public sealed class MarkItDownClient : IMarkItDownClient
     {
         var extension = Path.GetExtension(uri.LocalPath);
         var filename = Path.GetFileName(uri.LocalPath);
-        
+
         // Try to get MIME type from response
         var mimeType = response.Content.Headers.ContentType?.MediaType ?? GetMimeTypeFromExtension(extension);
-        
+
         // Try to get charset from response
         Encoding? charset = null;
         var charsetName = response.Content.Headers.ContentType?.CharSet;
@@ -1398,7 +1437,7 @@ public sealed class MarkItDownClient : IMarkItDownClient
                 // Ignore invalid charset names
             }
         }
-        
+
         return new StreamInfo(mimeType, extension, charset, filename, url: uri.ToString());
     }
 

@@ -381,56 +381,56 @@ public sealed class JupyterNotebookConverter : DocumentPipelineConverterBase
         switch (type)
         {
             case "markdown":
-            {
-                var content = ExtractCellSource(source);
-                if (string.IsNullOrWhiteSpace(content))
                 {
-                    return null;
-                }
+                    var content = ExtractCellSource(source);
+                    if (string.IsNullOrWhiteSpace(content))
+                    {
+                        return null;
+                    }
 
-                builder.AppendLine(content.TrimEnd());
-                return new CellContent(label, builder.ToString().TrimEnd(), SegmentType.Section, type);
-            }
+                    builder.AppendLine(content.TrimEnd());
+                    return new CellContent(label, builder.ToString().TrimEnd(), SegmentType.Section, type);
+                }
 
             case "code":
-            {
-                var codeContent = ExtractCellSource(source);
-                if (string.IsNullOrWhiteSpace(codeContent))
                 {
-                    return null;
+                    var codeContent = ExtractCellSource(source);
+                    if (string.IsNullOrWhiteSpace(codeContent))
+                    {
+                        return null;
+                    }
+
+                    var language = GetCodeLanguage(cell);
+                    builder.AppendLine($"## {label}");
+                    builder.AppendLine();
+                    builder.AppendLine($"```{language}");
+                    builder.AppendLine(codeContent.TrimEnd());
+                    builder.AppendLine("```");
+
+                    if (cell.TryGetProperty("outputs", out var outputs) && outputs.ValueKind == JsonValueKind.Array)
+                    {
+                        ProcessCellOutputs(outputs, builder);
+                    }
+
+                    return new CellContent(label, builder.ToString().TrimEnd(), SegmentType.Section, type);
                 }
-
-                var language = GetCodeLanguage(cell);
-                builder.AppendLine($"## {label}");
-                builder.AppendLine();
-                builder.AppendLine($"```{language}");
-                builder.AppendLine(codeContent.TrimEnd());
-                builder.AppendLine("```");
-
-                if (cell.TryGetProperty("outputs", out var outputs) && outputs.ValueKind == JsonValueKind.Array)
-                {
-                    ProcessCellOutputs(outputs, builder);
-                }
-
-                return new CellContent(label, builder.ToString().TrimEnd(), SegmentType.Section, type);
-            }
 
             case "raw":
-            {
-                var rawContent = ExtractCellSource(source);
-                if (string.IsNullOrWhiteSpace(rawContent))
                 {
-                    return null;
+                    var rawContent = ExtractCellSource(source);
+                    if (string.IsNullOrWhiteSpace(rawContent))
+                    {
+                        return null;
+                    }
+
+                    builder.AppendLine($"## {label}");
+                    builder.AppendLine();
+                    builder.AppendLine("```");
+                    builder.AppendLine(rawContent.TrimEnd());
+                    builder.AppendLine("```");
+
+                    return new CellContent(label, builder.ToString().TrimEnd(), SegmentType.Section, type);
                 }
-
-                builder.AppendLine($"## {label}");
-                builder.AppendLine();
-                builder.AppendLine("```");
-                builder.AppendLine(rawContent.TrimEnd());
-                builder.AppendLine("```");
-
-                return new CellContent(label, builder.ToString().TrimEnd(), SegmentType.Section, type);
-            }
 
             default:
                 return null;
@@ -610,9 +610,9 @@ public sealed class JupyterNotebookConverter : DocumentPipelineConverterBase
             var pageNumber = ++index;
             var metadata = new Dictionary<string, string>
             {
-            [MetadataKeys.NotebookCellIndex] = pageNumber.ToString(CultureInfo.InvariantCulture),
-            [MetadataKeys.NotebookCellLabel] = cell.Label,
-            [MetadataKeys.NotebookCellType] = cell.CellType
+                [MetadataKeys.NotebookCellIndex] = pageNumber.ToString(CultureInfo.InvariantCulture),
+                [MetadataKeys.NotebookCellLabel] = cell.Label,
+                [MetadataKeys.NotebookCellType] = cell.CellType
             };
 
             var segment = new DocumentSegment(

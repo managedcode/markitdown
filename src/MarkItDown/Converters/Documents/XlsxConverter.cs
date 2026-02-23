@@ -77,8 +77,8 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
                 if (bytesRead == 4)
                 {
                     // Check for ZIP file signature (XLSX files are ZIP archives)
-                    return buffer[0] == 0x50 && buffer[1] == 0x4B && 
-                           (buffer[2] == 0x03 || buffer[2] == 0x05 || buffer[2] == 0x07) && 
+                    return buffer[0] == 0x50 && buffer[1] == 0x4B &&
+                           (buffer[2] == 0x03 || buffer[2] == 0x05 || buffer[2] == 0x07) &&
                            (buffer[3] == 0x04 || buffer[3] == 0x06 || buffer[3] == 0x08);
                 }
             }
@@ -226,7 +226,7 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
 
         return segments;
     }
- 
+
     private static ConversionArtifacts BuildArtifacts(IReadOnlyList<DocumentSegment> segments, string? fileName)
     {
         var artifacts = new ConversionArtifacts();
@@ -340,7 +340,7 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
             return;
 
         var maxColumns = tableData.Max(row => row.Count);
-        
+
         // Write header row (first row of data)
         result.Append('|');
         for (int col = 0; col < maxColumns; col++)
@@ -363,7 +363,7 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
         {
             var row = tableData[rowIndex];
             result.Append('|');
-            
+
             for (int col = 0; col < maxColumns; col++)
             {
                 var cellValue = col < row.Count ? row[col] : "";
@@ -377,7 +377,7 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
     {
         if (string.IsNullOrWhiteSpace(value))
             return "";
-            
+
         // Escape pipe characters and trim whitespace
         return value.Replace("|", "\\|").Trim();
     }

@@ -56,6 +56,7 @@ Select the correct converter for each input by combining explicit metadata (mime
 - If all converters fail, user receives `UnsupportedFormatException` with converter failure details, except authorization/authentication failures which surface as `FileConversionException`.
 - When a converter is selected for execution, emit an `Information` log with converter name and source.
 - Media uploads (`audio/*`, `video/*`) must stay on media/file converter paths and must not be routed through YouTube URL converter logic.
+- YouTube and supported video-platform URLs must resolve/download real media and run through `VideoConverter` media transcription flow.
 - `video/*` files route through `VideoConverter` first, then use configured media transcription providers (for example Azure Video Indexer) via the media converter flow.
 
 ---
@@ -73,7 +74,7 @@ Select the correct converter for each input by combining explicit metadata (mime
 2. Convert URL input  
    - Actor: library caller  
    - Trigger: URL conversion API call  
-   - Steps: download -> create URL-aware stream info -> same routing pipeline  
+   - Steps: download/resolve URL media when applicable -> create URL-aware stream info -> same routing pipeline  
    - Result: web/media/url converter path selected by input type.
 
 ### Edge cases

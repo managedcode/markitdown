@@ -91,7 +91,7 @@ public sealed record MarkItDownOptions
     public IAiModelProvider? AiModels { get; set; }
 
     /// <summary>
-    /// Optional provider used to resolve YouTube metadata and captions for <see cref="Converters.YouTubeUrlConverter"/>.
+    /// Optional provider used to enrich YouTube URL conversions with metadata for <see cref="Converters.YouTubeUrlConverter"/>.
     /// </summary>
     public IYouTubeMetadataProvider? YouTubeMetadataProvider { get; set; }
 
