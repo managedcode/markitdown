@@ -382,7 +382,7 @@ The `AzureIntelligenceOptions`, `GoogleIntelligenceOptions`, and `AwsIntelligenc
 
 #### Azure AI setup (keys and managed identity)
 
-- **Docs**: [Document Intelligence](https://learn.microsoft.com/azure/ai-services/document-intelligence/), [Computer Vision Image Analysis](https://learn.microsoft.com/azure/ai-services/computer-vision/overview-image-analysis), [Video Indexer authentication](https://learn.microsoft.com/azure/azure-video-indexer/video-indexer-get-started/connect-to-azure).
+- **Docs**: [Document Intelligence](https://learn.microsoft.com/azure/ai-services/document-intelligence/), [Computer Vision Image Analysis](https://learn.microsoft.com/azure/ai-services/computer-vision/overview-image-analysis), [Video Indexer authentication](https://learn.microsoft.com/azure/azure-video-indexer/video-indexer-get-started/connect-to-azure), [Video Indexer APIs](https://learn.microsoft.com/azure/azure-video-indexer/video-indexer-use-apis), [Upload/index media](https://learn.microsoft.com/azure/azure-video-indexer/upload-index-media), [Scale recommendations](https://learn.microsoft.com/azure/azure-video-indexer/considerations-when-use-at-scale), [Trusted storage behind firewall](https://learn.microsoft.com/azure/azure-video-indexer/storage-behind-firewall).
 - **API keys / connection strings**: store your Cognitive Services key in configuration (for example `appsettings.json` or an Azure App Configuration connection string) and hydrate the options:
 
   ```csharp
@@ -416,7 +416,29 @@ The `AzureIntelligenceOptions`, `GoogleIntelligenceOptions`, and `AwsIntelligenc
 
 - **Managed identity**: omit the `ApiKey`/`ArmAccessToken` properties and the providers automatically fall back to `DefaultAzureCredential`. Assign the managed identity the *Cognitive Services User* role for Document Intelligence and Vision, and follow the [Video Indexer managed identity instructions](https://learn.microsoft.com/azure/azure-video-indexer/video-indexer-use-azure-ad) to authorize uploads.
 - **Video Indexer tips**: Video uploads require both the Video Indexer account (ID + region) and either the full resource ID or the trio of subscription id/resource group/account name, plus an ARM token or Azure AD identity with `Contributor` access on the Video Indexer resource. The interactive CLI exposes dedicated prompts for these values under “Configure cloud providers”.
+- **Video Indexer upload modes in MarkItDown (both supported)**:
+  - **Recommended**: URL upload (`videoUrl`) when `StreamInfo.Url` contains a valid HTTP(S) URL (typically a read-only SAS URL to Blob Storage).
+  - **Fallback**: multipart stream upload when no valid HTTP(S) source URL is available.
+  - **Important**: URL upload does not remove the need for correct Video Indexer account-to-storage access in Azure. If you see errors like `This account needs a managed identity role assignment...`, configure managed identity + RBAC/trusted storage for the Video Indexer account.
+- **Video Indexer connection nuances**:
+  - `videoUrl` must be reachable by Azure (private/local-only URLs will fail).
+  - YouTube links are not valid `videoUrl` inputs for Video Indexer upload/index APIs.
+  - The ARM token (or resolved AAD identity) must allow upload/index operations (`Contributor` on the Video Indexer resource, not `Reader`).
 - **Video Indexer polling controls**: `AzureMediaIntelligenceOptions` supports `PollingInterval` and `MaxProcessingTime` to control how long conversion waits for Azure Video Indexer processing.
+
+  ```csharp
+  // Preferred: URL/SAS upload path (Video Indexer receives videoUrl)
+  var sasVideoUrl = "https://<storage>.blob.core.windows.net/<container>/video.mp4?<sas>";
+  await using var fromUrl = await client.ConvertFromUrlAsync(
+      sasVideoUrl,
+      streamInfoOverride: new StreamInfo(mimeType: "video/mp4", extension: ".mp4"));
+
+  // Also supported: stream upload path (when no source URL is supplied)
+  await using var stream = File.OpenRead("video.mp4");
+  await using var fromStream = await client.ConvertAsync(
+      stream,
+      new StreamInfo(mimeType: "video/mp4", extension: ".mp4", fileName: "video.mp4"));
+  ```
 
   ```csharp
   var azureOptions = new AzureIntelligenceOptions
@@ -450,9 +472,13 @@ The `AzureIntelligenceOptions`, `GoogleIntelligenceOptions`, and `AwsIntelligenc
    - full `ResourceId`
 2. Get an ARM access token for Video Indexer (or configure managed identity with proper access).
 3. Set `AzureIntelligenceOptions.Media` with those values.
-4. Convert an `.mp4` with `MediaTranscriptionRequest(PreferredProvider: Azure)` and verify the result contains:
+4. Choose upload route:
+   - preferred at scale: provide an HTTP(S) `StreamInfo.Url` (for example read-only SAS) so MarkItDown sends `videoUrl` to Video Indexer;
+   - fallback: send stream/file content directly (multipart upload).
+5. Convert an `.mp4` with `MediaTranscriptionRequest(PreferredProvider: Azure)` and verify the result contains:
    - `### Video Transcript` with time ranges and speaker metadata
    - `### Video Analysis` with sentiment/topics/keywords and Video Indexer state metadata
+6. If Azure returns managed identity/storage errors, fix Video Indexer managed identity + RBAC/trusted storage linkage before retrying.
 
 #### Live integration test credentials (safe defaults)
 

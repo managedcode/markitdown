@@ -54,6 +54,7 @@ Select the correct converter for each input by combining explicit metadata (mime
 - Converter selection uses ordered registrations by priority.
 - A converter must explicitly accept input (`Accepts`/`AcceptsInput`) before conversion.
 - If all converters fail, user receives `UnsupportedFormatException` with converter failure details, except authorization/authentication failures which surface as `FileConversionException`.
+- When a converter is selected for execution, emit an `Information` log with converter name and source.
 - Media uploads (`audio/*`, `video/*`) must stay on media/file converter paths and must not be routed through YouTube URL converter logic.
 - `video/*` files route through `VideoConverter` first, then use configured media transcription providers (for example Azure Video Indexer) via the media converter flow.
 
@@ -95,6 +96,7 @@ Select the correct converter for each input by combining explicit metadata (mime
 - Feature flags / toggles: parallel converter evaluation options in `ConversionRequest.Pipeline`
 - Performance / SLAs: optional parallel evaluation by priority group
 - Observability: converter failure counters by converter/mime/extension
+- Observability: selected converter logs are emitted at `Information` level with structured `ConverterType` and `Source` fields
 
 ---
 
@@ -139,6 +141,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | POS-001 | MIME/extension normalization resolves expected type | Unit | Correct normalized `StreamInfo` values | `tests/MarkItDown.Tests/StreamInfoDetectionTests.cs` |
 | POS-002 | Known format routes to expected converter | Integration | Conversion succeeds with expected markdown | `tests/MarkItDown.Tests/ConverterAcceptanceTests.cs` |
+| POS-003 | Selected converter is logged with structured fields | Unit | `Information` log contains `ConverterType` and `Source` | `tests/MarkItDown.Tests/MarkItDownClientTelemetryTests.cs` |
 
 **Negative scenarios**
 
@@ -158,7 +161,7 @@ flowchart LR
 - Integration tests: `tests/MarkItDown.Tests/ConverterAcceptanceTests.cs`, `tests/MarkItDown.Tests/MarkItDownTests.cs`
 - API tests: N/A
 - UI / E2E tests: N/A
-- Unit tests: `tests/MarkItDown.Tests/StreamInfoDetectionTests.cs`
+- Unit tests: `tests/MarkItDown.Tests/StreamInfoDetectionTests.cs`, `tests/MarkItDown.Tests/MarkItDownClientTelemetryTests.cs`
 - Static analysis: analyzers in build, warnings treated as errors
 
 ---

@@ -78,6 +78,9 @@ internal sealed class VideoIndexerClient : IDisposable
 
     public async Task<VideoIndexerUploadResult?> UploadAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(streamInfo);
+
         var accountToken = await EnsureAccountAccessTokenAsync(cancellationToken).ConfigureAwait(false);
         if (accountToken is null)
         {
@@ -102,6 +105,15 @@ internal sealed class VideoIndexerClient : IDisposable
             uploadName = CreateUploadName("upload.bin");
         }
 
+        var sourceVideoUrl = TryResolveVideoUrl(streamInfo.Url);
+        if (!string.IsNullOrWhiteSpace(sourceVideoUrl))
+        {
+            logger?.LogDebug(
+                "Using Azure Video Indexer URL upload for account {AccountId}. Source URL: {SourceUrl}",
+                accountId,
+                sourceVideoUrl);
+        }
+
         for (var attempt = 0; attempt < 2; attempt++)
         {
             if (stream.CanSeek)
@@ -109,21 +121,25 @@ internal sealed class VideoIndexerClient : IDisposable
                 stream.Position = 0;
             }
 
-            var query = BuildQueryString(new Dictionary<string, string>
+            var queryValues = new Dictionary<string, string>
             {
                 ["name"] = uploadName,
                 ["accessToken"] = accountToken,
                 ["privacy"] = "private"
-            });
+            };
+
+            if (!string.IsNullOrWhiteSpace(sourceVideoUrl))
+            {
+                queryValues["videoUrl"] = sourceVideoUrl;
+            }
+
+            var query = BuildQueryString(queryValues);
 
             var requestUri = new Uri($"{location}/Accounts/{accountId}/Videos?{query}", UriKind.Relative);
 
-            using var content = new MultipartFormDataContent();
-            var streamContent = new StreamContent(new NonDisposingStream(stream));
-            streamContent.Headers.ContentType = new MediaTypeHeaderValue(streamInfo.MimeType ?? "application/octet-stream");
-            content.Add(streamContent, "file", fileName);
-
-            using var response = await httpClient.PostAsync(requestUri, content, cancellationToken).ConfigureAwait(false);
+            using var response = string.IsNullOrWhiteSpace(sourceVideoUrl)
+                ? await UploadByStreamAsync(requestUri, stream, streamInfo, fileName, cancellationToken).ConfigureAwait(false)
+                : await UploadByUrlAsync(requestUri, cancellationToken).ConfigureAwait(false);
 
             if (response.StatusCode == HttpStatusCode.Conflict && attempt == 0)
             {
@@ -151,6 +167,27 @@ internal sealed class VideoIndexerClient : IDisposable
         }
 
         throw new FileConversionException("Azure Video Indexer upload failed after retrying with a generated upload name.");
+    }
+
+    private async Task<HttpResponseMessage> UploadByUrlAsync(Uri requestUri, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
+        return await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<HttpResponseMessage> UploadByStreamAsync(
+        Uri requestUri,
+        Stream stream,
+        StreamInfo streamInfo,
+        string fileName,
+        CancellationToken cancellationToken)
+    {
+        using var content = new MultipartFormDataContent();
+        var streamContent = new StreamContent(new NonDisposingStream(stream));
+        streamContent.Headers.ContentType = new MediaTypeHeaderValue(streamInfo.MimeType ?? "application/octet-stream");
+        content.Add(streamContent, "file", fileName);
+
+        return await httpClient.PostAsync(requestUri, content, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task WaitForProcessingAsync(string videoId, string accountToken, CancellationToken cancellationToken)
@@ -307,6 +344,27 @@ internal sealed class VideoIndexerClient : IDisposable
         }
 
         return builder.ToString();
+    }
+
+    private static string? TryResolveVideoUrl(string? rawUrl)
+    {
+        if (string.IsNullOrWhiteSpace(rawUrl))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return uri.ToString();
     }
 
     private static string ResolveResourceId(AzureMediaIntelligenceOptions options)

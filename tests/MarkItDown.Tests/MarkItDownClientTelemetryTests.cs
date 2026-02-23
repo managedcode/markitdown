@@ -88,6 +88,13 @@ public sealed class MarkItDownClientTelemetryTests
 
         await client.ConvertAsync(stream, info);
 
+        logger.Entries.Any(entry =>
+                entry.Level == LogLevel.Information &&
+                entry.Message.Contains("Using converter") &&
+                entry.Properties?.Any(p => p.Key == "ConverterType" && (string?)p.Value == "FakeConverter") == true &&
+                entry.Properties?.Any(p => p.Key == "Source" && (string?)p.Value == "structured.txt") == true)
+            .ShouldBeTrue();
+
         logger.Entries.Any(entry => entry.Level == LogLevel.Information && entry.Message.Contains("Converted") && entry.Properties?.Any(p => p.Key == "Source" && (string?)p.Value == "structured.txt") == true)
             .ShouldBeTrue();
     }

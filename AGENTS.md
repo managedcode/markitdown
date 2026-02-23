@@ -100,6 +100,7 @@ Extraction guidelines:
 - Image placeholders must use markdown image links (`![alt](file.png)`) when persisted files exist; use bold fallback only when no file exists.
 - If AI image enrichment returns no insight, log and continue (soft failure).
 - Converter selection diagnostics: when a converter throws in `ConvertAsync`, include converter name and detected mime/extension in user-visible failure details.
+- Converter selection diagnostics: always emit an `Information` log entry with the selected converter name when conversion starts for a candidate input.
 - Converter failure classification: if provider/converter chain fails with authentication/authorization (`401`/`403` or credential auth errors), surface `FileConversionException` with auth context instead of masking it as `UnsupportedFormatException`.
 - Converter-routing tests: assert behavior (selected path/provider and typed exceptions), not brittle message include/exclude string checks.
 - Project cleanup/refactor tasks must be executed step-by-step: audit converter groups (agent-assisted when available), apply incremental refactors, then run full regression tests.

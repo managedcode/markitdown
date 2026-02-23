@@ -324,6 +324,13 @@ public sealed class MarkItDownClient : IMarkItDownClient
                             return;
                         }
 
+                        _logger?.LogInformation(
+                            "Using converter {ConverterType} for {Source} ({MimeType} {Extension})",
+                            converterName,
+                            source,
+                            currentGuess.MimeType,
+                            currentGuess.Extension);
+
                         using var conversionStream = buffer.CreateStream();
                         var result = await registration.Converter.ConvertAsync(conversionStream, currentGuess, token).ConfigureAwait(false);
                         if (resultSource.TrySetResult((result, converterName)))
@@ -426,8 +433,9 @@ public sealed class MarkItDownClient : IMarkItDownClient
                         continue;
                     }
 
-                    _logger?.LogDebug("Using converter {ConverterType} for {MimeType} {Extension}",
+                    _logger?.LogInformation("Using converter {ConverterType} for {Source} ({MimeType} {Extension})",
                         converterName,
+                        source,
                         guess.MimeType,
                         guess.Extension);
 

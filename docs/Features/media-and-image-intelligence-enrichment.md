@@ -54,6 +54,7 @@ Enable richer media conversion by combining baseline metadata extraction with op
 
 - Missing required media provider configurations must surface explicit failures instead of silent fallback.
 - Video Indexer processing must wait for `Processed` and fail with a clear timeout/config error if processing does not complete in the configured window.
+- For Azure Video Indexer uploads, prefer `videoUrl` when `StreamInfo.Url` is a valid `http/https` source (for example read-only SAS URL); use multipart stream upload only when no valid source URL is available.
 - Image enrichment must reject missing MIME metadata and preserve one canonical image placeholder/description path in final markdown.
 - If AI image enrichment returns no insight, treat it as soft failure (log and continue).
 - Media routing must avoid YouTube converter path for uploaded `audio/*` or `video/*` media.
@@ -68,7 +69,7 @@ Enable richer media conversion by combining baseline metadata extraction with op
 1. Convert an audio/video file with media transcription enabled  
    - Actor: library caller  
    - Trigger: media conversion request with provider options  
-   - Steps: route `video/*` to `VideoConverter`/`AudioConverter` -> extract metadata -> upload/poll provider -> build transcript + analysis segments -> compose markdown  
+   - Steps: route `video/*` to `VideoConverter`/`AudioConverter` -> extract metadata -> upload via `videoUrl` (when source URL exists) or multipart fallback -> poll provider -> build transcript + analysis segments -> compose markdown  
    - Result: markdown containing metadata and transcript segments.
 
 2. Convert an image with AI enrichment enabled  
@@ -154,6 +155,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | EDGE-001 | Video media input with URL metadata | Integration | Routed through media path, not YouTube metadata path | `tests/MarkItDown.Tests/ConverterAcceptanceTests.cs` |
 | EDGE-002 | Live Azure media transcription path | Integration (live) | Provider transcript segments marked as azure video indexer with transcript + analysis sections | `tests/MarkItDown.Tests/Intelligence/Integration/AzureIntelligenceIntegrationTests.cs` |
+| EDGE-003 | Azure Video Indexer upload with HTTP/S source URL | Unit/Integration | Upload request uses `videoUrl` query without multipart body | `tests/MarkItDown.Tests/Intelligence/VideoIndexerClientTests.cs` |
 
 ### Test mapping
 
