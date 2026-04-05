@@ -859,17 +859,51 @@ var markItDown = new MarkItDownClient(options);
 
 By default every conversion writes to a unique folder under `.markitdown/` in the current working directory (for example `/app/.markitdown/...`). Those workspaces hold the copied source file, extracted artifacts, and emitted Markdown until the `DocumentConverterResult` is disposed, at which point the directory is deleted. This keeps conversions isolated without leaking data into global temp folders.
 
-You can redirect the workspace to another location—such as the OS temp directory—and opt to keep it after conversion by supplying custom storage options:
+You can redirect the workspace root by setting it during app/service initialization (before conversion runs):
 
 ```csharp
 var workspaceRoot = Path.Combine(Path.GetTempPath(), "markitdown", "workspaces");
+Directory.CreateDirectory(workspaceRoot);
+
+builder.Services
+    .AddMarkItDown()
+    .UseRootPath(workspaceRoot)
+    .Configure(options =>
+    {
+        options.ArtifactStorage = ArtifactStorageOptions.Default with
+        {
+            DeleteOnDispose = false // keep the workspace directory after conversion
+        };
+        options.SegmentOptions = SegmentOptions.Default with
+        {
+            Image = SegmentOptions.Default.Image with
+            {
+                KeepArtifactDirectory = true
+            }
+        };
+    });
+```
+
+Then resolve and use `IMarkItDownClient` from DI:
+
+```csharp
+await using var scope = app.Services.CreateAsyncScope();
+var client = scope.ServiceProvider.GetRequiredService<IMarkItDownClient>();
+await using var result = await client.ConvertAsync("policy.pdf");
+```
+
+If you do not use DI, configure the same root path directly on `MarkItDownOptions` before creating the first `MarkItDownClient` in the process:
+
+```csharp
+var workspaceRoot = Path.Combine(Path.GetTempPath(), "markitdown", "workspaces");
+Directory.CreateDirectory(workspaceRoot);
 
 var options = new MarkItDownOptions
 {
+    RootPath = workspaceRoot,
     ArtifactStorage = ArtifactStorageOptions.Default with
     {
-        WorkspacePathFormatter = name => Path.Combine(workspaceRoot, name),
-        DeleteOnDispose = false    // keep the workspace directory after conversion
+        DeleteOnDispose = false // keep the workspace directory after conversion
     },
     SegmentOptions = SegmentOptions.Default with
     {
@@ -880,13 +914,11 @@ var options = new MarkItDownOptions
     }
 };
 
-Directory.CreateDirectory(workspaceRoot);
-
 await using var client = new MarkItDownClient(options);
 await using var result = await client.ConvertAsync("policy.pdf");
 ```
 
-When you override the workspace root, ensure you manage retention (for example rotate or clean the custom directory) to avoid unbounded growth.
+When you override the workspace root, manage retention (for example rotate or clean the custom directory) to avoid unbounded growth.
 
 ### Advanced AI Integration
 
