@@ -1,5 +1,23 @@
 namespace MarkItDown.Tests.Manual;
 
+internal static class ManualTestAssets
+{
+    public static string SpecimenSubmissionManualPdf => RequireCatalogAsset("TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualPdf");
+
+    public static string SpecimenSubmissionManualDocx => RequireCatalogAsset("TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualDocx");
+
+    private static string RequireCatalogAsset(string catalogKey)
+    {
+        if (!TestAssetCatalog.All.TryGetValue(catalogKey, out var asset))
+        {
+            throw new FileNotFoundException(
+                $"Required manual fixture '{catalogKey}' is missing from the generated TestAssetCatalog. Restore the original specimen submission manual under TestFiles and rebuild before running the manual suites.");
+        }
+
+        return asset;
+    }
+}
+
 internal static class AzureIntegrationResourceParser
 {
     public static (string? SubscriptionId, string? ResourceGroup, string? AccountName) FromResourceId(string? resourceId)

@@ -46,6 +46,7 @@ Key points:
 - Converters emit segments/artifacts first.
 - Middleware enriches/mutates artifacts in deterministic order.
 - Final markdown is composed from post-middleware state.
+- Validate image-enrichment configuration before the middleware soft-failure boundary. Propagate caller cancellation and provider authentication/authorization failures; retain the existing log-and-continue behavior for other optional middleware provider errors. See [media and image enrichment](../Features/media-and-image-intelligence-enrichment.md) for the failure policy and regression tests.
 
 ---
 

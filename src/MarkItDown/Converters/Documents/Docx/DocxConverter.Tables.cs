@@ -114,8 +114,6 @@ public sealed partial class DocxConverter
             return (string.Empty, tableData);
         }
 
-        PropagateEmptyCells(tableData, startRow: 1);
-
         var markdown = new StringBuilder();
         var headerRow = tableData[0];
 
@@ -170,36 +168,6 @@ public sealed partial class DocxConverter
             markdown,
             rows,
             Array.Empty<ImageArtifact>());
-    }
-
-    private static void PropagateEmptyCells(IList<IList<string>> tableData, int startRow)
-    {
-        if (tableData.Count <= startRow)
-        {
-            return;
-        }
-
-        var columnCount = tableData[startRow].Count;
-        for (var col = 0; col < columnCount; col++)
-        {
-            string? lastValue = null;
-
-            for (var row = startRow; row < tableData.Count; row++)
-            {
-                var value = tableData[row][col];
-                if (string.IsNullOrWhiteSpace(value))
-                {
-                    if (!string.IsNullOrWhiteSpace(lastValue))
-                    {
-                        tableData[row][col] = lastValue!;
-                    }
-                }
-                else
-                {
-                    lastValue = value;
-                }
-            }
-        }
     }
 
     private static string ExtractCellText(TableCell cell)

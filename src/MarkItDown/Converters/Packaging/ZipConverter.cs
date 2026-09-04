@@ -80,6 +80,8 @@ public sealed class ZipConverter : DocumentConverterBase
 
     public override async Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
             // Reset stream position
@@ -110,10 +112,12 @@ public sealed class ZipConverter : DocumentConverterBase
                 try
                 {
                     await ProcessZipEntry(entry, fileName, markdown, segments, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
                     processedFiles++;
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     // Log the error but continue processing other files
                     markdown.AppendLine($"## File: {entry.FullName}");
                     markdown.AppendLine();
@@ -151,8 +155,9 @@ public sealed class ZipConverter : DocumentConverterBase
         {
             throw new FileConversionException($"Invalid ZIP file format: {ex.Message}", ex);
         }
-        catch (Exception ex) when (!(ex is MarkItDownException))
+        catch (Exception ex) when (ex is not MarkItDownException and not OperationCanceledException)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             throw new FileConversionException($"Failed to convert ZIP file: {ex.Message}", ex);
         }
     }
@@ -256,8 +261,9 @@ public sealed class ZipConverter : DocumentConverterBase
                 AppendMessage($"*No converter available for file type: {fileExtension}*");
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             AppendMessage($"*Error processing file: {ex.Message}*");
         }
 
@@ -359,6 +365,8 @@ public sealed class ZipConverter : DocumentConverterBase
     {
         foreach (var converter in _innerConverters.OrderBy(c => c.Priority))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             try
             {
                 if (stream.CanSeek)
@@ -369,8 +377,9 @@ public sealed class ZipConverter : DocumentConverterBase
                     return converter;
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 // Continue to next converter if this one fails
                 continue;
             }

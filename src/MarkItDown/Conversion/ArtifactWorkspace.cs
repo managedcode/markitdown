@@ -121,7 +121,11 @@ internal sealed class ArtifactWorkspace : IDisposable, IAsyncDisposable
         }
 
         var payload = content ?? string.Empty;
-        var result = storage.UploadAsync(payload, options =>
+        using var uploadWorkspace = Create(
+            MarkItDownPathResolver.Ensure("uploads", Guid.NewGuid().ToString("N")),
+            deleteOnDispose: true);
+        var uploadPath = uploadWorkspace.PersistText(fileName, payload, effectiveMime, cancellationToken);
+        var result = storage.UploadAsync(new FileInfo(uploadPath), options =>
         {
             options.Directory = storageDirectory;
             options.FileName = fileName;

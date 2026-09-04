@@ -21,6 +21,49 @@ namespace MarkItDown.Tests;
 public class DocxConverterTests
 {
     [Fact]
+    public async Task ConvertAsync_DocxWithUnmergedBlankCells_PreservesEmptyValues()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"blank-cells-{Guid.NewGuid():N}.docx");
+        try
+        {
+            using (var document = WordprocessingDocument.Create(path, WordprocessingDocumentType.Document))
+            {
+                var mainPart = document.AddMainDocumentPart();
+                var table = new Table(new TableGrid(new GridColumn(), new GridColumn()));
+                foreach (var cells in new[] { new[] { "Item", "Quantity" }, new[] { "Laptop", "5" }, new[] { "Mouse", "" }, new[] { "", "2" } })
+                {
+                    table.Append(new TableRow(cells.Select(value => new TableCell(new Paragraph(new Run(new Text(value)))))));
+                }
+
+                mainPart.Document = new Document(new Body(table));
+                mainPart.Document.Save();
+            }
+
+            await using var source = File.OpenRead(path);
+            await using var result = await new DocxConverter().ConvertAsync(
+                source, new StreamInfo(fileName: "blank-cells.docx", extension: ".docx"));
+
+            var markdownRows = result.Markdown.Split('\n')
+                .Where(line => line.StartsWith('|'))
+                .Select(line => line.Split('|', StringSplitOptions.TrimEntries)[1..^1])
+                .ToArray();
+            markdownRows.Length.ShouldBe(5);
+            markdownRows[0].ShouldBe(new[] { "Item", "Quantity" });
+            markdownRows[1].ShouldBe(new[] { "---", "---" });
+            markdownRows[2].ShouldBe(new[] { "Laptop", "5" });
+            markdownRows[3].ShouldBe(new[] { "Mouse", "" });
+            markdownRows[4].ShouldBe(new[] { "", "2" });
+            var tableArtifact = result.Artifacts.Tables.ShouldHaveSingleItem();
+            tableArtifact.Rows[2][1].ShouldBeEmpty();
+            tableArtifact.Rows[3][0].ShouldBeEmpty();
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task ConvertAsync_DocxWithImages_ExecutesPipelineAndCapturesArtifacts()
     {
         // Arrange

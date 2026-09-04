@@ -20,6 +20,30 @@ namespace MarkItDown.Conversion.Middleware;
 /// </summary>
 public sealed class AiImageEnrichmentMiddleware : IConversionMiddleware
 {
+    internal static void ValidateConfiguration(ConversionPipelineContext context)
+    {
+        if (CreateChatCallback(context) is null)
+        {
+            return;
+        }
+
+        foreach (var image in context.Artifacts.Images)
+        {
+            if (image.Metadata.TryGetValue(MetadataKeys.ImageEnriched, out var flag) &&
+                bool.TryParse(flag, out var enriched) && enriched)
+            {
+                continue;
+            }
+
+            if (context.SegmentOptions.MaxParallelImageAnalysis <= 0)
+            {
+                throw new InvalidOperationException("SegmentOptions.MaxParallelImageAnalysis must be positive.");
+            }
+
+            _ = ImageChatEnricher.RequireContentType(image);
+        }
+    }
+
     public async Task InvokeAsync(ConversionPipelineContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -413,7 +437,7 @@ public sealed class AiImageEnrichmentMiddleware : IConversionMiddleware
             var pattern = $"{fallbackPrefixPattern}{placeholderPattern}{trailingImageCommentPattern}";
 
             var regex = new Regex(pattern, RegexOptions.Singleline | RegexOptions.IgnoreCase);
-            var updated = regex.Replace(existingMarkdown, replacement, 1);
+            var updated = regex.Replace(existingMarkdown, _ => replacement, 1);
             if (!ReferenceEquals(updated, existingMarkdown))
             {
                 return updated;

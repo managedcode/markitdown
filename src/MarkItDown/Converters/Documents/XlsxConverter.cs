@@ -378,8 +378,12 @@ public sealed class XlsxConverter : DocumentPipelineConverterBase
         if (string.IsNullOrWhiteSpace(value))
             return "";
 
-        // Escape pipe characters and trim whitespace
-        return value.Replace("|", "\\|").Trim();
+        return value
+            .Replace("|", "\\|", StringComparison.Ordinal)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Trim()
+            .Replace("\n", "<br />", StringComparison.Ordinal);
     }
 
     private static string ExtractTitle(string fileName)

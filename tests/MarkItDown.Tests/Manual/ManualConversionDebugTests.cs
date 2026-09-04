@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -30,22 +29,7 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
     [MemberData(nameof(Assets))]
     public async Task ConvertAndDumpSegmentsAsync(string assetName, string description)
     {
-        MarkItDownOptions options;
-        try
-        {
-            options = CreateOptions();
-        }
-        catch (InvalidOperationException ex)
-        {
-            output.WriteLine($"Skipping manual conversion: {ex.Message}");
-            return;
-        }
-        var candidate = Path.Combine(TestAssetLoader.AssetsDirectory, assetName);
-        if (!File.Exists(candidate))
-        {
-            output.WriteLine($"Skipping {assetName} because the fixture is not present.");
-            return;
-        }
+        var options = CreateOptions();
 
         var client = new MarkItDownClient(options);
         var path = TestAssetLoader.GetAssetPath(assetName);
@@ -87,6 +71,7 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
 
             var outputPath = await PersistResultAsync(assetName, result, scenario.NameSuffix);
 
+            Assert.NotEmpty(result.Segments);
             AssertSegmentsSequential(result.Segments);
             AssertImagesPersisted(result.Artifacts.Images, result.Segments.Count);
 
@@ -205,27 +190,10 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
     [Fact]
     public async Task SpecimenManual_PdfAndDocx_ProduceComparableOutput()
     {
-        MarkItDownOptions options;
-        try
-        {
-            options = CreateOptions();
-        }
-        catch (InvalidOperationException ex)
-        {
-            output.WriteLine($"Skipping comparison: {ex.Message}");
-            return;
-        }
+        var options = CreateOptions();
 
-        var pdfAsset = "TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualPdf";
-        var docxAsset = "TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualDocx";
-
-        var pdfCandidate = Path.Combine(TestAssetLoader.AssetsDirectory, pdfAsset);
-        var docxCandidate = Path.Combine(TestAssetLoader.AssetsDirectory, docxAsset);
-        if (!File.Exists(pdfCandidate) || !File.Exists(docxCandidate))
-        {
-            output.WriteLine("Skipping comparison because one or more assets are missing.");
-            return;
-        }
+        var pdfAsset = ManualTestAssets.SpecimenSubmissionManualPdf;
+        var docxAsset = ManualTestAssets.SpecimenSubmissionManualDocx;
 
         var client = new MarkItDownClient(options);
         var pdfPath = TestAssetLoader.GetAssetPath(pdfAsset);
@@ -278,24 +246,9 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
     [Fact]
     public async Task SpecimenManual_PdfAsImages_RunsFullDocumentOcr()
     {
-        MarkItDownOptions options;
-        try
-        {
-            options = CreateOptions();
-        }
-        catch (InvalidOperationException ex)
-        {
-            output.WriteLine($"Skipping OCR scenario: {ex.Message}");
-            return;
-        }
+        var options = CreateOptions();
 
-        var pdfAsset = "TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualPdf";
-        var pdfCandidate = Path.Combine(TestAssetLoader.AssetsDirectory, pdfAsset);
-        if (!File.Exists(pdfCandidate))
-        {
-            output.WriteLine("Skipping OCR scenario because the PDF asset is missing.");
-            return;
-        }
+        var pdfAsset = ManualTestAssets.SpecimenSubmissionManualPdf;
 
         var client = new MarkItDownClient(options);
         var pdfPath = TestAssetLoader.GetAssetPath(pdfAsset);
@@ -328,24 +281,9 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
     [Fact]
     public async Task SpecimenManual_PdfStructured_WithImageRecognition()
     {
-        MarkItDownOptions options;
-        try
-        {
-            options = CreateOptions();
-        }
-        catch (InvalidOperationException ex)
-        {
-            output.WriteLine($"Skipping structured scenario: {ex.Message}");
-            return;
-        }
+        var options = CreateOptions();
 
-        var pdfAsset = "TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualPdf";
-        var pdfCandidate = Path.Combine(TestAssetLoader.AssetsDirectory, pdfAsset);
-        if (!File.Exists(pdfCandidate))
-        {
-            output.WriteLine("Skipping structured scenario because the PDF asset is missing.");
-            return;
-        }
+        var pdfAsset = ManualTestAssets.SpecimenSubmissionManualPdf;
 
         var client = new MarkItDownClient(options);
         var pdfPath = TestAssetLoader.GetAssetPath(pdfAsset);
@@ -421,6 +359,12 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
                 Vision = settings.Vision?.Options,
                 Media = settings.Media?.Options
             };
+        }
+
+        if (settings.LanguageModels?.HasChat != true)
+        {
+            throw new InvalidOperationException(
+                "Azure OpenAI chat deployment is not configured. Set AZURE_INTELLIGENCE_CONFIG_PATH to an explicit Azure integration JSON file or supply AZURE_INTELLIGENCE_CONFIG_JSON before running this harness.");
         }
 
         var aiProvider = AzureIntegrationConfigurationFactory.CreateAiModelProvider(settings.LanguageModels);
@@ -513,30 +457,16 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
             return caption;
         }
 
-        if (!image.PageNumber.HasValue &&
-            image.Metadata.TryGetValue(MetadataKeys.Page, out var pageValue) &&
-            int.TryParse(pageValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedPage))
-        {
-            return $"Image located on page {parsedPage}.";
-        }
-
-        if (image.PageNumber.HasValue)
-        {
-            return $"Image located on page {image.PageNumber.Value}.";
-        }
-
-        return "Image artifact captured without additional enrichment.";
+        return null;
     }
 
     private static void AssertDescriptionInMarkdown(ImageArtifact image, string? description, string markdown)
     {
-        if (string.IsNullOrWhiteSpace(description))
-        {
-            return;
-        }
+        Assert.False(string.IsNullOrWhiteSpace(description), "Image artifact is missing an AI description.");
 
         var snippet = ExtractImageSnippet(image, markdown);
         Assert.False(string.Equals(snippet, "<not found>", StringComparison.Ordinal), "Image placeholder not found in markdown.");
+        Assert.Contains("<!-- Image description:", snippet, StringComparison.Ordinal);
         Assert.DoesNotContain("AI enrichment not available", snippet, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Image captured without AI enrichment", snippet, StringComparison.OrdinalIgnoreCase);
     }
@@ -555,8 +485,7 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
         }
 
         var end = FindImageBoundary(markdown, start);
-        var length = Math.Min(end - start, 400);
-        return markdown.Substring(start, length).Trim();
+        return markdown[start..end].Trim();
     }
 
     private static int FindImageStart(string markdown, string? placeholder)
@@ -672,24 +601,6 @@ public class ManualConversionDebugTests(ITestOutputHelper output)
                 AssertDescriptionInMarkdown(image, description, markdown);
             }
         }
-    }
-
-    private static int CountOccurrences(string content, string value)
-    {
-        if (string.IsNullOrEmpty(content) || string.IsNullOrEmpty(value))
-        {
-            return 0;
-        }
-
-        var count = 0;
-        var index = 0;
-        while ((index = content.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            index += value.Length;
-        }
-
-        return count;
     }
 
     private static IReadOnlyList<string> NormalizeMarkdownForComparison(string markdown)

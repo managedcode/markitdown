@@ -171,7 +171,7 @@ Populate the following fields in the JSON response:
 Return ONLY valid JSON matching the provided schema. Be exhaustive in extraction.
 ";
 
-    private static string RequireContentType(ImageArtifact image)
+    internal static string RequireContentType(ImageArtifact image)
     {
         if (!string.IsNullOrWhiteSpace(image.ContentType))
         {

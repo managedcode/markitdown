@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MarkItDown.Intelligence;
+using MarkItDown.Conversion.Middleware;
 using Microsoft.Extensions.Logging;
 
 namespace MarkItDown;
@@ -43,12 +44,23 @@ public sealed class ConversionPipeline : IConversionPipeline
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            if (middleware is AiImageEnrichmentMiddleware)
+            {
+                AiImageEnrichmentMiddleware.ValidateConfiguration(context);
+            }
+
             try
             {
                 await middleware.InvokeAsync(context, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (MarkItDownClient.HasAuthorizationFailure(ex))
+                {
+                    throw;
+                }
+
                 logger?.LogWarning(ex, "Conversion middleware {Middleware} failed", middleware.GetType().Name);
             }
         }

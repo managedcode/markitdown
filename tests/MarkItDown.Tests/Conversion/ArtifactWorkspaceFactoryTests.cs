@@ -120,18 +120,25 @@ public sealed class ArtifactWorkspaceFactoryAzureTests : IAsyncLifetime
             workspace.DirectoryPath.ShouldNotBeNull();
             Directory.Exists(workspace.DirectoryPath).ShouldBeTrue();
 
-            var markdownPath = workspace.PersistText("doc.md", "hello");
+            const string content = "# Привіт 🌍\n\nPersisted Markdown";
+            var markdownPath = workspace.PersistText("doc.md", content, MimeHelper.MD);
             markdownPath.ShouldNotBeNull();
             var storageDirectory = workspace.StorageDirectory;
             storageDirectory.ShouldNotBeNull();
+
+            var clientOptions = new BlobClientOptions(BlobClientOptions.ServiceVersion.V2023_11_03);
+            var blobClient = new BlobContainerClient(connectionString, containerName, clientOptions);
+            var uploaded = blobClient.GetBlobClient($"{storageDirectory}/doc.md");
+            var downloaded = await uploaded.DownloadContentAsync();
+            downloaded.Value.Content.ToString().ShouldBe(content);
+            downloaded.Value.Details.ContentType.ShouldBe(MimeHelper.MD);
+            File.ReadAllText(Path.Combine(workspace.DirectoryPath, "doc.md")).ShouldBe(content);
 
             await workspace.DisposeAsync();
             disposed = true;
 
             Directory.Exists(workspace.DirectoryPath).ShouldBeFalse();
 
-            var clientOptions = new BlobClientOptions(BlobClientOptions.ServiceVersion.V2023_11_03);
-            var blobClient = new BlobContainerClient(connectionString, containerName, clientOptions);
             var remaining = 0;
             await foreach (var _ in blobClient.GetBlobsAsync(BlobTraits.None, BlobStates.None, storageDirectory, CancellationToken.None))
             {

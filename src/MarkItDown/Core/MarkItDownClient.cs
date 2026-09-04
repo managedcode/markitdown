@@ -357,6 +357,8 @@ public sealed class MarkItDownClient : IMarkItDownClient
                 // Expected when a converter succeeds.
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (resultSource.Task.IsCompletedSuccessfully)
             {
                 var (result, converterName) = await resultSource.Task.ConfigureAwait(false);
@@ -457,8 +459,13 @@ public sealed class MarkItDownClient : IMarkItDownClient
                     ReportProgress("completed", attempts, metadata.TryGetValue("converter.durationMs", out var duration) ? $"durationMs={duration}" : null, detailedOnly: false, totalOverride: totalAttempts);
                     return result.WithMetadata(metadata);
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
                 catch (Exception ex)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var details = DescribeConverterFailure(converterName, guess, ex);
                     attempts++;
                     ReportProgress("converter-failed", attempts, $"{converterDetails}: {ex.GetType().Name}", detailedOnly: true);
@@ -583,7 +590,7 @@ public sealed class MarkItDownClient : IMarkItDownClient
             downloadActivity = StartActivity(MarkItDownDiagnostics.ActivityNameDownload);
             downloadActivity?.SetTag("http.url", urlText);
 
-            using var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+            using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
             downloadActivity?.SetTag("http.status_code", (int)response.StatusCode);
             activity?.SetTag("http.status_code", (int)response.StatusCode);
             response.EnsureSuccessStatusCode();
@@ -1281,6 +1288,9 @@ public sealed class MarkItDownClient : IMarkItDownClient
         message = $"Authentication/authorization failed while processing file. MimeType: {streamInfo.MimeType ?? "unknown"}, Extension: {streamInfo.Extension ?? "unknown"}. {details}";
         return true;
     }
+
+    internal static bool HasAuthorizationFailure(Exception exception)
+        => EnumerateExceptionTree(exception).Any(IsAuthorizationFailureException);
 
     private static bool IsAuthorizationFailureException(Exception exception)
     {

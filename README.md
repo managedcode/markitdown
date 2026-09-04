@@ -213,7 +213,7 @@ Install-Package ManagedCode.MarkItDown
 dotnet add package ManagedCode.MarkItDown
 
 # PackageReference (add to your .csproj)
-<PackageReference Include="ManagedCode.MarkItDown" Version="0.0.3" />
+<PackageReference Include="ManagedCode.MarkItDown" Version="10.0.8" />
 ```
 
 ### Prerequisites

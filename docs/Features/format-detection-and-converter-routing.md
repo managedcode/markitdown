@@ -52,6 +52,9 @@ Select the correct converter for each input by combining explicit metadata (mime
 ## Business Rules
 
 - Converter selection uses ordered registrations by priority.
+- Caller cancellation propagates as `OperationCanceledException` in both sequential and parallel evaluation; cancellation is not an unsupported-format failure. Parallel winner cancellation only stops competing converter attempts.
+- ZIP conversion preserves cancellation while reading entries, including the final entry. It must not turn cancellation into an archive error message or a successful partial result; `ZipConverterTests.ConvertAsync_CanceledArchive_PropagatesCancellation` covers pre-canceled tokens and cancellation during a real entry read.
+- HTTP sources are read as streams after response headers arrive and persisted to disk; conversion must not depend on `HttpClient.MaxResponseContentBufferSize` accommodating the complete document.
 - A converter must explicitly accept input (`Accepts`/`AcceptsInput`) before conversion.
 - If all converters fail, user receives `UnsupportedFormatException` with converter failure details, except authorization/authentication failures which surface as `FileConversionException`.
 - When a converter is selected for execution, emit an `Information` log with converter name and source.
@@ -150,12 +153,14 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | NEG-001 | Converter throws during routing | Integration | Failure detail included and aggregate exception preserved | `tests/MarkItDown.Tests/MarkItDownTests.cs` |
 | NEG-002 | Provider auth failure during routing | Integration | `FileConversionException` returned with auth context | `tests/MarkItDown.Tests/MarkItDownTests.cs` |
+| NEG-003 | Caller cancels a running converter | Integration | `OperationCanceledException` propagates in sequential and parallel modes | `MarkItDownTests.ConvertAsync_CallerCancelsDuringConversion_PreservesCancellation` |
 
 **Edge cases**
 
 | ID | Description | Level (Unit / Int / API / UI) | Expected result | Data / Notes |
 | --- | --- | --- | --- | --- |
 | EDGE-001 | YouTube URL with media MIME on uploaded stream | Integration | YouTube metadata provider is not invoked for media-upload path | `tests/MarkItDown.Tests/ConverterAcceptanceTests.cs` |
+| EDGE-002 | HTTP document exceeds client response buffer limit | Integration | Response streams to disk and conversion succeeds | `MarkItDownTests.ConvertFromUrlAsync_ContentExceedsHttpBufferLimit_StreamsToDisk` |
 
 ### Test mapping
 

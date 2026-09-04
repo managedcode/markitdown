@@ -39,23 +39,16 @@ internal static class AzureIntegrationConfigurationFactory
         ChatClient? chatClient = null;
         AudioClient? audioClient = null;
 
-        try
+        var client = new AzureOpenAIClient(new Uri(settings.Endpoint), new AzureKeyCredential(settings.ApiKey));
+
+        if (settings.HasChat)
         {
-            var client = new AzureOpenAIClient(new Uri(settings.Endpoint), new AzureKeyCredential(settings.ApiKey));
-
-            if (settings.HasChat)
-            {
-                chatClient = client.GetChatClient(settings.ChatDeployment!);
-            }
-
-            if (settings.HasSpeech)
-            {
-                audioClient = client.GetAudioClient(settings.SpeechDeployment!);
-            }
+            chatClient = client.GetChatClient(settings.ChatDeployment!);
         }
-        catch
+
+        if (settings.HasSpeech)
         {
-            return null;
+            audioClient = client.GetAudioClient(settings.SpeechDeployment!);
         }
 
         IChatClient? aiChatClient = chatClient?.AsIChatClient();

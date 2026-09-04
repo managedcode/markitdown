@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Xml;
+using System.Xml.Linq;
+using AngleSharp.Html.Parser;
 using ManagedCode.MimeTypes;
 
 namespace MarkItDown.Converters;
@@ -306,8 +308,8 @@ public sealed class RssFeedConverter : DocumentConverterBase
             markdown.AppendLine($"**Author:** {author}");
         }
 
-        var summary = GetElementText(entry, "atom:summary", namespaceManager);
-        var content = GetElementText(entry, "atom:content", namespaceManager);
+        var summary = RenderAtomText(entry.SelectSingleNode("atom:summary", namespaceManager));
+        var content = RenderAtomText(entry.SelectSingleNode("atom:content", namespaceManager));
 
         if (!string.IsNullOrEmpty(content))
         {
@@ -376,6 +378,36 @@ public sealed class RssFeedConverter : DocumentConverterBase
         markdown.AppendLine();
         markdown.AppendLine("---");
         markdown.AppendLine();
+    }
+
+    private static string? RenderAtomText(XmlNode? node)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+
+        var type = node.Attributes?["type"]?.Value;
+        if (type is not ("html" or "xhtml"))
+        {
+            return node.InnerText.Trim();
+        }
+
+        var html = type == "xhtml" ? node.InnerXml : node.InnerText;
+        if (type == "xhtml" && !string.IsNullOrWhiteSpace(html))
+        {
+            var xhtml = XElement.Parse(html);
+            foreach (var element in xhtml.DescendantsAndSelf().Where(element => element.Name.NamespaceName == "http://www.w3.org/1999/xhtml"))
+            {
+                element.Name = XName.Get(element.Name.LocalName);
+                element.Attributes().Where(attribute => attribute.IsNamespaceDeclaration).Remove();
+            }
+
+            html = xhtml.ToString(SaveOptions.DisableFormatting);
+        }
+
+        using var document = new HtmlParser().ParseDocument(html);
+        return HtmlMarkdownRenderer.RenderDocument(document).Markdown;
     }
 
     private static string? GetElementText(XmlNode node, string xpath, XmlNamespaceManager namespaceManager)

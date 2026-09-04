@@ -13,20 +13,13 @@ namespace MarkItDown.Tests.Manual;
 
 public partial class SpecimenManualParityTests(ITestOutputHelper output)
 {
-    private const string PdfAsset = "TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualPdf";
-    private const string DocxAsset = "TestAssetCatalog.CLICSTMAN001V5SpecimenSubmissionManualDocx";
     private static readonly char[] separator = new[] { '\r', '\n' };
 
     [Fact]
     public async Task PdfAndDocx_ProduceMatchingTextAndTables()
     {
-        var pdfPath = TryGetAssetPath(PdfAsset);
-        var docxPath = TryGetAssetPath(DocxAsset);
-
-        if (pdfPath is null || docxPath is null)
-        {
-            return;
-        }
+        var pdfPath = TestAssetLoader.GetAssetPath(ManualTestAssets.SpecimenSubmissionManualPdf);
+        var docxPath = TestAssetLoader.GetAssetPath(ManualTestAssets.SpecimenSubmissionManualDocx);
 
         var client = new MarkItDownClient();
         var docxResult = await client.ConvertAsync(docxPath);
@@ -89,13 +82,8 @@ public partial class SpecimenManualParityTests(ITestOutputHelper output)
     [Fact]
     public async Task PdfAndDocx_EndToEndParity()
     {
-        var pdfPath = TryGetAssetPath(PdfAsset);
-        var docxPath = TryGetAssetPath(DocxAsset);
-
-        if (pdfPath is null || docxPath is null)
-        {
-            return;
-        }
+        var pdfPath = TestAssetLoader.GetAssetPath(ManualTestAssets.SpecimenSubmissionManualPdf);
+        var docxPath = TestAssetLoader.GetAssetPath(ManualTestAssets.SpecimenSubmissionManualDocx);
 
         var docxClient = new MarkItDownClient();
         var docxResult = await docxClient.ConvertAsync(docxPath);
@@ -394,17 +382,6 @@ public partial class SpecimenManualParityTests(ITestOutputHelper output)
         }
 
         builder.Append(line);
-    }
-
-    private static string? TryGetAssetPath(string assetName)
-    {
-        var candidate = Path.Combine(TestAssetLoader.AssetsDirectory, assetName);
-        if (!File.Exists(candidate))
-        {
-            return null;
-        }
-
-        return TestAssetLoader.GetAssetPath(assetName);
     }
 
     private sealed class StubDocumentIntelligenceProvider : IDocumentIntelligenceProvider

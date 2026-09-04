@@ -100,12 +100,12 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
 
             foreach (var pair in metadata)
             {
-                extraction.Artifacts.Metadata[$"epub.{pair.Key}"] = pair.Value;
+                extraction.Artifacts.Metadata[pair.Key] = pair.Value;
             }
 
             await conversionPipeline.ExecuteAsync(streamInfo, extraction.Artifacts, extraction.Segments, cancellationToken).ConfigureAwait(false);
 
-            metadata.TryGetValue("title", out var titleHint);
+            metadata.TryGetValue(MetadataKeys.EpubTitle, out var titleHint);
             var generatedAt = DateTime.UtcNow;
             var meta = SegmentMarkdownComposer.Compose(extraction.Segments, extraction.Artifacts, streamInfo, effectiveSegments, titleHint, generatedAt);
             var fallbackTitle = titleHint ?? ExtractTitleFromFileName(streamInfo.FileName) ?? "EPUB Document";
@@ -305,7 +305,11 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
             await using var stream = containerEntry.Open();
             container.Load(stream);
 
-            var node = container.SelectSingleNode("/container/rootfiles/rootfile");
+            var namespaceManager = new XmlNamespaceManager(container.NameTable);
+            namespaceManager.AddNamespace("container", "urn:oasis:names:tc:opendocument:xmlns:container");
+            var node = string.IsNullOrEmpty(container.DocumentElement?.NamespaceURI)
+                ? container.SelectSingleNode("/container/rootfiles/rootfile")
+                : container.SelectSingleNode("/container:container/container:rootfiles/container:rootfile", namespaceManager);
             var path = node?.Attributes?["full-path"]?.Value;
             return string.IsNullOrWhiteSpace(path) ? null : path.Replace("\\", "/");
         }
@@ -436,13 +440,13 @@ public sealed class EpubConverter : DocumentPipelineConverterBase
     {
         return key switch
         {
-            "author" => "Author",
-            "title" => "Title",
-            "publisher" => "Publisher",
-            "date" => "Publication Date",
-            "language" => "Language",
-            "description" => "Description",
-            "identifier" => "Identifier",
+            MetadataKeys.EpubAuthor => "Author",
+            MetadataKeys.EpubTitle => "Title",
+            MetadataKeys.EpubPublisher => "Publisher",
+            MetadataKeys.EpubDate => "Publication Date",
+            MetadataKeys.EpubLanguage => "Language",
+            MetadataKeys.EpubDescription => "Description",
+            MetadataKeys.EpubIdentifier => "Identifier",
             _ => char.ToUpperInvariant(key[0]) + key[1..]
         };
     }

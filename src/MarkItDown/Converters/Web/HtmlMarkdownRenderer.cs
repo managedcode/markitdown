@@ -123,6 +123,41 @@ internal sealed partial class HtmlMarkdownRenderer
         markdown.Append(cleanText);
     }
 
+    private static bool HasStrikethroughStyle(IElement element)
+    {
+        var struck = false;
+        var important = false;
+        foreach (var declaration in (element.GetAttribute("style") ?? string.Empty).Split(';'))
+        {
+            var parts = declaration.Split(':', 2);
+            if (parts.Length != 2)
+            {
+                continue;
+            }
+
+            var property = parts[0].Trim();
+            if (!property.Equals("text-decoration", StringComparison.OrdinalIgnoreCase) &&
+                !property.Equals("text-decoration-line", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = parts[1].Trim();
+            var declarationImportant = value.EndsWith("!important", StringComparison.OrdinalIgnoreCase);
+            if (important && !declarationImportant)
+            {
+                continue;
+            }
+
+            var tokens = value.Replace("!important", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            struck = tokens.Contains("line-through", StringComparer.OrdinalIgnoreCase);
+            important = declarationImportant;
+        }
+
+        return struck;
+    }
+
     private static void ConvertElement(IElement element, StringBuilder markdown, int indentLevel)
     {
         var tag = element.TagName.ToLowerInvariant();
@@ -266,9 +301,21 @@ internal sealed partial class HtmlMarkdownRenderer
 
     private static void ConvertChildren(INode node, StringBuilder markdown, int indentLevel)
     {
+        var struck = node is IElement element &&
+            (element.LocalName is "s" or "del" or "strike" || HasStrikethroughStyle(element));
+        if (struck)
+        {
+            markdown.Append("~~");
+        }
+
         foreach (var child in node.ChildNodes)
         {
             ConvertNode(child, markdown, indentLevel);
+        }
+
+        if (struck)
+        {
+            markdown.Append("~~");
         }
     }
 

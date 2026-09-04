@@ -99,6 +99,7 @@ flowchart LR
 - `Core API` — code: [`src/MarkItDown/Core/`](../../src/MarkItDown/Core/); entry points: [`src/MarkItDown/Core/MarkItDownClient.cs`](../../src/MarkItDown/Core/MarkItDownClient.cs), [`src/MarkItDown/Core/IMarkItDownClient.cs`](../../src/MarkItDown/Core/IMarkItDownClient.cs); docs: [`docs/Features/format-detection-and-converter-routing.md`](../Features/format-detection-and-converter-routing.md)
 - `Conversion Engine` — code: [`src/MarkItDown/Conversion/`](../../src/MarkItDown/Conversion/); docs: [`docs/Features/disk-first-conversion-pipeline.md`](../Features/disk-first-conversion-pipeline.md), [`docs/ADR/ADR-0001-disk-first-workspace-pipeline.md`](../ADR/ADR-0001-disk-first-workspace-pipeline.md)
 - `Converter Catalog` — code: [`src/MarkItDown/Converters/`](../../src/MarkItDown/Converters/); docs: [`docs/Features/structured-docx-pdf-conversion.md`](../Features/structured-docx-pdf-conversion.md), [`docs/Features/youtube-url-metadata-conversion.md`](../Features/youtube-url-metadata-conversion.md)
+- EPUB and spreadsheet content rules: [`docs/Features/epub-and-spreadsheet-conversion.md`](../Features/epub-and-spreadsheet-conversion.md).
 - `Output Composer` — code: [`src/MarkItDown/Segments/`](../../src/MarkItDown/Segments/); docs: [`docs/ADR/ADR-0003-segment-metadata-contract-for-markdown.md`](../ADR/ADR-0003-segment-metadata-contract-for-markdown.md), [`docs/MetaMD.md`](../MetaMD.md)
 - `Intelligence Providers` — code: [`src/MarkItDown/Intelligence/`](../../src/MarkItDown/Intelligence/); docs: [`docs/Features/media-and-image-intelligence-enrichment.md`](../Features/media-and-image-intelligence-enrichment.md), [`docs/ADR/ADR-0004-extensible-provider-and-converter-abstractions.md`](../ADR/ADR-0004-extensible-provider-and-converter-abstractions.md)
 - `CLI` — code: [`src/MarkItDown.Cli/`](../../src/MarkItDown.Cli/); entry points: [`src/MarkItDown.Cli/Program.cs`](../../src/MarkItDown.Cli/Program.cs), [`src/MarkItDown.Cli/InteractiveCli.cs`](../../src/MarkItDown.Cli/InteractiveCli.cs)
@@ -149,3 +150,8 @@ flowchart LR
 - Canonical pipeline details: [`docs/DocumentProcessingPipeline.md`](../DocumentProcessingPipeline.md)
 - Markdown output contract: [`docs/MetaMD.md`](../MetaMD.md)
 - How to run and verify: [`docs/Development/CI.md`](../Development/CI.md), [`docs/Testing/Overview.md`](../Testing/Overview.md)
+
+## Maintenance reviews
+
+- [Patch 10.0.8 dependency, upstream and regression review](../Development/Review-10.0.8.md)
+- [Web markup fidelity](../Features/web-markup-fidelity.md) — Atom content types and HTML deletion semantics.

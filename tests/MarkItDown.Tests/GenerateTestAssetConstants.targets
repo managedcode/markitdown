@@ -16,7 +16,6 @@
       <Using Namespace="System.Collections.Generic" />
       <Code Type="Fragment" Language="cs">
 <![CDATA[
-#pragma warning disable CS0162
 var assetsRoot = Path.Combine(ProjectDirectory, "TestFiles");
 var outputPath = Path.Combine(ProjectDirectory, OutputFile);
 
@@ -216,8 +215,6 @@ var generatedFolderCount = Directory.GetDirectories(assetsRoot, "*", SearchOptio
 Log.LogMessage(MessageImportance.High, $"Generated test asset catalog: {outputPath}");
 Log.LogMessage(MessageImportance.High, $"Processed {generatedFileCount} files across {generatedFolderCount} folders.");
 
-return true;
-#pragma warning restore CS0162
 ]]>
       </Code>
     </Task>

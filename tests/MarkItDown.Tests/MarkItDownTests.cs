@@ -9,6 +9,52 @@ namespace MarkItDown.Tests;
 
 public class MarkItDownTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConvertAsync_CallerCancelsDuringConversion_PreservesCancellation(bool parallel)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var client = new MarkItDownClient(new MarkItDownOptions { EnableBuiltins = false });
+        client.RegisterConverter(new CancellingConverter(cancellation));
+        var request = ConversionRequest.FromConfiguration(builder =>
+            builder.ConfigurePipeline(pipeline => pipeline.EnableParallelConverterEvaluation(parallel)));
+        var path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, "cancel conversion");
+            await using var stream = File.OpenRead(path);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                client.ConvertAsync(stream, new StreamInfo(extension: ".txt"), request, cancellation.Token));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ConvertFromUrlAsync_ContentExceedsHttpBufferLimit_StreamsToDisk()
+    {
+        const string content = "Download content larger than the HTTP client buffer limit.";
+        var path = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(path, content);
+            using var handler = new FileDownloadHandler(path);
+            using var httpClient = new HttpClient(handler) { MaxResponseContentBufferSize = 1 };
+            var client = new MarkItDownClient(httpClient: httpClient);
+
+            var result = await client.ConvertFromUrlAsync(new Uri("https://example.test/document.txt"));
+
+            Assert.Equal(content, result.Markdown);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task ConvertAsync_PlainTextFile_ReturnsCorrectMarkdown()
     {
@@ -178,10 +224,7 @@ public class MarkItDownTests
         markItDown.RegisterConverter(customConverter, 5.0);
 
         // Assert
-        // We can't directly test the internal converter list, but we can test that
-        // the converter is used by creating a scenario where it would be called
-        // This is tested implicitly through the conversion tests
-        Assert.True(true); // Placeholder assertion
+        Assert.Contains(customConverter, markItDown.GetRegisteredConverters());
     }
 
     [Fact]
@@ -197,6 +240,28 @@ public class MarkItDownTests
     }
 
     // Helper classes for testing
+    private sealed class CancellingConverter(CancellationTokenSource cancellation) : DocumentConverterBase(priority: 1)
+    {
+        public override bool AcceptsInput(StreamInfo streamInfo) => true;
+
+        public override Task<DocumentConverterResult> ConvertAsync(Stream stream, StreamInfo streamInfo, CancellationToken cancellationToken = default)
+        {
+            cancellation.Cancel();
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("The caller cancellation was not propagated to the converter.");
+        }
+    }
+
+    private sealed class FileDownloadHandler(string path) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var content = new StreamContent(File.OpenRead(path));
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(ManagedCode.MimeTypes.MimeHelper.TEXT);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }
+    }
+
     private class NonSeekableMemoryStream : MemoryStream
     {
         public NonSeekableMemoryStream(byte[] buffer) : base(buffer) { }

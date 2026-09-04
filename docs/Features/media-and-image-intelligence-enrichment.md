@@ -59,7 +59,9 @@ Enable richer media conversion by combining baseline metadata extraction with op
 - `MediaTranscriptionRequest.UploadRoute` controls provider upload routing: `Auto`, `Stream`, `SourceUrl`, `StorageUrl`.
 - `UploadRoute=StorageUrl` requires `AzureMediaIntelligenceOptions.UploadStorageFactory`; missing storage factory, missing local file path, or missing public HTTP/S URI in upload metadata must fail fast.
 - Image enrichment must reject missing MIME metadata and preserve one canonical image placeholder/description path in final markdown.
+- Image descriptions preserve literal dollar sequences such as `$&`, `$$`, and `$1`; replacement of a legacy image block must not interpret description text as regular-expression replacement syntax.
 - If AI image enrichment returns no insight, treat it as soft failure (log and continue).
+- Middleware validates pending image MIME metadata before provider calls and propagates configuration errors, caller cancellation (including wrapped provider cancellation), and authentication/authorization failures. Optional provider failures outside those categories retain the existing log-and-continue policy.
 - Media routing must avoid URL-converter interception for uploaded `audio/*` or `video/*` media.
 - Video transcript output must include rich context (timing/speaker/sentiment/topics/keywords plus Video Indexer state/index/progress metadata when available).
 
@@ -151,6 +153,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | NEG-001 | Required media provider fails | Integration | Error surfaced with provider context | `tests/MarkItDown.Tests/MarkItDownTests.cs` |
 | NEG-002 | Missing MIME metadata for AI image enrichment | Integration | Failure surfaced instead of fallback MIME | `tests/MarkItDown.Tests/Intelligence/ImageChatEnricherTests.cs` |
+| NEG-003 | Image middleware configuration, cancellation, and auth errors | Integration | Required failures propagate; optional HTTP 503 preserves baseline segment | `tests/MarkItDown.Tests/Conversion/AiModelPipelineTests.cs` |
 
 **Edge cases**
 
@@ -161,6 +164,7 @@ flowchart LR
 | EDGE-003 | Azure Video Indexer upload with HTTP/S source URL | Unit/Integration | Upload request uses `videoUrl` query without multipart body | `tests/MarkItDown.Tests/Intelligence/VideoIndexerClientTests.cs` |
 | EDGE-004 | Azure upload source override via request | Unit/Integration | `MediaTranscriptionRequest.SourceUrl` wins over `StreamInfo.Url`; invalid override fails fast | `tests/MarkItDown.Tests/Intelligence/AzureMediaTranscriptionProviderTests.cs` |
 | EDGE-005 | Azure upload route selection | Unit/Integration | `UploadRoute.Stream` forces multipart; `UploadRoute.StorageUrl` requires configured uploader and emits `videoUrl` | `tests/MarkItDown.Tests/Intelligence/AzureMediaTranscriptionProviderTests.cs` |
+| EDGE-006 | AI image insight includes shell/regex dollar sequences | Integration | DOCX conversion and replacement of an existing image segment retain the complete literal description | `AiModelPipelineTests.ImageEnrichment_PreservesLiteralRegexReplacementTokens`, `AiModelPipelineTests.ImageEnrichment_ExistingImageSegmentPreservesLiteralRegexReplacementTokens` |
 
 ### Test mapping
 

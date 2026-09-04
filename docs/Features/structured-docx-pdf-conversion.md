@@ -52,6 +52,7 @@ Convert Word and PDF documents into high-fidelity Markdown while preserving stru
 
 - Output segments must preserve source order with explicit page/segment metadata.
 - Multi-page tables must include continuation markers and `table.pageStart`, `table.pageEnd`, `table.pageRange` metadata.
+- Empty DOCX table cells remain empty unless an explicit OpenXML merge supplies their value. A preceding row's ordinary value must never be copied into an unmerged blank cell.
 - When configured, PDF pages can be treated as images and routed through OCR/vision enrichment while retaining page context.
 - Extracted images and table artifacts must be persisted and surfaced in artifact metadata.
 
@@ -149,6 +150,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | EDGE-001 | PDF `TreatPagesAsImages` option enabled | Integration | OCR/vision-enriched page segments emitted | `tests/MarkItDown.Tests/PdfConverterTests.cs` |
 | EDGE-002 | Multi-page table metadata continuity | Integration | `table.pageStart/pageEnd/pageRange` metadata preserved | `tests/MarkItDown.Tests/DocxConverterTests.cs` |
+| EDGE-003 | Ordinary blank cells beside populated DOCX rows | Integration | Markdown and table artifacts preserve blank values; explicit merges still expand | `DocxConverterTests.ConvertAsync_DocxWithUnmergedBlankCells_PreservesEmptyValues`, `ConvertAsync_DocxWithMergedCells_DuplicatesValuesAcrossRows` |
 
 ### Test mapping
 

@@ -51,6 +51,7 @@ Provide deterministic conversion of files/streams/URLs by persisting input to di
 ## Business Rules
 
 - Every conversion path must operate on persisted file-backed inputs (no core conversion path based on `MemoryStream`).
+- Text artifacts are written as UTF-8 files before storage upload through the `IStorage` FileInfo overload. Local copies and the configured MIME type are preserved; temporary upload files are removed after completion or failure. Real Azurite coverage verifies stored bytes, MIME and cleanup.
 - Converter extraction happens before conversion middleware.
 - Markdown is composed from ordered segments/artifacts after middleware has completed.
 - Conversion output must include metadata/artifacts needed for downstream RAG and diagnostics.

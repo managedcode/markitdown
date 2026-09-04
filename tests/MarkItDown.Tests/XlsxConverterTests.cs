@@ -16,6 +16,51 @@ namespace MarkItDown.Tests;
 
 public class XlsxConverterTests
 {
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    [InlineData("\r")]
+    public async Task ConvertAsync_XlsxWithMultilineCells_KeepsMarkdownRowsIntact(string lineBreak)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"multiline-{Guid.NewGuid():N}.xlsx");
+        try
+        {
+            using (var document = SpreadsheetDocument.Create(path, SpreadsheetDocumentType.Workbook))
+            {
+                var workbook = document.AddWorkbookPart();
+                var worksheet = workbook.AddNewPart<WorksheetPart>();
+                var sharedStrings = workbook.AddNewPart<SharedStringTablePart>();
+                sharedStrings.SharedStringTable = new SharedStringTable(new SharedStringItem(new Text($"Shared{lineBreak}value|tail")));
+                worksheet.Worksheet = new Worksheet(new SheetData(
+                    new Row(
+                        new Cell { CellReference = "A1", DataType = CellValues.InlineString, InlineString = new InlineString(new Text("Inline")) },
+                        new Cell { CellReference = "B1", DataType = CellValues.InlineString, InlineString = new InlineString(new Text("Shared")) })
+                    { RowIndex = 1 },
+                    new Row(
+                        new Cell { CellReference = "A2", DataType = CellValues.InlineString, InlineString = new InlineString(new Text($"First{lineBreak}second|tail")) },
+                        new Cell { CellReference = "B2", DataType = CellValues.SharedString, CellValue = new CellValue("0") })
+                    { RowIndex = 2 }));
+                workbook.Workbook = new Workbook(new Sheets(new Sheet
+                {
+                    Id = workbook.GetIdOfPart(worksheet),
+                    SheetId = 1,
+                    Name = "Multiline"
+                }));
+                workbook.Workbook.Save();
+            }
+
+            await using var source = File.OpenRead(path);
+            await using var result = await new XlsxConverter().ConvertAsync(
+                source, new StreamInfo(fileName: "multiline.xlsx", extension: ".xlsx"));
+
+            result.Markdown.ShouldContain("| First<br />second\\|tail | Shared<br />value\\|tail |");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public async Task ConvertAsync_ComplexXlsx_RendersSheetsAndFormulas()
     {
