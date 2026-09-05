@@ -40,6 +40,7 @@
     
     <!-- Image processing support -->
     <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
     
     <!-- Email support -->
     <PackageReference Include="MimeKit" />

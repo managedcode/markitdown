@@ -55,6 +55,7 @@ Convert Word and PDF documents into high-fidelity Markdown while preserving stru
 - Empty DOCX table cells remain empty unless an explicit OpenXML merge supplies their value. A preceding row's ordinary value must never be copied into an unmerged blank cell.
 - When configured, PDF pages can be treated as images and routed through OCR/vision enrichment while retaining page context.
 - Extracted images and table artifacts must be persisted and surfaced in artifact metadata.
+- Managed SkiaSharp and its native runtime assets must have compatible versions on every supported desktop OS. Linux native assets are referenced explicitly using the same central version as SkiaSharp because PDFtoImage can otherwise resolve an older native ABI. `PdfNativeRenderingTests.RenderRealPdf_EncodesPageAsPng` renders the real PDF fixture and encodes a PNG without test renderers, exposing native-loader failures directly.
 
 ---
 

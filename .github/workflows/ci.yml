@@ -34,6 +34,8 @@ jobs:
         run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
 
       - name: Test
+        env:
+          AZURE_INTELLIGENCE_CONFIG_JSON: ${{ secrets.AZURE_INTELLIGENCE_CONFIG_JSON }}
         run: dotnet test ${{ env.SOLUTION_PATH }} --configuration Release --no-build --logger trx --results-directory TestResults
 
       - name: Upload test results

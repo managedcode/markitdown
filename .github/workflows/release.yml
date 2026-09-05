@@ -39,6 +39,8 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
+        env:
+          AZURE_INTELLIGENCE_CONFIG_JSON: ${{ secrets.AZURE_INTELLIGENCE_CONFIG_JSON }}
         run: dotnet test --configuration Release --no-build --verbosity normal
 
       - name: Pack NuGet packages

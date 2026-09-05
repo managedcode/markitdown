@@ -29,3 +29,9 @@ Optional coverage:
 
 - Some tests require external cloud credentials and may fail when auth tokens are expired or unavailable.
 - Live failures should not be swallowed; they must expose the real provider/auth/network error.
+- Both build and release workflows pass the repository secret `AZURE_INTELLIGENCE_CONFIG_JSON` only to the test step. Configure it with the explicit Azure integration JSON required by [the manual suites](../Testing/Overview.md). Secret values must never be checked into source or printed in logs.
+- The original specimen PDF/DOCX must be available under `TestFiles` before build so the generated asset catalog includes them. Missing Azure configuration or specimen fixtures keeps the full-suite check failing; native PDF rendering fixes do not waive these prerequisites.
+
+## Linux PDF native dependencies
+
+`SkiaSharp` and `SkiaSharp.NativeAssets.Linux.NoDependencies` share `SkiaSharpVersion` in `Directory.Packages.props`. Reference the Linux native package in the library itself so NuGet consumers receive the compatible runtime too. Depending only on PDFtoImage's older transitive native version can produce a managed/native ABI mismatch even though restore and compilation succeed. `PdfNativeRenderingTests.RenderRealPdf_EncodesPageAsPng` exercises actual PDFium/Skia rendering on the test runner.
