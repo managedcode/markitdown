@@ -11,6 +11,7 @@ using Xunit.Abstractions;
 
 namespace MarkItDown.Tests.Manual;
 
+[Trait("Category", "Manual")]
 public partial class SpecimenManualParityTests(ITestOutputHelper output)
 {
     private static readonly char[] separator = new[] { '\r', '\n' };

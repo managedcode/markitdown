@@ -15,6 +15,7 @@ using Xunit.Sdk;
 
 namespace MarkItDown.Tests.Manual;
 
+[Trait("Category", "Manual")]
 public class ManualConversionDebugTests(ITestOutputHelper output)
 {
     public static TheoryData<string, string> Assets => new()

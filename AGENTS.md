@@ -38,6 +38,8 @@ Extraction guidelines:
 
 ### Task Delivery (ALL TASKS)
 
+- CI repair tasks are complete only after the requested GitHub Actions jobs succeed on the pushed fix commit; do not report a successful local build or partially reduced failures as fixed CI.
+
 - Always start from the architecture map in `docs/Architecture/Overview.md`.
 - Define in-scope/out-of-scope before implementation.
 - Use only the minimum required context; do not scan the whole repo without need.
@@ -46,7 +48,8 @@ Extraction guidelines:
 - Implement code and tests together.
 - If `build` is separate from `test`, run `build` before `test`.
 - Run the full test suite after making changes and share results.
-- When executing tests, always include `ManualConversionDebugTests`; treat failures as blocking.
+- GitHub Actions must exclude tests marked `Category=Manual`; manual conversion suites run explicitly with their required local fixtures and Azure configuration.
+- Keep NuGet versions as literal values in `Directory.Packages.props`; do not introduce MSBuild properties just to share package versions.
 - Always run required commands yourself; do not ask the user to run them.
 - When asked to adopt an external tutorial/framework, execute the tutorial checklist end-to-end and document the result in repo docs.
 

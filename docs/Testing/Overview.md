@@ -6,7 +6,7 @@ This repository follows integration-first testing for conversion behavior.
 
 - Prefer real conversion flows over isolated mocks.
 - Keep fixture assets in `tests/MarkItDown.Tests/TestFiles/` and reference them through generated `TestAssetCatalog` constants.
-- Treat `ManualConversionDebugTests` as required in full-suite runs.
+- GitHub Actions runs all automated tests with `--filter "Category!=Manual"`. Classes marked `[Trait("Category", "Manual")]` run explicitly with their prerequisites.
 - Live provider tests must fail loudly on real provider/auth/network errors.
 
 ## Test Projects
@@ -18,7 +18,9 @@ This repository follows integration-first testing for conversion behavior.
 
 - Restore: `dotnet restore MarkItDown.slnx`
 - Build: `dotnet build MarkItDown.slnx`
-- Full tests: `dotnet test MarkItDown.slnx`
+- Automated CI suite: `dotnet test MarkItDown.slnx --filter "Category!=Manual"`
+- Manual suite: `dotnet test MarkItDown.slnx --filter "Category=Manual"`
+- All tests, including manual prerequisites: `dotnet test MarkItDown.slnx`
 - Coverage: `dotnet test MarkItDown.slnx --collect:"XPlat Code Coverage"`
 
 ## Key Suites
