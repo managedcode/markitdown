@@ -156,4 +156,50 @@ Content-Type: text/html; charset=UTF-8
         result.Markdown.ShouldContain("**Subject:** Important Project Update");
         result.Markdown.ShouldContain("Hello Jane");
     }
+    [Fact]
+    public async Task ConvertAsync_MultipartEmlPreservesInternationalAddressAndAttachmentName()
+    {
+        const string email = """
+            From: Operations <sender@xn--bcher-kva.example>
+            To: recipient@example.com
+            Subject: Monthly report
+            Mime-Version: 1.0
+            Content-Type: multipart/mixed; boundary="mixed"
+
+            --mixed
+            Content-Type: multipart/alternative; boundary="alternative"
+
+            --alternative
+            Content-Type: text/plain; charset=utf-8
+
+            Plain alternative.
+            --alternative
+            Content-Type: text/html; charset=utf-8
+
+            <p>The report is <strong>approved</strong>.</p>
+            --alternative--
+            --mixed
+            Content-Type: text/plain
+            Content-Disposition: attachment;
+             filename*=utf-8''r%C3%A9sum%C3%A9.txt
+
+            Private attachment body.
+            --mixed--
+            """;
+
+        var client = new MarkItDownClient();
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(email));
+        var info = new StreamInfo(fileName: "report.eml", extension: ".eml");
+
+        await using var result = await client.ConvertAsync(stream, info);
+
+        result.Title.ShouldBe("Monthly report");
+        result.Markdown.ShouldContain("Operations <sender@bücher.example>");
+        result.Markdown.ShouldContain("The report is **approved**.");
+        result.Markdown.ShouldNotContain("Plain alternative.");
+        result.Markdown.ShouldNotContain("Private attachment body.");
+        result.Metadata[MetadataKeys.EmailAttachmentsCount].ShouldBe("1");
+        result.Metadata[MetadataKeys.EmailAttachments].ShouldBe("résumé.txt");
+    }
+
 }

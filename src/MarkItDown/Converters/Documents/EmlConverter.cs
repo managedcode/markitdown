@@ -78,7 +78,7 @@ public sealed class EmlConverter : DocumentPipelineConverterBase
             workspace = WorkspacePersistence.CreateWorkspace(streamInfo, effectiveSegments, storageOptions, source.FilePath, ".eml", defaultMime, cancellationToken, out storedSourcePath);
 
             await using var fileStream = OpenReadOnlyFile(source.FilePath);
-            var message = await MimeMessage.LoadAsync(fileStream, cancellationToken).ConfigureAwait(false);
+            using var message = await MimeMessage.LoadAsync(fileStream, cancellationToken).ConfigureAwait(false);
 
             var conversion = await ConvertEmailToMarkdownAsync(message, cancellationToken).ConfigureAwait(false);
             var extraction = BuildExtraction(conversion.Markdown, streamInfo, conversion.Attachments);
@@ -298,8 +298,8 @@ public sealed class EmlConverter : DocumentPipelineConverterBase
     private static string FormatAddress(InternetAddress address)
         => address switch
         {
-            MailboxAddress mailbox when !string.IsNullOrEmpty(mailbox.Name) => $"{mailbox.Name} <{mailbox.Address}>",
-            MailboxAddress mailbox => mailbox.Address,
+            MailboxAddress mailbox when !string.IsNullOrEmpty(mailbox.Name) => $"{mailbox.Name} <{mailbox.GetAddress(idnEncode: false)}>",
+            MailboxAddress mailbox => mailbox.GetAddress(idnEncode: false),
             _ => address.ToString()
         };
 
