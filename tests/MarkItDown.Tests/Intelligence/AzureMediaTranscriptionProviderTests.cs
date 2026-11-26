@@ -11,7 +11,7 @@ using Shouldly;
 
 namespace MarkItDown.Tests.Intelligence;
 
-public class AzureMediaTranscriptionProviderTests
+public partial class AzureMediaTranscriptionProviderTests
 {
     private sealed class StubArmTokenService : ArmTokenService
     {
@@ -31,9 +31,14 @@ public class AzureMediaTranscriptionProviderTests
 
     private sealed class SequenceHandler : HttpMessageHandler
     {
-        private readonly Queue<Func<HttpRequestMessage, HttpResponseMessage>> responses = new();
+        private readonly Queue<Func<HttpRequestMessage, Task<HttpResponseMessage>>> responses = new();
 
         public void Enqueue(Func<HttpRequestMessage, HttpResponseMessage> factory)
+        {
+            responses.Enqueue(request => Task.FromResult(factory(request)));
+        }
+
+        public void Enqueue(Func<HttpRequestMessage, Task<HttpResponseMessage>> factory)
         {
             responses.Enqueue(factory);
         }
@@ -45,8 +50,7 @@ public class AzureMediaTranscriptionProviderTests
                 throw new InvalidOperationException("Unexpected request: " + request.RequestUri);
             }
 
-            var response = responses.Dequeue()(request);
-            return Task.FromResult(response);
+            return responses.Dequeue()(request);
         }
     }
 

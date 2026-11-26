@@ -52,8 +52,10 @@ Enable richer media conversion by combining baseline metadata extraction with op
 
 ## Business Rules
 
-- Missing required media provider configurations must surface explicit failures instead of silent fallback.
+- An explicit media provider selection requires that provider to be configured. A missing selection fails before any other provider or audio transcription delegate can receive the content.
+- Google Speech-to-Text V1 requests word offsets and maps each recognized segment to its first word's start and last word's end. Direct audio is limited to 10 MB and 60 seconds. Longer recordings require a private Google Cloud Storage object and a batch recognition request. [Google V1 quotas](https://docs.cloud.google.com/speech-to-text/docs/v1/quotas).
 - Video Indexer processing must wait for `Processed` and fail with a clear timeout/config error if processing does not complete in the configured window.
+- Azure Video Indexer requests carry the account token as a bearer header. Provider status logs and failure messages omit response payloads and signed source URLs. Reading an index without a requested language retrieves its original transcript.
 - For Azure Video Indexer uploads, prefer `videoUrl` when `StreamInfo.Url` is a valid `http/https` source (for example read-only SAS URL); use multipart stream upload only when no valid source URL is available.
 - `MediaTranscriptionRequest.SourceUrl` must override `StreamInfo.Url` for Azure Video Indexer upload source selection, and invalid (non-`http/https`) override values must fail fast.
 - `MediaTranscriptionRequest.UploadRoute` controls provider upload routing: `Auto`, `Stream`, `SourceUrl`, `StorageUrl`.
@@ -106,6 +108,21 @@ Enable richer media conversion by combining baseline metadata extraction with op
 - Observability: converter failure details, media transcription activity tags, and provider/video index metadata
 
 ---
+
+### Resumable Google Speech V2 transcription
+
+[Google Speech V2 batch transcription](google-speech-v2-transcription.md) stages a private recording, resumes native Google operations after restart, and returns source-aligned speech segments for supported audio and video containers.
+
+### Resumable Azure Video Indexer transcription
+
+Applications that own durable ingestion can call the Azure provider directly. Each lifecycle method performs one Video Indexer operation after authentication. The conversion API still supports its existing upload routes and managed wait.
+
+1. Persist an opaque external ID with the original recording authorization. Call `AzureMediaTranscriptionProvider.SubmitAsync` once with the original file stream and its spoken language. It streams multipart to the authorized account, requests private Basic Audio indexing with no streaming rendition, and sets Azure's one-day retention backstop.
+2. Save the returned video ID. If the upload outcome is uncertain, call `FindVideoIdAsync` using the same external ID. A missing search result can mean delayed visibility. Treat this as unresolved until readback or the application's deadline. Multiple matches fail closed.
+3. Call `ReadAsync` with the exact video ID on separate durable steps. An accepted or processing recording returns `Pending`. A processed recording returns the original-language text and its time intervals. A failed or quarantined recording returns `Failed`.
+4. Call `DeleteAsync` for the exact provider recording after the application's result becomes durable or when ingestion stops. The provider retains no application-provided media URL or public playback rendition. An already deleted recording is successful.
+
+Use an HTTP transport configured to avoid upload retries and redirects. The default Video Indexer transport disables redirects. Bearer credentials stay in request headers and are refreshed through the configured account identity. Uploaded filenames use the opaque external ID and recording extension. [Azure Video Indexer API](https://api-portal.videoindexer.ai/) · [Indexing and retention](https://learn.microsoft.com/en-us/azure/azure-video-indexer/indexing-configuration-guide)
 
 ## Diagrams
 
@@ -164,7 +181,12 @@ flowchart LR
 | EDGE-003 | Azure Video Indexer upload with HTTP/S source URL | Unit/Integration | Upload request uses `videoUrl` query without multipart body | `tests/MarkItDown.Tests/Intelligence/VideoIndexerClientTests.cs` |
 | EDGE-004 | Azure upload source override via request | Unit/Integration | `MediaTranscriptionRequest.SourceUrl` wins over `StreamInfo.Url`; invalid override fails fast | `tests/MarkItDown.Tests/Intelligence/AzureMediaTranscriptionProviderTests.cs` |
 | EDGE-005 | Azure upload route selection | Unit/Integration | `UploadRoute.Stream` forces multipart; `UploadRoute.StorageUrl` requires configured uploader and emits `videoUrl` | `tests/MarkItDown.Tests/Intelligence/AzureMediaTranscriptionProviderTests.cs` |
+| EDGE-008 | Google Speech V1 timed audio and direct size limit | Provider boundary | Requests word offsets, returns the recognized range, and rejects oversized inline input before sending it | `tests/MarkItDown.Tests/Intelligence/GoogleProvidersTests.cs` |
+| EDGE-009 | Explicit media provider routing | Public conversion API | A missing selection does not call the default provider. A configured selection returns its timed transcript without calling another transcription delegate. | `tests/MarkItDown.Tests/MarkItDownTests.cs` |
+| EDGE-010 | Resumable Google Speech V2 batch transcription | Storage and provider boundary | Staging preserves source bytes, a recreated provider reads timed text from the native operation, and cancellation and private cleanup follow provider state | `tests/MarkItDown.Tests/Intelligence/GoogleSpeechV2TranscriptionProviderTests.cs` |
 | EDGE-006 | AI image insight includes shell/regex dollar sequences | Integration | DOCX conversion and replacement of an existing image segment retain the complete literal description | `AiModelPipelineTests.ImageEnrichment_PreservesLiteralRegexReplacementTokens`, `AiModelPipelineTests.ImageEnrichment_ExistingImageSegmentPreservesLiteralRegexReplacementTokens` |
+| EDGE-007 | Azure Video Indexer protocol diagnostics and language | Provider HTTP contract | Upload and index requests keep tokens out of URLs, an index read preserves the original language, and timeout errors omit provider payloads | `tests/MarkItDown.Tests/Intelligence/VideoIndexerClientTests.cs` |
+| EDGE-010 | Azure Video Indexer resumable transcription | Public provider lifecycle | One private upload streams the original recording. Recovery reads the same external ID, the finished state yields original speech and measured times, and deletion succeeds for the exact video ID. Unknown or duplicate recovery IDs and failed recordings never produce a transcript. | `tests/MarkItDown.Tests/Intelligence/AzureMediaTranscriptionProviderTests.Lifecycle.cs` |
 
 ### Test mapping
 

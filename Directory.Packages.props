@@ -15,6 +15,7 @@
     <PackageVersion Include="DotNet.ReproducibleBuilds" Version="2.0.5" />
     <PackageVersion Include="Google.Cloud.DocumentAI.V1" Version="3.25.0" />
     <PackageVersion Include="Google.Cloud.Speech.V1" Version="3.9.0" />
+    <PackageVersion Include="Google.Cloud.Speech.V2" Version="1.8.0" />
     <PackageVersion Include="Google.Cloud.Vision.V1" Version="3.8.0" />
     <PackageVersion Include="ManagedCode.MimeTypes" Version="10.1.5" />
     <PackageVersion Include="ManagedCode.Storage.Aws" Version="10.1.6" />

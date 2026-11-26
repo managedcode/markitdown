@@ -19,7 +19,28 @@ internal static class ExifToolMetadataExtractor
 
         try
         {
-            var output = await RunProcessAsync(path, ["-json", tempFile], cancellationToken).ConfigureAwait(false);
+            return await ExtractFromFileAsync(path, tempFile, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            TryDelete(tempFile);
+        }
+    }
+
+    public static Task<Dictionary<string, string>> ExtractFileAsync(string filePath, string? overridePath, CancellationToken cancellationToken)
+    {
+        var exifToolPath = ResolveExifToolPath(overridePath);
+        return exifToolPath is null
+            ? Task.FromResult(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+            : ExtractFromFileAsync(exifToolPath, filePath, cancellationToken);
+    }
+
+    private static async Task<Dictionary<string, string>> ExtractFromFileAsync(
+        string exifToolPath, string filePath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var output = await RunProcessAsync(exifToolPath, ["-json", filePath], cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(output))
             {
                 return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -48,10 +69,6 @@ internal static class ExifToolMetadataExtractor
         catch
         {
             return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        }
-        finally
-        {
-            TryDelete(tempFile);
         }
     }
 

@@ -16,11 +16,14 @@ public class VideoIndexerClientTests
     {
         var sequence = new SequenceHandler();
 
-        sequence.Enqueue(request =>
+        sequence.Enqueue(async request =>
         {
             request.Method.ShouldBe(HttpMethod.Post);
             request.RequestUri!.ToString().ShouldContain("/subscriptions/sub/resourceGroups/rg/providers/Microsoft.VideoIndexer/accounts/account/generateAccessToken");
             request.Headers.Authorization!.Scheme.ShouldBe("Bearer");
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            body.RootElement.GetProperty("permissionType").GetString().ShouldBe("Contributor");
+            body.RootElement.GetProperty("scope").GetString().ShouldBe("Account");
             var payload = new
             {
                 accessToken = "token123",
@@ -33,9 +36,10 @@ public class VideoIndexerClientTests
         {
             request.Method.ShouldBe(HttpMethod.Post);
             request.RequestUri!.ToString().ShouldContain("/trial/Accounts/account/Videos?");
-            request.RequestUri!.Query.ShouldContain("accessToken=token123");
-            request.Content.ShouldNotBeNull();
-            request.Content.ShouldBeOfType<MultipartFormDataContent>();
+            request.RequestUri!.Query.ShouldNotContain("accessToken");
+            request.Headers.Authorization!.Parameter.ShouldBe("token123");
+            var multipart = request.Content.ShouldBeOfType<MultipartFormDataContent>();
+            multipart.Single().Headers.ContentDisposition!.Name!.Trim('"').ShouldBe("fileName");
             var payload = new { id = "video123" };
             return JsonResponse(HttpStatusCode.OK, payload);
         });
@@ -87,7 +91,8 @@ public class VideoIndexerClientTests
         {
             request.Method.ShouldBe(HttpMethod.Post);
             request.RequestUri!.ToString().ShouldContain("/trial/Accounts/account/Videos?");
-            request.RequestUri!.Query.ShouldContain("accessToken=token123");
+            request.RequestUri!.Query.ShouldNotContain("accessToken");
+            request.Headers.Authorization!.Parameter.ShouldBe("token123");
             request.RequestUri!.Query.ShouldContain("videoUrl=https%3A%2F%2Fstorage.example.com%2Fuploads%2Fvideo.mp4%3Fsv%3D1%26sig%3Dabc");
             request.Content.ShouldBeNull();
             var payload = new { id = "video123" };
@@ -226,7 +231,8 @@ public class VideoIndexerClientTests
         {
             request.Method.ShouldBe(HttpMethod.Post);
             request.RequestUri!.ToString().ShouldContain("/trial/Accounts/account/Videos?");
-            request.RequestUri!.Query.ShouldContain("accessToken=");
+            request.RequestUri!.Query.ShouldNotContain("accessToken");
+            request.Headers.Authorization!.Scheme.ShouldBe("Bearer");
             request.RequestUri!.ToString().ShouldNotContain("management.azure.com");
             return JsonResponse(HttpStatusCode.OK, new { id = "video123" });
         });
@@ -337,7 +343,8 @@ public class VideoIndexerClientTests
         {
             request.Method.ShouldBe(HttpMethod.Get);
             request.RequestUri!.AbsolutePath.ShouldContain("/Videos/video123/Index");
-            request.RequestUri.Query.ShouldContain("accessToken=token123");
+            request.RequestUri.Query.ShouldNotContain("accessToken");
+            request.Headers.Authorization!.Parameter.ShouldBe("token123");
             var payload = new { state = "Processed" };
             return JsonResponse(HttpStatusCode.OK, payload);
         });
@@ -368,7 +375,8 @@ public class VideoIndexerClientTests
         {
             request.Method.ShouldBe(HttpMethod.Get);
             request.RequestUri!.AbsolutePath.ShouldContain("/Videos/video123/Index");
-            request.RequestUri.Query.ShouldContain("accessToken=token123");
+            request.RequestUri.Query.ShouldNotContain("accessToken");
+            request.Headers.Authorization!.Parameter.ShouldBe("token123");
             return JsonResponse(HttpStatusCode.OK, new { state = "Failed" });
         });
 
@@ -403,8 +411,14 @@ public class VideoIndexerClientTests
         {
             request.Method.ShouldBe(HttpMethod.Get);
             request.RequestUri!.AbsolutePath.ShouldContain("/Videos/video123/Index");
-            request.RequestUri.Query.ShouldContain("accessToken=token123");
-            return JsonResponse(HttpStatusCode.OK, new { state = "Processing", processingProgress = "42%" });
+            request.RequestUri.Query.ShouldNotContain("accessToken");
+            request.Headers.Authorization!.Parameter.ShouldBe("token123");
+            return JsonResponse(HttpStatusCode.OK, new
+            {
+                state = "Processing",
+                processingProgress = "42%",
+                text = "Private transcript content"
+            });
         });
 
         using var httpClient = new HttpClient(sequence)
@@ -430,6 +444,7 @@ public class VideoIndexerClientTests
 
         exception.Message.ShouldContain("timed out");
         exception.Message.ShouldContain("Processing");
+        exception.Message.ShouldNotContain("Private transcript content");
     }
 
     [Theory]
@@ -484,8 +499,9 @@ public class VideoIndexerClientTests
         {
             request.Method.ShouldBe(HttpMethod.Get);
             request.RequestUri!.AbsolutePath.ShouldContain("/Videos/video123/Index");
-            request.RequestUri.Query.ShouldContain("accessToken=token123");
-            request.RequestUri.Query.ShouldContain("language=English");
+            request.RequestUri.Query.ShouldNotContain("accessToken");
+            request.Headers.Authorization!.Parameter.ShouldBe("token123");
+            request.RequestUri.Query.ShouldNotContain("language=");
             var payload = new
             {
                 videos = new[]
@@ -579,9 +595,14 @@ public class VideoIndexerClientTests
 
     private sealed class SequenceHandler : HttpMessageHandler
     {
-        private readonly Queue<Func<HttpRequestMessage, HttpResponseMessage>> responses = new();
+        private readonly Queue<Func<HttpRequestMessage, Task<HttpResponseMessage>>> responses = new();
 
         public void Enqueue(Func<HttpRequestMessage, HttpResponseMessage> factory)
+        {
+            responses.Enqueue(request => Task.FromResult(factory(request)));
+        }
+
+        public void Enqueue(Func<HttpRequestMessage, Task<HttpResponseMessage>> factory)
         {
             responses.Enqueue(factory);
         }
@@ -593,8 +614,7 @@ public class VideoIndexerClientTests
                 throw new InvalidOperationException("Unexpected request: " + request.RequestUri);
             }
 
-            var response = responses.Dequeue()(request);
-            return Task.FromResult(response);
+            return responses.Dequeue()(request);
         }
     }
 }

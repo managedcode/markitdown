@@ -10,7 +10,7 @@ public class AudioConverterIntelligenceTests
 {
     private sealed class StubMetadataExtractor(IReadOnlyDictionary<string, string> metadata) : AudioConverter.IAudioMetadataExtractor
     {
-        public Task<IReadOnlyDictionary<string, string>> ExtractAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
+        public Task<IReadOnlyDictionary<string, string>> ExtractAsync(string filePath, CancellationToken cancellationToken)
         {
             return Task.FromResult(metadata);
         }

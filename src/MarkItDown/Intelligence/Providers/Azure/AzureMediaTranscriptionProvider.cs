@@ -20,7 +20,7 @@ namespace MarkItDown.Intelligence.Providers.Azure;
 /// Partial Azure Video Indexer integration. Uploads media and retrieves the primary transcript when credentials are provided.
 /// </summary>
 [ExcludeFromCodeCoverage]
-public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvider, IDisposable
+public sealed partial class AzureMediaTranscriptionProvider : IMediaTranscriptionProvider, IDisposable
 {
     private readonly AzureMediaIntelligenceOptions _options;
     private readonly VideoIndexerClient _client;
@@ -77,12 +77,6 @@ public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvide
             await _client.WaitForProcessingAsync(uploadResult.Value.VideoId, uploadResult.Value.AccountAccessToken, cancellationToken).ConfigureAwait(false);
 
             using var index = await _client.GetVideoIndexAsync(uploadResult.Value.VideoId, uploadResult.Value.AccountAccessToken, request?.Language, cancellationToken).ConfigureAwait(false);
-            if (index is null)
-            {
-                activity?.SetStatus(ActivityStatusCode.Error, "Azure Video Indexer returned null index document.");
-                return null;
-            }
-
             var result = ParseTranscript(index.RootElement, uploadResult.Value.VideoId, request);
 
             stopwatch.Stop();
@@ -100,8 +94,9 @@ public sealed class AzureMediaTranscriptionProvider : IMediaTranscriptionProvide
         {
             stopwatch.Stop();
             activity?.SetTag("markitdown.media.transcription.durationMs", stopwatch.Elapsed.TotalMilliseconds);
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            _logger?.LogWarning(ex, "Azure Video Indexer transcription failed for source {Source}.", streamInfo.FileName ?? streamInfo.Url ?? "stream");
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
+            _logger?.LogWarning("Azure Video Indexer transcription failed for account {AccountId} ({ErrorType}).",
+                _options.AccountId, ex.GetType().Name);
             throw;
         }
     }

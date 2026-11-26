@@ -865,14 +865,16 @@ public sealed class MarkItDownClient : IMarkItDownClient
             return _intelligenceProviders.Media;
         }
 
-        return request.PreferredProvider.Value switch
+        var provider = request.PreferredProvider.Value switch
         {
-            MediaTranscriptionProviderKind.Azure => BuildAzureMediaProvider() ?? _intelligenceProviders.Media,
-            MediaTranscriptionProviderKind.Google => BuildGoogleMediaProvider() ?? _intelligenceProviders.Media,
-            MediaTranscriptionProviderKind.Aws => BuildAwsMediaProvider() ?? _intelligenceProviders.Media,
-            MediaTranscriptionProviderKind.Custom => _options.MediaTranscriptionProvider ?? _intelligenceProviders.Media,
-            _ => _intelligenceProviders.Media
+            MediaTranscriptionProviderKind.Azure => BuildAzureMediaProvider() ?? _options.MediaTranscriptionProvider as AzureMediaTranscriptionProvider,
+            MediaTranscriptionProviderKind.Google => BuildGoogleMediaProvider() ?? _options.MediaTranscriptionProvider as GoogleMediaTranscriptionProvider,
+            MediaTranscriptionProviderKind.Aws => BuildAwsMediaProvider() ?? _options.MediaTranscriptionProvider as AwsMediaTranscriptionProvider,
+            MediaTranscriptionProviderKind.Custom => _options.MediaTranscriptionProvider,
+            _ => null
         };
+        return provider ?? throw new FileConversionException(
+            $"The requested media transcription provider '{request.PreferredProvider.Value}' is not configured.");
     }
 
     private IMediaTranscriptionProvider? BuildAzureMediaProvider()

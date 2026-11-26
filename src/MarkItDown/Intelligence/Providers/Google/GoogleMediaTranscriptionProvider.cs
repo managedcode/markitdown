@@ -6,6 +6,7 @@ using System.Linq;
 using System.Diagnostics.CodeAnalysis;
 using Google.Api.Gax.Grpc;
 using Google.Cloud.Speech.V1;
+using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using MarkItDown;
 using MarkItDown.Intelligence;
@@ -19,6 +20,9 @@ namespace MarkItDown.Intelligence.Providers.Google;
 [ExcludeFromCodeCoverage]
 public sealed class GoogleMediaTranscriptionProvider : IMediaTranscriptionProvider
 {
+    private const long MaximumInlineAudioBytes = 10_000_000;
+    private const int BufferSize = 256 * 1024;
+
     private readonly SpeechClient _client;
     private readonly GoogleMediaIntelligenceOptions _options;
 
@@ -53,8 +57,17 @@ public sealed class GoogleMediaTranscriptionProvider : IMediaTranscriptionProvid
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        await using var handle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension, bufferSize: 256 * 1024, onChunkWritten: null, cancellationToken).ConfigureAwait(false);
-        var audioBytes = await File.ReadAllBytesAsync(handle.FilePath, cancellationToken).ConfigureAwait(false);
+        if (stream.CanSeek)
+        {
+            EnsureInlineSize(stream.Length - stream.Position);
+        }
+
+        await using var handle = await DiskBufferHandle.FromStreamAsync(stream, streamInfo.Extension,
+            BufferSize, EnsureInlineSize, cancellationToken).ConfigureAwait(false);
+        if (handle.Length == 0)
+        {
+            throw new ArgumentException("Google Speech-to-Text requires a non-empty audio file.", nameof(stream));
+        }
 
         var language = string.IsNullOrWhiteSpace(request?.Language) ? _options.LanguageCode : request.Language;
 
@@ -62,6 +75,7 @@ public sealed class GoogleMediaTranscriptionProvider : IMediaTranscriptionProvid
         {
             LanguageCode = language,
             EnableAutomaticPunctuation = _options.EnableAutomaticPunctuation,
+            EnableWordTimeOffsets = true,
             Encoding = RecognitionConfig.Types.AudioEncoding.EncodingUnspecified
         };
 
@@ -78,21 +92,14 @@ public sealed class GoogleMediaTranscriptionProvider : IMediaTranscriptionProvid
             };
         }
 
-        var audio = RecognitionAudio.FromBytes(audioBytes);
+        await using var bufferedAudio = handle.OpenRead();
+        var audio = new RecognitionAudio
+        {
+            Content = await ByteString.FromStreamAsync(bufferedAudio, cancellationToken).ConfigureAwait(false)
+        };
         var callSettings = CallSettings.FromCancellationToken(cancellationToken);
-
-        IReadOnlyList<SpeechRecognitionResult> results;
-        if (audioBytes.Length < 10 * 1024 * 1024)
-        {
-            var response = await _client.RecognizeAsync(config, audio, callSettings).ConfigureAwait(false);
-            results = response.Results;
-        }
-        else
-        {
-            var operation = await _client.LongRunningRecognizeAsync(config, audio, callSettings).ConfigureAwait(false);
-            var completed = await operation.PollUntilCompletedAsync(callSettings: callSettings).ConfigureAwait(false);
-            results = completed.Result.Results;
-        }
+        var response = await _client.RecognizeAsync(config, audio, callSettings).ConfigureAwait(false);
+        var results = response.Results;
 
         if (results.Count == 0)
         {
@@ -132,6 +139,15 @@ public sealed class GoogleMediaTranscriptionProvider : IMediaTranscriptionProvid
         };
 
         return new MediaTranscriptionResult(segments, language, resultMetadata);
+    }
+
+    private static void EnsureInlineSize(long bytes)
+    {
+        if (bytes > MaximumInlineAudioBytes)
+        {
+            throw new InvalidOperationException(
+                "Google Speech-to-Text inline recognition accepts up to 10 MB and 60 seconds. Longer recordings require Google Cloud Storage batch transcription.");
+        }
     }
 
     private static TimeSpan? ToTimeSpan(Duration? duration)

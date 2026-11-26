@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text.Json;
 
 namespace MarkItDown.Intelligence.Providers.Azure.VideoIndexer;
 
@@ -25,30 +24,13 @@ internal static class AccountTokenProvider
         using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        using var document = JsonDocument.Parse(json);
-        var root = document.RootElement;
-
-        var tokenValue = root.TryGetProperty("accessToken", out var tokenElement)
-            ? tokenElement.GetString()
-            : null;
-
-        DateTimeOffset? expires = null;
-        if (root.TryGetProperty("expirationTime", out var expirationElement))
+        var token = await response.Content.ReadFromJsonAsync<GenerateAccessTokenResponse>(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(token?.AccessToken))
         {
-            var expirationString = expirationElement.GetString();
-            if (!string.IsNullOrWhiteSpace(expirationString) && DateTimeOffset.TryParse(expirationString, out var parsed))
-            {
-                expires = parsed;
-            }
+            throw new InvalidOperationException("Azure Video Indexer did not return an access token.");
         }
 
-        if (string.IsNullOrWhiteSpace(tokenValue))
-        {
-            throw new InvalidOperationException($"Azure Video Indexer did not return an access token. Payload: {json}");
-        }
-
-        return new AccountAccessToken(tokenValue!, expires);
+        return new AccountAccessToken(token.AccessToken, token.ExpirationTime);
     }
 }
 

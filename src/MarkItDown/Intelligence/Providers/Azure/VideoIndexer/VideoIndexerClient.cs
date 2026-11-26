@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net;
 using System.Text;
@@ -8,12 +10,13 @@ using Microsoft.Extensions.Logging;
 
 namespace MarkItDown.Intelligence.Providers.Azure.VideoIndexer;
 
-internal sealed class VideoIndexerClient : IDisposable
+internal sealed partial class VideoIndexerClient : IDisposable
 {
     private const string ProcessingStateUploaded = "Uploaded";
     private const string ProcessingStateProcessing = "Processing";
     private const string ProcessingStateProcessed = "Processed";
     private const string ProcessingStateFailed = "Failed";
+    private const string ProcessingStateQuarantined = "Quarantined";
 
     private readonly AzureMediaIntelligenceOptions options;
     private readonly ArmTokenService armTokenService;
@@ -52,8 +55,8 @@ internal sealed class VideoIndexerClient : IDisposable
             throw new ArgumentException("Azure Video Indexer max processing time must be greater than zero.", nameof(options));
         }
 
-        accountId = options.AccountId;
-        location = options.Location;
+        accountId = RequireRouteSegment(options.AccountId, nameof(options.AccountId));
+        location = RequireRouteSegment(options.Location, nameof(options.Location));
         resourceId = ResolveResourceId(options);
         pollingInterval = options.PollingInterval;
         maxProcessingTime = options.MaxProcessingTime;
@@ -68,7 +71,7 @@ internal sealed class VideoIndexerClient : IDisposable
         }
         else
         {
-            this.httpClient = new HttpClient
+            this.httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
             {
                 BaseAddress = new Uri(VideoIndexerApiConstants.ApiEndpoint)
             };
@@ -109,9 +112,8 @@ internal sealed class VideoIndexerClient : IDisposable
         if (!string.IsNullOrWhiteSpace(sourceVideoUrl))
         {
             logger?.LogDebug(
-                "Using Azure Video Indexer URL upload for account {AccountId}. Source URL: {SourceUrl}",
-                accountId,
-                sourceVideoUrl);
+                "Using Azure Video Indexer URL upload for account {AccountId}.",
+                accountId);
         }
 
         for (var attempt = 0; attempt < 2; attempt++)
@@ -124,7 +126,6 @@ internal sealed class VideoIndexerClient : IDisposable
             var queryValues = new Dictionary<string, string>
             {
                 ["name"] = uploadName,
-                ["accessToken"] = accountToken,
                 ["privacy"] = "private"
             };
 
@@ -135,28 +136,22 @@ internal sealed class VideoIndexerClient : IDisposable
 
             var query = BuildQueryString(queryValues);
 
-            var requestUri = new Uri($"{location}/Accounts/{accountId}/Videos?{query}", UriKind.Relative);
+            var requestUri = new Uri($"{VideosPath}?{query}", UriKind.Relative);
 
             using var response = string.IsNullOrWhiteSpace(sourceVideoUrl)
-                ? await UploadByStreamAsync(requestUri, stream, streamInfo, fileName, cancellationToken).ConfigureAwait(false)
-                : await UploadByUrlAsync(requestUri, cancellationToken).ConfigureAwait(false);
+                ? await UploadByStreamAsync(requestUri, accountToken, stream, streamInfo, fileName, cancellationToken).ConfigureAwait(false)
+                : await SendVideoRequestAsync(HttpMethod.Post, requestUri, accountToken, null, cancellationToken).ConfigureAwait(false);
 
             if (response.StatusCode == HttpStatusCode.Conflict && attempt == 0)
             {
-                var conflictingName = uploadName;
                 uploadName = CreateUploadName(fileName);
                 logger?.LogWarning(
-                    "Azure Video Indexer upload name conflict for account {AccountId}. Retrying with generated name {UploadName} (original: {OriginalName}).",
-                    accountId,
-                    uploadName,
-                    conflictingName);
+                    "Azure Video Indexer upload name conflict for account {AccountId}. Retrying with a generated name.",
+                    accountId);
                 continue;
             }
 
-            response.EnsureSuccessStatusCode();
-
-            await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            using var json = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken).ConfigureAwait(false);
+            using var json = await ReadResponseJsonAsync(response, cancellationToken).ConfigureAwait(false);
             var videoId = json.RootElement.GetProperty("id").GetString();
             if (string.IsNullOrWhiteSpace(videoId))
             {
@@ -169,14 +164,17 @@ internal sealed class VideoIndexerClient : IDisposable
         throw new FileConversionException("Azure Video Indexer upload failed after retrying with a generated upload name.");
     }
 
-    private async Task<HttpResponseMessage> UploadByUrlAsync(Uri requestUri, CancellationToken cancellationToken)
+    private async Task<HttpResponseMessage> SendVideoRequestAsync(
+        HttpMethod method, Uri requestUri, string accountToken, HttpContent? content, CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-        return await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(method, requestUri) { Content = content };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accountToken);
+        return await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<HttpResponseMessage> UploadByStreamAsync(
         Uri requestUri,
+        string accountToken,
         Stream stream,
         StreamInfo streamInfo,
         string fileName,
@@ -185,35 +183,24 @@ internal sealed class VideoIndexerClient : IDisposable
         using var content = new MultipartFormDataContent();
         var streamContent = new StreamContent(new NonDisposingStream(stream));
         streamContent.Headers.ContentType = new MediaTypeHeaderValue(streamInfo.MimeType ?? "application/octet-stream");
-        content.Add(streamContent, "file", fileName);
+        content.Add(streamContent, "fileName", fileName);
 
-        return await httpClient.PostAsync(requestUri, content, cancellationToken).ConfigureAwait(false);
+        return await SendVideoRequestAsync(HttpMethod.Post, requestUri, accountToken, content, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task WaitForProcessingAsync(string videoId, string accountToken, CancellationToken cancellationToken)
     {
-        var statusUri = new Uri($"{location}/Accounts/{accountId}/Videos/{videoId}/Index?{BuildQueryString(new Dictionary<string, string>
-        {
-            ["accessToken"] = accountToken
-        })}", UriKind.Relative);
-
-        var startedAtUtc = DateTimeOffset.UtcNow;
-        string? lastState = null;
-        string? lastProgress = null;
-        string? lastPayload = null;
+        var statusUri = VideoIndexUri(videoId, null);
+        var startedAt = Stopwatch.GetTimestamp();
 
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            using var response = await httpClient.GetAsync(statusUri, cancellationToken).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            lastPayload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            using var json = JsonDocument.Parse(lastPayload);
+            using var json = await ReadVideoJsonAsync(statusUri, accountToken, cancellationToken).ConfigureAwait(false);
             var state = ReadProcessingState(json.RootElement);
             var progress = TryReadProcessingProgress(json.RootElement);
-            lastState = state;
-            lastProgress = progress;
+            var elapsed = Stopwatch.GetElapsedTime(startedAt);
 
             if (string.Equals(state, ProcessingStateProcessed, StringComparison.OrdinalIgnoreCase))
             {
@@ -221,19 +208,19 @@ internal sealed class VideoIndexerClient : IDisposable
                     "Video indexer processing completed for {VideoId} with state {State} in {ElapsedSeconds:F1}s (progress {Progress}).",
                     videoId,
                     state,
-                    (DateTimeOffset.UtcNow - startedAtUtc).TotalSeconds,
+                    elapsed.TotalSeconds,
                     progress ?? "n/a");
                 return;
             }
 
-            if (string.Equals(state, ProcessingStateFailed, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(state, ProcessingStateFailed, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(state, ProcessingStateQuarantined, StringComparison.OrdinalIgnoreCase))
             {
                 logger?.LogError(
-                    "Video indexer processing failed for {VideoId}. State: {State}. Progress: {Progress}. Payload: {Payload}",
+                    "Video indexer processing failed for {VideoId}. State: {State}. Progress: {Progress}.",
                     videoId,
                     state,
-                    progress ?? "n/a",
-                    lastPayload);
+                    progress ?? "n/a");
                 throw new FileConversionException(
                     $"Azure Video Indexer processing failed for video '{videoId}' with state '{state}' and progress '{progress ?? "n/a"}'.");
             }
@@ -242,21 +229,18 @@ internal sealed class VideoIndexerClient : IDisposable
                 !string.Equals(state, ProcessingStateUploaded, StringComparison.OrdinalIgnoreCase))
             {
                 logger?.LogError(
-                    "Video indexer returned unexpected state for {VideoId}: {State}. Progress: {Progress}. Payload: {Payload}",
+                    "Video indexer returned an unsupported state for {VideoId}. Progress: {Progress}.",
                     videoId,
-                    state,
-                    progress ?? "n/a",
-                    lastPayload);
+                    progress ?? "n/a");
                 throw new FileConversionException(
-                    $"Azure Video Indexer returned unexpected processing state '{state}' for video '{videoId}' (progress: '{progress ?? "n/a"}').");
+                    $"Azure Video Indexer returned an unsupported processing state for video '{videoId}'.");
             }
 
-            if (DateTimeOffset.UtcNow - startedAtUtc > maxProcessingTime)
+            if (elapsed > maxProcessingTime)
             {
-                var payloadPreview = TrimPayload(lastPayload);
                 throw new FileConversionException(
                     $"Azure Video Indexer processing timed out for video '{videoId}' after {maxProcessingTime.TotalSeconds:F0}s. " +
-                    $"Last state: '{lastState ?? "unknown"}', progress: '{lastProgress ?? "n/a"}', payload: {payloadPreview}");
+                    $"Last state: '{state}', progress: '{progress ?? "n/a"}'.");
             }
 
             logger?.LogDebug(
@@ -264,22 +248,30 @@ internal sealed class VideoIndexerClient : IDisposable
                 videoId,
                 state,
                 progress ?? "n/a",
-                (DateTimeOffset.UtcNow - startedAtUtc).TotalSeconds);
+                elapsed.TotalSeconds);
             await Task.Delay(pollingInterval, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    public async Task<JsonDocument?> GetVideoIndexAsync(string videoId, string accountToken, string? language, CancellationToken cancellationToken)
+    public Task<JsonDocument> GetVideoIndexAsync(string videoId, string accountToken, string? language, CancellationToken cancellationToken) =>
+        ReadVideoJsonAsync(VideoIndexUri(videoId, language), accountToken, cancellationToken);
+
+    private Uri VideoIndexUri(string videoId, string? language)
     {
-        var query = new Dictionary<string, string>
-        {
-            ["accessToken"] = accountToken,
-            ["language"] = string.IsNullOrWhiteSpace(language) ? "English" : language
-        };
+        var path = $"{VideoPath(videoId)}/Index";
+        return string.IsNullOrWhiteSpace(language)
+            ? new Uri(path, UriKind.Relative)
+            : new Uri($"{path}?language={Uri.EscapeDataString(language)}", UriKind.Relative);
+    }
 
-        var requestUri = new Uri($"{location}/Accounts/{accountId}/Videos/{videoId}/Index?{BuildQueryString(query)}", UriKind.Relative);
+    private async Task<JsonDocument> ReadVideoJsonAsync(Uri requestUri, string accountToken, CancellationToken cancellationToken)
+    {
+        using var response = await SendVideoRequestAsync(HttpMethod.Get, requestUri, accountToken, null, cancellationToken).ConfigureAwait(false);
+        return await ReadResponseJsonAsync(response, cancellationToken).ConfigureAwait(false);
+    }
 
-        using var response = await httpClient.GetAsync(requestUri, cancellationToken).ConfigureAwait(false);
+    private static async Task<JsonDocument> ReadResponseJsonAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -481,8 +473,8 @@ internal sealed class VideoIndexerClient : IDisposable
     {
         if (root.TryGetProperty("processingProgress", out var rootProgress))
         {
-            var value = ReadScalarValue(rootProgress);
-            if (!string.IsNullOrWhiteSpace(value))
+            var value = ReadProgress(rootProgress);
+            if (value is not null)
             {
                 return value;
             }
@@ -495,8 +487,8 @@ internal sealed class VideoIndexerClient : IDisposable
             var firstVideo = videos[0];
             if (firstVideo.TryGetProperty("processingProgress", out var videoProgress))
             {
-                var value = ReadScalarValue(videoProgress);
-                if (!string.IsNullOrWhiteSpace(value))
+                var value = ReadProgress(videoProgress);
+                if (value is not null)
                 {
                     return value;
                 }
@@ -506,32 +498,28 @@ internal sealed class VideoIndexerClient : IDisposable
         return null;
     }
 
-    private static string? ReadScalarValue(JsonElement element)
+    private static string? ReadProgress(JsonElement element)
     {
-        return element.ValueKind switch
+        var text = element.ValueKind switch
         {
             JsonValueKind.String => element.GetString(),
-            JsonValueKind.Number => element.ToString(),
-            JsonValueKind.True => bool.TrueString,
-            JsonValueKind.False => bool.FalseString,
+            JsonValueKind.Number => element.GetRawText(),
             _ => null
         };
+        return int.TryParse(text?.TrimEnd('%'), NumberStyles.None, CultureInfo.InvariantCulture, out var percent) &&
+               percent is >= 0 and <= 100
+            ? percent.ToString(CultureInfo.InvariantCulture) + "%"
+            : null;
     }
 
-    private static string TrimPayload(string? payload)
+    private static string RequireRouteSegment(string value, string parameterName)
     {
-        if (string.IsNullOrWhiteSpace(payload))
+        if (string.IsNullOrWhiteSpace(value) || !value.All(static character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_'))
         {
-            return "<empty>";
+            throw new ArgumentException("Expected a single Azure Video Indexer route identifier.", parameterName);
         }
 
-        var normalized = payload.Replace('\r', ' ').Replace('\n', ' ').Trim();
-        if (normalized.Length <= 512)
-        {
-            return normalized;
-        }
-
-        return normalized[..512] + "...";
+        return value;
     }
 
     private static string CreateUploadName(string fileName)

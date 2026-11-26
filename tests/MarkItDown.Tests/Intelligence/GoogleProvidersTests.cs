@@ -181,6 +181,20 @@ public class GoogleProvidersTests
     }
 
     [Fact]
+    public async Task MediaProvider_RejectsOversizedInlineAudioBeforeCallingGoogle()
+    {
+        var client = new Mock<SpeechClient>(MockBehavior.Strict);
+        var provider = new GoogleMediaTranscriptionProvider(new GoogleMediaIntelligenceOptions(), client.Object);
+        var streamInfo = new StreamInfo(mimeType: "audio/wav", extension: ".wav", fileName: "recording.wav");
+        await using var stream = new MemoryStream(new byte[10_000_001], writable: false);
+
+        await Should.ThrowAsync<InvalidOperationException>(() => provider.TranscribeAsync(stream, streamInfo));
+
+        client.VerifyNoOtherCalls();
+        stream.Position.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task MediaProvider_ReturnsTimedSegments()
     {
         var recognizeResponse = new RecognizeResponse
@@ -216,7 +230,8 @@ public class GoogleProvidersTests
 
         var mockClient = new Mock<SpeechClient>();
         mockClient
-            .Setup(c => c.RecognizeAsync(It.IsAny<RecognitionConfig>(), It.IsAny<RecognitionAudio>(), It.IsAny<CallSettings>()))
+            .Setup(c => c.RecognizeAsync(It.Is<RecognitionConfig>(config => config.EnableWordTimeOffsets),
+                It.Is<RecognitionAudio>(audio => !audio.Content.IsEmpty), It.IsAny<CallSettings>()))
             .ReturnsAsync(recognizeResponse);
 
         var provider = new GoogleMediaTranscriptionProvider(new GoogleMediaIntelligenceOptions
@@ -224,8 +239,9 @@ public class GoogleProvidersTests
             LanguageCode = "en-US"
         }, mockClient.Object);
 
-        await using var stream = new MemoryStream(new byte[] { 1, 2, 3, 4 });
-        var streamInfo = new StreamInfo(mimeType: "audio/wav", extension: ".wav", fileName: "audio.wav");
+        var path = TestAssetLoader.GetAssetPath(TestAssetCatalog.MeetingAudioWav);
+        await using var stream = File.OpenRead(path);
+        var streamInfo = new StreamInfo(mimeType: "audio/wav", extension: ".wav", fileName: Path.GetFileName(path));
 
         var result = await provider.TranscribeAsync(stream, streamInfo, request: null, CancellationToken.None);
 

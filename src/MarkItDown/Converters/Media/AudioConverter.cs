@@ -103,12 +103,10 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
         await using var source = await MaterializeSourceAsync(stream, streamInfo, ResolveDefaultExtension(streamInfo), cancellationToken).ConfigureAwait(false);
         var filePath = source.FilePath;
 
-        var bytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
-
-        var metadata = await metadataExtractor.ExtractAsync(bytes, streamInfo, cancellationToken).ConfigureAwait(false);
-        var transcript = isVideoInput
+        var metadata = await metadataExtractor.ExtractAsync(filePath, cancellationToken).ConfigureAwait(false);
+        var transcript = isVideoInput || mediaRequest is not null || transcriber == NoOpAudioTranscriber.Instance
             ? null
-            : await TryTranscribeAsync(bytes, streamInfo, cancellationToken).ConfigureAwait(false);
+            : await TryTranscribeAsync(filePath, streamInfo, cancellationToken).ConfigureAwait(false);
         var providerTranscript = await TryTranscribeWithProviderAsync(filePath, streamInfo, mediaRequest, cancellationToken).ConfigureAwait(false);
 
         var transcriptText = isVideoInput
@@ -161,8 +159,9 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
         return new DocumentConverterResult(markdown, title, segments, artifacts);
     }
 
-    private async Task<string?> TryTranscribeAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
+    private async Task<string?> TryTranscribeAsync(string filePath, StreamInfo streamInfo, CancellationToken cancellationToken)
     {
+        var audioBytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
         try
         {
             return await transcriber.TranscribeAsync(audioBytes, streamInfo, cancellationToken).ConfigureAwait(false);
@@ -687,7 +686,7 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
 
     internal interface IAudioMetadataExtractor
     {
-        Task<IReadOnlyDictionary<string, string>> ExtractAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken);
+        Task<IReadOnlyDictionary<string, string>> ExtractAsync(string filePath, CancellationToken cancellationToken);
     }
 
     internal interface IAudioTranscriber
@@ -704,14 +703,9 @@ public sealed class AudioConverter : DocumentPipelineConverterBase
             this.exifToolPath = exifToolPath;
         }
 
-        public async Task<IReadOnlyDictionary<string, string>> ExtractAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
-        {
-            var result = await ExifToolMetadataExtractor
-                .ExtractAsync(audioBytes, streamInfo.Extension, exifToolPath, cancellationToken)
+        public async Task<IReadOnlyDictionary<string, string>> ExtractAsync(string filePath, CancellationToken cancellationToken)
+            => await ExifToolMetadataExtractor.ExtractFileAsync(filePath, exifToolPath, cancellationToken)
                 .ConfigureAwait(false);
-
-            return result;
-        }
     }
 
     private static string? NormalizeTrackTitle(string? value)

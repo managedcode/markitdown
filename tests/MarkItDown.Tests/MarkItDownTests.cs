@@ -4,6 +4,7 @@ using MarkItDown.Intelligence;
 using MarkItDown.Intelligence.Models;
 using System.Net;
 using System.Text;
+using Moq;
 
 namespace MarkItDown.Tests;
 
@@ -122,6 +123,54 @@ public class MarkItDownTests
         Assert.Contains(aggregate.InnerExceptions, ex =>
             ex is InvalidOperationException &&
             ex.Message.Contains("Simulated converter failure.", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(MediaTranscriptionProviderKind.Azure)]
+    [InlineData(MediaTranscriptionProviderKind.Google)]
+    [InlineData(MediaTranscriptionProviderKind.Aws)]
+    public async Task ConvertAsync_WhenNamedMediaProviderIsMissing_DoesNotCallDefaultProvider(MediaTranscriptionProviderKind requestedProvider)
+    {
+        var defaultProvider = new Mock<IMediaTranscriptionProvider>(MockBehavior.Strict);
+        var client = new MarkItDownClient(new MarkItDownOptions { MediaTranscriptionProvider = defaultProvider.Object });
+        var request = ConversionRequest.FromConfiguration(builder =>
+            builder.UseMediaTranscription(new MediaTranscriptionRequest(requestedProvider, "en-US")));
+        var path = TestAssetLoader.GetAssetPath(TestAssetCatalog.MeetingAudioWav);
+
+        await Assert.ThrowsAsync<FileConversionException>(() => client.ConvertAsync(path, request));
+
+        defaultProvider.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task ConvertAsync_WhenMediaProviderIsExplicit_UsesOnlyThatProviderAndItsTiming()
+    {
+        var fallbackCalls = 0;
+        var provider = new Mock<IMediaTranscriptionProvider>(MockBehavior.Strict);
+        provider.Setup(item => item.TranscribeAsync(It.IsAny<Stream>(), It.IsAny<StreamInfo>(),
+                It.IsAny<MediaTranscriptionRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MediaTranscriptionResult(
+                [new MediaTranscriptSegment("Searchable answer.", TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(9))]));
+        var client = new MarkItDownClient(new MarkItDownOptions
+        {
+            MediaTranscriptionProvider = provider.Object,
+            AudioTranscriber = (_, _, _) =>
+            {
+                Interlocked.Increment(ref fallbackCalls);
+                return Task.FromResult<string?>("Unexpected fallback.");
+            }
+        });
+        var request = ConversionRequest.FromConfiguration(builder =>
+            builder.UseMediaTranscription(new MediaTranscriptionRequest(MediaTranscriptionProviderKind.Custom, "en-US")));
+        var path = TestAssetLoader.GetAssetPath(TestAssetCatalog.MeetingAudioWav);
+
+        var conversion = await client.ConvertAsync(path, request);
+
+        var segment = Assert.Single(conversion.Segments, item => item.Type == SegmentType.Audio);
+        Assert.Equal("Searchable answer.", segment.Markdown);
+        Assert.Equal(TimeSpan.FromSeconds(6), segment.StartTime);
+        Assert.Equal(TimeSpan.FromSeconds(9), segment.EndTime);
+        Assert.Equal(0, fallbackCalls);
     }
 
     [Fact]

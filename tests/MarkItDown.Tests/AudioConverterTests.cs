@@ -121,7 +121,7 @@ public class AudioConverterTests
             this.metadata = metadata;
         }
 
-        public Task<IReadOnlyDictionary<string, string>> ExtractAsync(byte[] audioBytes, StreamInfo streamInfo, CancellationToken cancellationToken)
+        public Task<IReadOnlyDictionary<string, string>> ExtractAsync(string filePath, CancellationToken cancellationToken)
         {
             return Task.FromResult(metadata);
         }
